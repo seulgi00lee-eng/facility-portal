@@ -846,6 +846,15 @@ var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["rep
 // ===== 계정/세션 =====
 var CURRENT_USER=null; // {login_id, role, region, name, gwan_code}
 var DOMAIN="@flowedu.local";
+// login_id → Auth 이메일 (한글 등 비ASCII를 hex로 안전 변환; 영문/숫자/._-는 유지)
+function toAuthEmail(loginId){
+  var local=String(loginId||'').split('').map(function(ch){
+    if(/[A-Za-z0-9._\-]/.test(ch))return ch;
+    // 비ASCII → 유니코드 코드포인트 hex (x붙여 구분)
+    return 'x'+ch.charCodeAt(0).toString(16);
+  }).join('');
+  return local+DOMAIN;
+}
 
 function gateMode(m){
   document.getElementById('seg-login').classList.toggle('on',m==='login');
@@ -889,17 +898,19 @@ function doLogin(){
   var pw=document.getElementById('li_pw').value||'';
   if(!id||!pw){gateMsg('아이디와 비밀번호를 입력하세요.','err');return;}
   if(!SB_READY){gateMsg('서버에 연결되어 있지 않습니다.','err');return;}
-  sb.auth.signInWithPassword({email:id+DOMAIN,password:pw}).then(function(res){
+  sb.auth.signInWithPassword({email:toAuthEmail(id),password:pw}).then(function(res){
     if(res.error){gateMsg('로그인 실패: 아이디·비밀번호를 확인하세요. (승인 전이면 로그인할 수 없습니다)','err');return;}
-    afterLogin();
+    afterLogin(id);
   });
 }
-function afterLogin(){
+function afterLogin(knownLoginId){
   if(!SB_READY){enterApp();return;}
   sb.auth.getUser().then(function(u){
     var email=(u&&u.data&&u.data.user&&u.data.user.email)||'';
-    var loginId=email.replace(DOMAIN,'');
-    sb.from('fac_accounts').select('*').eq('login_id',loginId).limit(1).then(function(res){
+    // 로그인 직후엔 입력 아이디를, 세션복구 시엔 auth_uid로 계정을 찾는다
+    var authUid=(u&&u.data&&u.data.user&&u.data.user.id)||'';
+    var q=knownLoginId?sb.from('fac_accounts').select('*').eq('login_id',knownLoginId).limit(1):sb.from('fac_accounts').select('*').eq('auth_uid',authUid).limit(1);
+    q.then(function(res){
       var acc=(res.data&&res.data[0])||null;
       if(!acc){gateMsg('계정 정보를 찾을 수 없습니다.','err');return;}
       if(acc.status!=='active'){gateMsg('아직 승인되지 않은 계정입니다.','err');sb.auth.signOut();return;}
