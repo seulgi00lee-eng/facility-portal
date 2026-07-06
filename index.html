@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>캠퍼스 시설지원 포털</title>
+<style>
+  :root{--ink:#1d1d1f;--ink2:#1d1d1f;--mute:#86868b;--mute2:#86868b;--line:#e8e8ed;--line2:#f0f0f2;--bg:#f5f5f7;--blue:#0071e3;--bluebg:#eef1f8;--ok:#248a3d;--okbg:#eaf7ee;--okln:#c4e8cf;--warn:#b06f00;--warnbg:#fff6e6;--warnln:#f3e2bd;--dng:#c72c22;--dngbg:#fdeeed;--dngln:#f5cfcb;--shadow:0 1px 3px rgba(0,0,0,.06);--shadow-h:0 8px 24px rgba(0,0,0,.10);--r:18px;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.2px;}
+  .wrap{max-width:1040px;margin:0 auto;background:var(--bg);min-height:100vh;}
+  .hd{padding:26px 32px 0;background:#fff;}
+  .hd h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.4px;}
+  .hd p{font-size:13.5px;color:var(--mute);margin:4px 0 0;}
+  .tabs{display:flex;gap:24px;margin-top:20px;background:#fff;}
+  .tn{border:none;background:none;padding:0 0 14px;cursor:pointer;font-family:inherit;color:var(--mute);font-size:14px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:opacity .15s;}
+  .tn.on{color:var(--ink);border-bottom-color:var(--ink);}
+  .tn:hover{opacity:.55;}
+  .hr{height:1px;background:var(--line);}
+  .view{padding:28px 32px;min-height:440px;}
+  .secttl{font-size:13px;color:var(--mute2);font-weight:600;letter-spacing:-.2px;margin:0 0 14px;}
+  .hint{font-size:12px;color:var(--mute2);line-height:1.5;}
+  .home-row{border:none;border-radius:var(--r);padding:18px 20px;cursor:pointer;display:flex;align-items:center;gap:13px;margin-bottom:10px;max-width:820px;background:#fff;box-shadow:var(--shadow);transition:opacity .15s;}
+  .home-row:hover{opacity:.55;}
+  .home-row .tt{font-size:14px;font-weight:600;}
+  .home-row .ts{font-size:12px;color:var(--mute2);margin-top:2px;}
+  .home-row .arr{margin-left:auto;color:#c5c5c8;font-size:16px;}
+  .notice{border:none;border-radius:16px;padding:16px 20px;margin-bottom:26px;font-size:13.5px;color:var(--ink);background:#fff;box-shadow:var(--shadow);max-width:820px;display:flex;align-items:center;gap:12px;font-weight:500;}
+  .notice::before{content:"";width:8px;height:8px;border-radius:50%;background:#ff3b30;flex:0 0 auto;}
+  .gitem{border:2px solid transparent;border-radius:14px;padding:16px 16px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:500;color:var(--ink2);text-align:center;background:#fff;box-shadow:var(--shadow);transition:opacity .15s,border-color .15s;letter-spacing:-.2px;}
+  .gitem:hover{opacity:.55;}
+  .gitem.on{border-color:var(--blue);color:var(--blue);opacity:1;}
+  .grid-g{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:720px;}
+  .panel{border:none;border-radius:var(--r);margin-top:18px;overflow:hidden;max-width:720px;background:#fff;box-shadow:var(--shadow);}
+  .ph{padding:18px 22px;font-size:17px;font-weight:600;border-bottom:1px solid var(--line2);background:#fff;letter-spacing:-.3px;}
+  .pb{padding:18px 22px;}
+  .step{padding:12px 0;border-bottom:1px solid var(--line2);}
+  .step:last-child{border-bottom:none;}
+  .lab{font-size:12px;font-weight:600;color:var(--blue);letter-spacing:-.1px;margin-bottom:7px;}
+  .stx{font-size:14.5px;line-height:1.6;color:var(--ink2);letter-spacing:-.2px;}
+  .vend{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:2px 9px;font-size:12px;color:#5a5a5e;margin-top:7px;}
+  .subtab{display:inline-flex;background:#eef0f2;border-radius:11px;padding:3px;margin-bottom:22px;gap:2px;}
+  .stb{border:none;background:none;padding:9px 20px;font-size:13.5px;font-weight:500;color:var(--mute);cursor:pointer;font-family:inherit;border-radius:8px;transition:opacity .15s;}
+  
+  .stb.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .grid-i{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;max-width:760px;}
+  .item{border:2px solid transparent;border-radius:14px;padding:16px 10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--ink2);text-align:center;background:#fff;box-shadow:var(--shadow);transition:opacity .15s,border-color .15s;}
+  .item:hover{opacity:.55;}
+  .item.on{border-color:var(--blue);color:var(--blue);opacity:1;}
+  .lbl{font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:7px;display:flex;align-items:center;gap:6px;}
+  .num{display:inline-flex;width:18px;height:18px;border-radius:6px;background:var(--bluebg);color:var(--blue);font-size:10.5px;align-items:center;justify-content:center;font-weight:600;}
+  .fb{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 18px;font-size:13.5px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit;transition:opacity .15s;}
+  .fb.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .fbtns{display:flex;gap:8px;margin-bottom:13px;flex-wrap:wrap;}
+  input,select,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink);box-sizing:border-box;letter-spacing:-.2px;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,113,227,.12);}
+  .pill{display:inline-block;border:1px solid var(--line);background:var(--bg);color:var(--mute);font-size:11.5px;padding:3px 11px;border-radius:5px;font-weight:500;}
+  .submit{background:var(--blue);color:#fff;border:none;border-radius:12px;padding:13px 22px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;letter-spacing:-.2px;}
+  .submit:hover{opacity:.8;}
+  .submit:active{opacity:.65;}
+  .dd{margin-bottom:13px;}
+  .ddh{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:11px;padding:12px 14px;cursor:pointer;background:#fff;transition:opacity .15s;}
+  .ddh.has{border-color:var(--blue);}
+  .ddh .left{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);min-width:0;}
+  .cur.sel{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cur.ph{color:#a5a5a8;}
+  .chev{color:#b5b5b8;font-size:12px;}.dd.open .chev{transform:rotate(180deg);}
+  .ddbody{display:none;border:1px solid var(--line);border-top:none;border-radius:0 0 6px 6px;margin-top:-1px;padding:8px;flex-wrap:wrap;gap:6px;}
+  .dd.open .ddbody{display:flex;}
+  .optb{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 13px;font-size:12.5px;cursor:pointer;color:var(--ink2);font-family:inherit;transition:opacity .15s;}
+  .optb.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .row2{display:flex;gap:12px;}.row2>div{flex:1;}
+  .fld{margin-bottom:13px;}
+  .statusbox{border:none;border-radius:var(--r);padding:18px 20px;background:#fff;box-shadow:var(--shadow);}
+  .sbi{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line2);font-size:12.5px;gap:12px;}
+  .sbi:last-of-type{border-bottom:none;}
+  .sbi .k{color:#7a7a7e;flex:0 0 auto;}
+  .v-wait{color:var(--mute2);font-size:12px;}
+  .v-set{color:var(--ink);font-size:12px;font-weight:500;text-align:right;}
+  .v-done{color:var(--ok);font-size:12px;font-weight:600;}
+  .twocol{display:grid;grid-template-columns:1.2fr 1fr;gap:26px;align-items:start;}
+  .card{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden;}
+  .ch{padding:12px 15px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--line2);}
+  .ch .title{font-size:13px;font-weight:600;}
+  .ch .rid{font-size:11px;color:#a5a5a8;margin-top:2px;}
+  .badge{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:500;border:1px solid var(--line);}
+  .b-wait{color:var(--mute);background:#f0f0f2;}.b-prog{color:var(--warn);background:var(--warnbg);border-color:var(--warnln);}.b-done{color:var(--ok);background:var(--okbg);border-color:var(--okln);}
+  .ttag{font-size:10.5px;padding:1px 8px;border-radius:4px;font-weight:500;margin-right:7px;border:1px solid var(--line);color:#7a7a7e;background:var(--bg);}
+  .cbody{padding:6px 15px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 22px;}
+  .filt{display:flex;gap:6px;margin-bottom:16px;}
+  .flt{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 13px;font-size:12.5px;font-weight:500;color:var(--mute);cursor:pointer;font-family:inherit;}
+  .flt.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .ecode{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit;transition:opacity .15s;}
+  .ecode:hover{opacity:.6;}.ecode.on{background:var(--blue);color:#fff;border-color:var(--blue);opacity:1;}
+  .infogrid{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;}
+  @media(max-width:760px){.wrap{max-width:100%;border:none}.twocol,.infogrid{grid-template-columns:1fr}.grid-g,.grid-i{grid-template-columns:1fr 1fr}.cbody{grid-template-columns:1fr}.view,.hd{padding-left:18px;padding-right:18px}.tn{padding:9px 11px}}
+
+  .ovl{position:fixed;inset:0;background:rgba(20,20,22,.42);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .ovl.show{display:flex;}
+  .modal{background:#fff;border:none;border-radius:20px;max-width:440px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.22);}
+  .mh{padding:16px 20px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600;}
+  .mb{padding:16px 20px;}
+  .mrow{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--line2);font-size:13px;}
+  .mrow:last-child{border-bottom:none;}
+  .mrow .mk{color:#8a8a8e;flex:0 0 38%;}
+  .mrow .mv{color:var(--ink);font-weight:500;text-align:right;word-break:break-word;}
+  .mq{font-size:14px;font-weight:600;text-align:center;margin:16px 0 4px;}
+  .mf{display:flex;gap:10px;padding:14px 20px 18px;}
+  .mbtn{flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--line);transition:opacity .15s;}
+  .mbtn.no{background:#fff;color:var(--ink2);}
+  .mbtn.yes{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .gate{max-width:360px;}
+  .done-ic{width:46px;height:46px;border-radius:50%;background:var(--okbg);border:1px solid var(--okln);color:var(--ok);display:flex;align-items:center;justify-content:center;font-size:22px;margin:4px auto 10px;}
+
+  .home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:820px;}
+  .hcard{border:none;border-radius:var(--r);padding:22px 20px;cursor:pointer;text-align:left;background:#fff;box-shadow:var(--shadow);transition:opacity .15s;display:flex;flex-direction:column;gap:0;font-family:inherit;}
+  .hcard:hover{opacity:.55;}
+  .hcard:active{opacity:.4;}
+  .hcard .hnum{font-size:11px;color:var(--blue);font-weight:600;margin-bottom:12px;letter-spacing:0;}
+  .hcard .htt{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:5px;line-height:1.35;letter-spacing:-.3px;}
+  .hcard .hts{font-size:13px;color:var(--mute2);line-height:1.5;}
+  @media(max-width:760px){.home-grid{grid-template-columns:1fr 1fr;}}
+  @media(max-width:480px){.home-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd"><h1>캠퍼스 시설지원 포털</h1><p>고장·견적·접수를 현장에서 바로 해결</p><div class="tabs" id="tabs"></div></div>
+  <div class="hr"></div>
+  <div class="view" id="view"></div>
+</div>
+<div class="ovl" id="ovl"><div class="modal" id="modal"></div></div>
+<script>
+var GUIDE={
+  led:{t:"전등·조명",req:"전등 및 조명",detail:"[전등·조명] 안 켜짐/깜빡임 증상. 스위치 확인으로 해결 안 됨.",s:[[1,"안 켜지거나 일부만 안 들어오면, 스위치를 껐다 켜며 다시 확인하고 다른 등은 들어오는지 같이 확인하세요. 깜빡임·어두움은 육안 확인만 하세요.",""],[2,"감전 위험 + 천장 높은 곳 작업이라 등·안정기·전선 교체는 직접 하지 마세요.",""],[3,"스위치 확인으로 안 되면 호실·등 개수를 적어 접수. 등 교체 또는 안정기·컨버터 교체가 필요합니다. (예상 비용 약 5만원, 등 개수·천장 높이에 따라 증가 / VAT 별도·참고용)","노르웨이숲"]]},
+  beam:{t:"빔프로젝터",req:"프로젝트빔",detail:"[빔프로젝터] 화면 안 나옴/흐림/전원 이상. 케이블·전원 재시도로 해결 안 됨.",s:[[1,"전원 안 들어옴: 코드·멀티탭 정상인지, 대기등(LED) 켜지는지 확인하고 전원 버튼을 길게 눌러 재시도. 화면 안 나옴(No Signal): HDMI 양쪽을 단단히 다시 연결하고 입력 소스를 맞게 변경. 흐림·색상 이상: 렌즈를 안경닦이로 부드럽게 닦고 초점 링 조정.",""],[2,"통풍구가 막혔는지 확인하고 주변 공간을 확보하세요. 램프가 폭발했다면 즉시 전원을 끄고 만지지 마세요.",""],[3,"위 조치로 안 되면 접수. 램프 수명(3,000~5,000시간) 도달 시 램프 교체(호환형 약 25만원+출장·공임), 보드·팬·DMD는 점검 후 견적, 신규 설치는 약 80만원. (VAT 별도·참고용)","더좋은미디어"]]},
+  aircon:{t:"에어컨·난방",req:"냉난방기",code:true,detail:"[에어컨·난방] 이상 증상. 차단기 리셋으로 해결 안 됨.",s:[[1,"건물 차단기를 내렸다 올려 재시동하세요. 실외기 전원플러그·차단기(두꺼비집)가 내려갔는지 확인하세요. 통신·일시 오류는 전원 초기화로 해결되는 경우가 많습니다.",""],[3,"건물·호실 적어 접수. 탄내·타는 냄새, E400번대 코드는 만지지 말고 즉시 접수.","금호에어컨"]]},
+  door:{t:"문·시건",req:"이외 유지보수",detail:"[문·시건] 문고리/도어클로저/잠금/창문 이상.",s:[[1,"도어클로저(문 닫힘 속도): 본체 끝 조절나사를 드라이버로 1/4바퀴씩 돌려 조정(손 닿는 높이일 때만). 문고리: 나사 풀림이면 조여보기. 잠금장치는 보안 문제라 직접 조치 없이 접수.",""],[2,"기름이 새는 도어클로저는 수리 불가라 본체 교체가 필요합니다. 창문 끝이 날카롭게 휘었으면 그 구역 사용을 주의하세요.",""],[3,"안 되면 어느 문/창인지 사진·위치 적어 접수. (도어클로저 교체 약 22만원, 문 종류에 따라 차이 / 문고리·잠금·창틀은 현장 확인 후 견적 / VAT 별도·참고용)","노르웨이숲"]]},
+  leak:{t:"누수·악취",req:"이외 유지보수",detail:"[누수] 천장/바닥/화장실 누수 발생.",s:[[1,"천장 누수: 물 받을 통을 받치고 아래 전기·콘센트가 있으면 사용을 중지하세요. 화장실·세면대·변기: 어디서 새는지 확인하고 바닥에 물 고이면 미끄럼 주의.",""],[2,"스프링클러에서 물이 떨어지면 소방설비이므로 절대 손대지 말고 즉시 긴급 접수하세요.",""],[3,"위치·물 양을 사진으로 접수. 배관·방수 점검 및 보수가 필요합니다. 전용부는 본사 접수, 공용부(복도·외부화장실)는 관리사무소 먼저. (현장 확인 후 견적)",""]]},
+  cctv:{t:"CCTV",req:"CCTV",detail:"[CCTV] 화면 깨짐/꺼짐/서버 이상.",s:[[2,"복도·데스크는 캡스(정상). 강의실 내부는 사설 CCTV로 문제 잦음.",""],[3,"위치·증상 적어 접수. 설정값 필요해 본사 확인 필요.",""]]},
+  fix:{t:"벽지·타일·마감",req:"이외 유지보수",detail:"[벽지·타일·마감] 들뜸/파손/낙하.",s:[[1,"벽지 들뜸·떨어짐: 떨어진 조각은 치워 통행에 지장 없게. 타일 들뜸·파손: 깨진 조각이 날카로우면 그 구역 사용 주의. 어느 벽·범위인지 사진으로 접수.",""],[2,"천장 타일·합판이 떨어지면 낙하 위험이 있으니 아래 통행을 주의하고 즉시 접수하세요(안전상 우선).",""],[3,"위치·크기를 사진과 함께 접수. 벽지·타일 보수 또는 재시공이 필요합니다. (범위에 따라 차이 — 현장 확인 후 견적)","노르웨이숲"]]},
+  power:{t:"콘센트·전기",req:"소방 및 전기",detail:"[콘센트·전기] 콘센트/전기/탄내·스파크.",s:[[1,"콘센트 전원 안 들어옴: 다른 콘센트를 임시로 사용하고 해당 위치를 사진으로 접수. 콘센트 빠짐·이탈: 감전·합선 위험이니 사용을 중지하세요.",""],[2,"탄내·스파크는 즉시 사용을 중지하고 긴급 접수하세요. 전기·감전 위험 부분은 절대 직접 손대지 마세요.",""],[3,"증상·위치를 사진으로 접수. 콘센트·배선 점검 및 교체가 필요합니다. 탄내·스파크는 긴급 처리. (현장 확인 후 견적)",""]]},
+  etc:{t:"기타",req:"이외 유지보수",detail:"[기타] ",s:[[1,"증상을 한 줄로 적고 사진 한 장. 위험하면 만지지 말고 즉시 접수.",""],[3,"캠퍼스·건물·호실·증상·사진 넣으면 총무기획팀이 분류합니다.",""]]}
+};
+var ECODE={
+  "E101":{n:"실내기↔실외기 통신 불량 (가장 흔함)",g:"ok",fix:"전원 초기화. 차단기를 내렸다 올리거나, 실외기 전원플러그·통신선 연결을 확인하세요."},
+  "C101":{n:"실내기↔실외기 통신 불량",g:"ok",fix:"전원 초기화(차단기 OFF→ON). 실외기 전원·통신선 확인."},
+  "E201":{n:"실외기 통신 에러 / 연결 대수 불일치",g:"ok",fix:"전원 초기화 후 재확인. 반복되면 접수."},
+  "EA":{n:"실외기 통신 에러 (천장형 다발)",g:"ok",fix:"대부분 전원 초기화로 해결. 차단기 리셋."},
+  "ER":{n:"실외기 통신 에러",g:"ok",fix:"전원 초기화. 반복되면 접수."},
+  "EA01":{n:"실외기 통신 에러",g:"ok",fix:"전원 초기화. 반복되면 접수."},
+  "E161":{n:"실외기 인버터 에러(통신 계열, 천장형 다발)",g:"ok",fix:"전원 초기화로 해결되는 경우 많음. 안 되면 접수."},
+  "E102":{n:"실내기 디스플레이(수신부) 통신 에러",g:"warn",fix:"전원 초기화 후 확인. 안 되면 접수."},
+  "E108":{n:"실외기 주소(ID) 중복 설정",g:"warn",fix:"설정 문제라 본사 접수 필요(설치업체 조치)."},
+  "E121":{n:"실내 온도/배관 센서 이상",g:"warn",fix:"전원 초기화 후 확인. 센서 문제면 접수."},
+  "E122":{n:"실외기 주파수/센서 에러",g:"warn",fix:"전원 초기화. 안 되면 접수."},
+  "E154":{n:"실외기 과전류 에러",g:"danger",fix:"전류 관련 위험 신호. 자가 조치하지 말고 즉시 접수."},
+  "E163":{n:"실외기 과전압 에러",g:"danger",fix:"전압 관련 위험. 즉시 접수."},
+  "E440":{n:"실외기 과전류 에러",g:"danger",fix:"즉시 접수(자가 조치 금지)."},
+  "E441":{n:"실외기 과전압 에러",g:"danger",fix:"즉시 접수(자가 조치 금지)."},
+  "E458":{n:"실외기 컴프레서 에러",g:"danger",fix:"컴프레서 고장 신호. 즉시 접수."},
+  "E461":{n:"실외기 컴프레서 에러",g:"danger",fix:"즉시 접수. 자가 조치 불가."},
+  "E153":{n:"배수(드레인) 계통 이상 — 배수펌프 불량·드레인 막힘·플로트 스위치(수위감지) 이상. 운전 정지됨.",g:"warn",fix:"① 차단기를 내렸다 1~2분 후 올려 초기화. ② (지원 모델) 리모컨을 실내기로 향해 '확인+바람세기 ▽'를 4초 이상 길게 눌러 스마트 리셋. ③ 실내기 물받이에 물이 고였으면 제거 후 재가동. 안 되면 접수(부품 공급 문제로 삼성서비스센터 점검 필요할 수 있음, 예상 15~17.5만원+VAT)."},
+  "E551":{n:"실내기 센서 에러",g:"warn",fix:"전원 초기화 후 확인. 안 되면 접수."}
+};
+var ECQUICK=["E101","E161","EA","E153","E154","E458"];
+var VAT=0.1;
+function won(n){return n.toLocaleString()+'원';}
+var SYM=[
+  {label:"전원 켜면 날개에서 물이 흐름",kw:["누수","물","날개","흐","펌프"],
+   cause:"배수펌프 고장. 기름연기·땀 등 공기 중 이물질로 배수펌프가 막히면 물을 배출하지 못합니다. (전원 끄면 멈추는 게 특징)",
+   act:"차단기 리셋 후에도 재발하면 접수. 부품 공급 문제로 삼성서비스센터 점검이 필요할 수 있습니다.",
+   cost:{type:"fixed",base:159000,label:"배수펌프 교체"},vendor:"금호시스템 (삼성서비스센터 연계)",g:"warn"},
+  {label:"에어컨에서 물이 새어나옴 (역류)",kw:["역류","배관","샘","새"],
+   cause:"배수 배관이 이물질로 막혀 물이 역류하는 경우입니다.",
+   act:"접수하면 배관 이물질 세척으로 해결됩니다.",
+   cost:{type:"fixed",base:110000,label:"배관 세척"},vendor:"금호시스템",g:"warn"},
+  {label:"시원한 바람이 안 나옴",kw:["찬바람","시원","냉방","안나","바람","냉매"],
+   cause:"① 캠퍼스 내 에어컨 운전모드가 제각각인 경우(자동·냉방·난방이 섞이면 안 됨) ② 냉매 누설로 찬바람이 약해진 경우.",
+   act:"① 먼저 캠퍼스 모든 에어컨을 같은 모드(냉방)로 통일해 보세요(무상). ② 그래도 안 되면 냉매 누설일 수 있어 접수.",
+   cost:{type:"either",options:[{label:"운전모드 통일",base:0},{label:"냉매 누설 확인·충전",min:1000000,max:4000000},{label:"실내기 교체",base:2000000}]},vendor:"금호시스템",g:"warn"}
+];
+function costHTML(c){
+  if(c.type==="fixed"){var v=Math.round(c.base*(1+VAT));return '<div style="font-size:13px;color:var(--ink2)"><b>예상 견적</b><br>'+c.label+' · '+won(c.base)+' + VAT → <b>약 '+won(v)+'</b> (VAT 포함)</div>';}
+  if(c.type==="either"){var h='<div style="font-size:13px;color:var(--ink2)"><b>예상 견적</b> (원인에 따라 다름)<div style="margin-top:6px;display:flex;flex-direction:column;gap:5px">';
+    c.options.forEach(function(o){var line;if(o.base===0)line=o.label+' · 무상(현장 조치)';else if(o.min)line=o.label+' · '+won(o.min)+'~'+won(o.max)+' + VAT → <b>약 '+won(Math.round(o.min*(1+VAT)))+'~'+won(Math.round(o.max*(1+VAT)))+'</b>';else line=o.label+' · '+won(o.base)+' + VAT → <b>약 '+won(Math.round(o.base*(1+VAT)))+'</b>';h+='<div style="border:1px solid var(--line);border-radius:5px;padding:7px 10px;font-size:12.5px">'+line+'</div>';});
+    h+='</div></div>';return h;}
+  return '';
+}
+var META={
+  biz:{n:1,t:"사업부",multi:true,o:["초등사업부","중등사업부","고등사업부","사스사업부","테디"]},
+  brand:{n:2,t:"브랜드",multi:true,o:["수아","더블랙","초등사스","중등사스","고등사스","테디"]},
+  campus:{n:3,t:"캠퍼스",multi:false,o:["수내","이매","정자","수지","광교","영통","잠실"]},
+  building:{n:4,t:"건물명",multi:false,o:["수내동빌딩","다운타운빌딩","정민빌딩","한화빌딩","금강프라자","백궁프라자","정자역프라자","시그마타워","비즈마루빌딩","영일빌딩","성보빌딩","미래빌딩","화강빌딩","광교SK뷰레이크타워","광교효성해링턴타워","국제프라자","보보스프라자","규영빌딩"]},
+  floor:{n:5,t:"층수",multi:true,o:[],dep:"건물 선택 후 표시 (추후 연동)"},
+  reqtype:{n:"",t:"요청구분",multi:false,o:["전등 및 조명","프로젝트빔","냉난방기","CCTV","소방 및 전기","이외 유지보수","구매요청","렌탈자산"]},
+  penqty:{n:"",t:"수량(봉지)",multi:false,o:["1","2","3","4","5"]}
+};
+var FLOORS={},STATE={};
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+var PREFILL_REQ=null,PREFILL_DETAIL=null,VOICE_TYPE='일반 건의';
+var TIERS=[[1600,170000,"~1600"],[2100,220000,"1700~2100"],[2900,300000,"2500~2900"],[3100,320000,"2900~3100"],[3600,360000,"3100~3600"],[4000,390000,"3600~4000"],[4800,500000,"4000~4800"],[5400,550000,"4800~5400"]];
+var BUY=[{k:"beam",t:"프로젝트빔"},{k:"autoscreen",t:"자동 스크린"},{k:"manualscreen",t:"수동 스크린"},{k:"podium",t:"강의대"},{k:"board",t:"칠판"},{k:"tdesk",t:"선생님 책상"},{k:"tchair",t:"선생님 의자"},{k:"ptable",t:"원장실 테이블"},{k:"pchair",t:"원장실 의자"},{k:"stool",t:"상담용 스툴"},{k:"sdesk",t:"학생책상(단품)",grade:true},{k:"schair",t:"학생의자(단품)"},{k:"sset",t:"학생 책/걸상(SET)",grade:true}];
+var RENT=[{k:"mfp",t:"복합기",opt:["선택안함","중철"]},{k:"inkjet",t:"잉크젯"},{k:"laptop",t:"노트북"},{k:"monitor",t:"모니터"},{k:"desktop",t:"데스크탑"}];
+var SAMPLE=[
+  {type:"fix",tt:"유지보수",rid:"MN-2026-0042",title:"광교SK뷰레이크 6층 · 전등 깜빡임",when:"06.20",applicant:"김지원",campus:"광교",building:"광교SK뷰레이크타워",req:"전등 및 조명",st:"prog",plan:"2026-06-26",prog:"업체 점검 완료, 6/26 교체 예정",done:"진행중"},
+  {type:"buy",tt:"구매",rid:"PO-2026-0017",title:"수지 미래빌딩 · 학생 책/걸상(SET) 고등용 ×20",when:"06.19",applicant:"박서연",campus:"수지",building:"미래빌딩",req:"구매요청",st:"prog",plan:"2026-06-27",prog:"견적 확정, 발주 진행",done:"진행중"},
+  {type:"rent",tt:"렌탈",rid:"RT-2026-0008",title:"이매 정민빌딩 · 복합기(중철) 1대",when:"06.17",applicant:"이수민",campus:"이매",building:"정민빌딩",req:"렌탈자산",st:"done",plan:"2026-06-20",prog:"설치 완료",done:"완료"},
+  {type:"buy",tt:"구매",rid:"PO-2026-0021",title:"잠실 · 프로젝트빔 2대",when:"06.23",applicant:"정민호",campus:"잠실",building:"",req:"프로젝트빔",st:"wait",plan:"-",prog:"-",done:"-"},
+  {type:"pen",tt:"볼펜",rid:"PEN-2026-0005",title:"정자 정자역프라자 · 설명회용 볼펜 신청",when:"06.22",applicant:"최유진",campus:"정자",building:"정자역프라자",req:"설명회용 볼펜 신청",st:"done",plan:"2026-06-24",prog:"전달 완료",done:"완료"},
+  {type:"voice",vtype:"일반 건의",tt:"건의",rid:"VC-2026-0003",title:"광교 SK뷰레이크 · 휴게실 정수기 추가 건의",when:"06.21",applicant:"김지원",campus:"광교",building:"광교SK뷰레이크타워",req:"건의사항",st:"prog",plan:"-",prog:"-",done:"-",content:"강사 휴게실 이용 인원이 늘어 정수기 1대로는 대기가 깁니다. 1대 추가 검토 부탁드립니다.",reply:"검토 중입니다. 렌탈 견적 확인 후 6월 내 회신드리겠습니다."},
+  {type:"voice",vtype:"AI 해결 요청",tt:"AI건의",rid:"VC-2026-0004",title:"수지 미래빌딩 · 월별 강의실 가동률 집계 자동화 요청",when:"06.23",applicant:"박서연",campus:"수지",building:"미래빌딩",req:"건의사항",st:"prog",plan:"-",prog:"-",done:"-",content:"매달 강의실 사용 현황을 손으로 집계하는데 반나절 이상 걸립니다. AI로 자동 집계가 가능할지 검토 부탁드립니다.",reply:"-"}
+];
+
+function hcard(v,n,t,s){return '<button class="hcard" onclick="nav(\''+v+'\')"><div class="hnum">'+n+'</div><div class="htt">'+t+'</div><div class="hts">'+s+'</div></button>';}
+function homeHTML(){
+  return '<div class="notice">탄내·누수·날카로운 파손·전기 관련은 만지지 말고 즉시 접수하세요.</div>'
+  +'<div class="secttl">현장에서 바로</div><div class="home-grid" style="margin-bottom:22px">'
+    +hcard("guide","01","1차 대응","에어컨·전등·빔 등 현장에서 먼저 해볼 것")
+    +hcard("report","02","유지보수 접수","1차로 해결 안 될 때 본사에 접수")
+    +hcard("quote","03","견적 신청","구매·렌탈 품목별 예상 금액")
+  +'</div>'
+  +'<div class="secttl">신청·소통</div><div class="home-grid" style="margin-bottom:22px">'
+    +hcard("pen","04","설명회용 볼펜 신청","설명회용 볼펜을 신청합니다")
+    +hcard("voice","05","건의사항 (신문고)","불편·개선·AI 해결 요청")
+    +hcard("mylist","06","내 접수내역 조회","구매·렌탈·유지보수 한곳에서")
+  +'</div>'
+  +'<div class="secttl">자료·안내</div><div class="home-grid">'
+    +hcard("docs","07","자료실","보험증권·교육청 양식·매뉴얼")
+    +hcard("info","08","안내","비용 기준·자금집행·기안")
+  +'</div>';
+}
+
+function guideHTML(){var c=Object.keys(GUIDE).map(function(k){return '<button class="gitem" data-k="'+k+'">'+GUIDE[k].t+'</button>';}).join("");return '<div class="secttl">증상 선택</div><div class="grid-g">'+c+'</div><div class="hint" style="margin-top:10px">※ 예상 비용은 이전 조치 내역 기반 <b>참고용</b>이며 부가세 미포함입니다. 실제 금액은 현장 상황·업체 견적에 따라 달라집니다. 사다리·높은 곳 작업이거나 전기·감전 위험이 있으면 무리하지 말고 바로 접수하세요.</div><div id="gp" style="margin-top:16px"></div>';}
+function renderG(k){var d=GUIDE[k];var h='<div class="panel"><div class="ph">'+d.t+'</div><div style="padding:2px 16px 12px">';
+  d.s.forEach(function(st){var c=st[0]===1?'① 현장에서 먼저':st[0]===2?'② 증상 확인':'③ 본사 접수';h+='<div class="step"><div class="lab">'+c+'</div><div class="stx">'+st[1]+'</div>'+(st[2]?'<div class="vend">담당 · '+st[2]+'</div>':'')+'</div>';
+    if(st[0]===1 && d.code){h+=codeBox();}});
+  h+='<div style="padding:14px 0 4px"><button class="submit" onclick="goReport(\''+k+'\')">이 건으로 접수하기 →</button><div class="hint" style="margin-top:7px">1차 대응으로 해결되지 않으면, 버튼을 누르면 요청구분이 자동 선택된 접수 화면으로 넘어갑니다.</div></div>';
+  h+='</div></div>';document.getElementById('gp').innerHTML=h;if(d.code)bindCode();}
+function goReport(k){PREFILL_REQ=(GUIDE[k]&&GUIDE[k].req)||null;PREFILL_DETAIL=(GUIDE[k]&&GUIDE[k].detail)||null;render('report');}
+function codeBox(){var q=ECQUICK.map(function(c){return '<button class="ecode" data-c="'+c+'">'+c+'</button>';}).join('');
+  var symc=SYM.map(function(sm,i){return '<button class="ecode symchip" data-i="'+i+'">'+sm.label+'</button>';}).join('');
+  return '<div class="step"><div class="lab">에러코드 조회</div><div class="stx" style="margin-bottom:8px">화면에 코드가 보이면 입력하거나 선택하세요 (예: E101)</div>'
+    +'<input id="ecin" placeholder="코드 입력 후 자동 조회" style="max-width:320px;margin-bottom:8px">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+q+'</div><div id="ecout" style="margin-top:10px"></div></div>'
+    +'<div class="step"><div class="lab">증상 조회 (코드가 안 보일 때)</div><div class="stx" style="margin-bottom:8px">증상을 선택하거나 키워드를 입력하세요 (예: 누수, 물, 찬바람). 예상 견적도 함께 표시됩니다.</div>'
+    +'<input id="symin" placeholder="증상 키워드 입력" style="max-width:320px;margin-bottom:8px">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+symc+'</div><div id="symout" style="margin-top:10px"></div></div>';}
+function bindCode(){var inp=document.getElementById('ecin');if(inp)inp.addEventListener('input',ecLookup);
+  document.querySelectorAll('.ecode:not(.symchip)').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.ecode:not(.symchip)').forEach(function(x){x.classList.remove('on');});b.classList.add('on');document.getElementById('ecin').value=b.dataset.c;ecLookup();});});
+  var sinp=document.getElementById('symin');if(sinp)sinp.addEventListener('input',symLookup);
+  document.querySelectorAll('.symchip').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.symchip').forEach(function(x){x.classList.remove('on');});b.classList.add('on');document.getElementById('symin').value='';symShow(SYM[Number(b.dataset.i)]);});});}
+function symLookup(){var q=document.getElementById('symin').value.trim();var out=document.getElementById('symout');if(!q){out.innerHTML='';return;}
+  var hit=null;for(var i=0;i<SYM.length;i++){if(SYM[i].label.indexOf(q)>-1||SYM[i].kw.some(function(k){return q.indexOf(k)>-1;})){hit=SYM[i];break;}}
+  if(hit)symShow(hit);else out.innerHTML='<div style="border:1px solid var(--line);border-radius:7px;padding:12px;font-size:13px;color:#6a6a6e;line-height:1.6">해당 증상을 못 찾았습니다. 차단기 리셋을 먼저 해보고, 안 되면 증상을 적어 접수하세요. (탄내·연기 시 즉시 접수)</div>';}
+function symShow(s){var c=s.g==='danger'?['var(--dngln)','var(--dngbg)','var(--dng)']:['var(--warnln)','var(--warnbg)','var(--warn)'];
+  document.getElementById('symout').innerHTML='<div style="border:1px solid '+c[0]+';background:'+c[1]+';border-radius:8px;padding:14px 16px"><div style="font-size:14px;font-weight:700;margin-bottom:10px">'+s.label+'</div><div style="font-size:13px;color:var(--ink2);margin-bottom:9px"><b>원인</b><br>'+s.cause+'</div><div style="font-size:13px;color:var(--ink2);margin-bottom:9px"><b>1차 조치 / 해결</b><br>'+s.act+'</div><div style="margin-bottom:9px">'+costHTML(s.cost)+'</div><div style="display:inline-block;border:1px solid '+c[0]+';border-radius:5px;padding:2px 9px;font-size:12px;color:'+c[2]+'">담당 · '+s.vendor+'</div><div style="font-size:11px;color:var(--mute2);margin-top:9px">※ 참고용 추정치입니다. 실제 금액은 현장 점검 후 확정됩니다.</div></div>';}
+function ecLookup(){var raw=document.getElementById('ecin').value.trim().toUpperCase().replace(/\s/g,'');var out=document.getElementById('ecout');if(!raw){out.innerHTML='';return;}
+  var hit=ECODE[raw];
+  if(!hit){out.innerHTML='<div style="border:1px solid var(--line);border-radius:7px;padding:12px;font-size:13px;color:#6a6a6e;line-height:1.6">목록에 없는 코드입니다. 차단기 리셋을 먼저 시도한 뒤, 해결되지 않으면 접수하세요. (탄내·연기 시 즉시 접수)</div>';return;}
+  var c=hit.g==='danger'?['var(--dngln)','var(--dngbg)','var(--dng)','즉시 접수']:hit.g==='warn'?['var(--warnln)','var(--warnbg)','var(--warn)','주의']:['var(--okln)','var(--okbg)','var(--ok)','자가 조치 가능'];
+  out.innerHTML='<div style="border:1px solid '+c[0]+';background:'+c[1]+';border-radius:7px;padding:13px 15px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:15px;font-weight:700">'+raw+'</span><span style="font-size:11px;font-weight:600;color:'+c[2]+';border:1px solid '+c[0]+';border-radius:5px;padding:2px 8px">'+c[3]+'</span></div><div style="font-size:13px;color:var(--ink2);margin-bottom:8px"><b>무엇이 문제인가</b><br>'+hit.n+'</div><div style="font-size:13px;color:var(--ink2)"><b>1차 조치</b><br>'+hit.fix+'</div></div>';}
+
+function quoteHTML(){return '<div class="subtab"><button class="stb on" data-s="buy">구매 신청</button><button class="stb" data-s="rent">렌탈 신청</button></div><div id="qsub"></div>';}
+function bindQuote(){function showSub(s){var box=document.getElementById('qsub');var list=s==='buy'?BUY:RENT;var g='<div class="secttl">'+(s==='buy'?'구매 품목 선택':'렌탈 품목 선택')+'</div><div class="grid-i">';g+=list.map(function(it){return '<button class="item" data-k="'+it.k+'">'+it.t+'</button>';}).join('');g+='</div><div id="ipanel"></div>';box.innerHTML=g;box.querySelectorAll('.item').forEach(function(b){b.addEventListener('click',function(){box.querySelectorAll('.item').forEach(function(x){x.classList.remove('on');});b.classList.add('on');openItem(s,b.dataset.k);});});document.querySelectorAll('.stb').forEach(function(b){b.classList.toggle('on',b.dataset.s===s);});}
+  document.querySelectorAll('.stb').forEach(function(b){b.addEventListener('click',function(){showSub(b.dataset.s);});});showSub('buy');}
+function openItem(s,k){var p=document.getElementById('ipanel');if(s==='buy'&&k==='board'){p.innerHTML=boardPanel();bindBoard();return;}
+  var m=(s==='buy'?BUY:RENT).find(function(x){return x.k===k;});var extra='';
+  if(m.grade)extra='<div class="lbl">사용 구분</div><div class="fbtns" id="grade"><button class="fb" data-v="초중등용">초·중등용</button><button class="fb" data-v="고등용">고등용</button></div>';
+  if(m.opt)extra='<div class="lbl">옵션 선택</div><div class="fbtns" id="opt">'+m.opt.map(function(o){return '<button class="fb" data-v="'+o+'">'+o+'</button>';}).join('')+'</div>';
+  p.innerHTML='<div class="panel"><div class="ph">'+m.t+'</div><div class="pb">'+extra+'<div class="lbl" style="margin-top:11px">수량</div><input type="number" value="1" min="1" style="max-width:150px"><div style="margin-top:13px"><span class="pill">단가표 준비 중</span></div><div class="hint" style="margin-top:10px">이 품목은 현재 예상 단가가 없어 신청으로 접수되며, 총무기획팀이 견적을 확인해 회신합니다.</div><button class="submit" style="margin-top:14px" onclick="submitItem(\''+(s==='buy'?'구매':'렌탈')+'\',\''+m.t+'\',collectOpts())">'+(s==='buy'?'구매':'렌탈')+' 신청하기</button></div></div>';
+  var gb=document.getElementById('grade');if(gb)gb.querySelectorAll('.fb').forEach(function(b){b.addEventListener('click',function(){gb.querySelectorAll('.fb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');});});
+  var o=document.getElementById('opt');if(o)o.querySelectorAll('.fb').forEach(function(b){b.addEventListener('click',function(){o.querySelectorAll('.fb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');});});}
+function boardPanel(){return '<div class="panel"><div class="ph">칠판 — 예상 견적</div><div class="pb"><div class="hint" style="margin-bottom:11px">칠판 가로(mm)·수량을 넣으면 예상 금액(VAT 포함)이 바로 나옵니다.</div><div style="display:flex;gap:12px;max-width:400px"><div style="flex:1.4"><div class="lbl">칠판 가로(mm)</div><input id="w" type="number" placeholder="예: 3000"></div><div style="flex:.7"><div class="lbl">수량</div><input id="q" type="number" value="1" min="1"></div></div><div class="hint" id="seg" style="min-height:16px;margin:9px 0;color:#5a5a5e"></div><div style="border:1px solid var(--line);border-radius:7px;padding:13px 16px;display:flex;justify-content:space-between;align-items:baseline;max-width:400px"><span style="font-size:13px;color:#7a7a7e">예상 합계 (VAT 포함)</span><span id="grand" style="font-size:20px;font-weight:600">0 원</span></div><div class="hint" style="margin-top:9px">과거 견적·납품 단가 기반 참고용 추정치. 실제 금액은 업체 견적 후 확정(설치비 별도).</div><button class="submit" style="margin-top:14px" onclick="submitBoard()">구매 신청하기</button></div></div>';}
+function bindBoard(){function tier(w){for(var i=0;i<TIERS.length;i++){if(w<=TIERS[i][0])return TIERS[i];}return null;}function val(id){return document.getElementById(id).value;}function calc(){var w=Number(val('w')),q=Math.max(1,Number(val('q'))||1);var seg=document.getElementById('seg');var s=0;if(w>0){var t=tier(w);if(t){s=t[1]*q;seg.textContent='구간 '+t[2]+' · '+t[1].toLocaleString()+'원/개 × '+q+'개';}else seg.textContent='5400mm 초과 — 별도 견적';}else seg.textContent='';document.getElementById('grand').textContent=Math.round(s*1.1).toLocaleString()+' 원';}['w','q'].forEach(function(id){document.getElementById(id).addEventListener('input',calc);});}
+
+function buildDD(k){var m=META[k],box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;STATE[k]=m.multi?[]:null;var opts=m.o.length?m.o.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join(''):'<div class="hint" style="padding:4px 2px">'+(m.dep||'')+'</div>';box.innerHTML='<div class="ddh"><span class="left">'+(m.n?'<span class="num">'+m.n+'</span>':'')+m.t+(m.multi?' <span class="hint" style="font-size:11px">다중</span>':'')+' <span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts+'</div>';box.querySelector('.ddh').addEventListener('click',function(){box.classList.toggle('open');});box.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){if(m.multi){b.classList.toggle('on');STATE[k]=[].slice.call(box.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});}else{box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');STATE[k]=b.dataset.v;box.classList.remove('open');if(k==='campus'||k==='building')lsSet('fac_'+k,b.dataset.v);if(k==='building')refreshFloor();}paint(k);});});}
+function paint(k){var box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;var cur=box.querySelector('.cur'),head=box.querySelector('.ddh'),v=STATE[k],has=META[k].multi?(v&&v.length):!!v;head.classList.toggle('has',!!has);if(!has){cur.className='cur ph';cur.textContent='선택';}else{cur.className='cur sel';cur.textContent=META[k].multi?(v.length<=2?v.join(', '):v[0]+' 외 '+(v.length-1)):v;}}
+function refreshFloor(){var box=document.querySelector('.dd[data-k="floor"]');if(!box)return;var body=box.querySelector('.ddbody'),b=STATE.building,list=FLOORS[b];STATE.floor=[];body.innerHTML=(list&&list.length)?list.map(function(f){return '<button type="button" class="optb" data-v="'+f+'">'+f+'</button>';}).join(''):'<div class="hint" style="padding:4px 2px">'+(b||'건물')+' 층 정보는 추후 연동됩니다</div>';body.querySelectorAll('.optb').forEach(function(bt){bt.addEventListener('click',function(){bt.classList.toggle('on');STATE.floor=[].slice.call(body.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});paint('floor');});});paint('floor');}
+
+function penHTML(){return '<div style="max-width:560px"><div class="secttl">설명회용 볼펜 신청</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="pdate"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="papplicant" placeholder="이름"></div></div><div class="fld"><div class="lbl"><span class="num">8</span>방문 예정 일자 <span class="hint" style="font-size:11px;font-weight:400">(설명회 방문 예정일, YYYY-MM-DD)</span></div><input type="date" id="pvisit"></div><div class="fld"><div class="lbl"><span class="num">9</span>수량 <span class="hint" style="font-size:11px;font-weight:400">(1봉지 = 200자루)</span></div><div style="display:flex;align-items:center;gap:10px"><div class="dd" data-k="penqty" style="margin-bottom:0;flex:1;max-width:200px"></div><span class="hint" id="penqtynote" style="font-size:12px">봉지 단위로 신청</span></div></div><button class="submit" style="width:100%" onclick="submitPen()">볼펜 신청하기</button><div class="hint" style="margin-top:9px;line-height:1.55">신청 후 처리 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.</div></div>';}
+function bindPen(){Object.keys(META).forEach(buildDD);document.getElementById('pdate').value=new Date().toISOString().slice(0,10);
+  ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);if(k==='building')refreshFloor();}}}});
+  var pq=document.querySelector('.dd[data-k="penqty"]');if(pq){pq.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.dataset.v)||0;var note=document.getElementById('penqtynote');if(note)note.textContent=n?('= '+(n*200).toLocaleString()+'자루'):'봉지 단위로 신청';});});}}
+function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
+  +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
+function bindReport(){Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
+  // 방문 중 기억: 저장된 캠퍼스/건물 복원
+  ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);if(k==='building')refreshFloor();}}}});
+  // 증상에서 넘어온 경우: 요청구분 자동선택
+  if(PREFILL_REQ){var rbox=document.querySelector('.dd[data-k="reqtype"]');if(rbox){var rbtn=[].slice.call(rbox.querySelectorAll('.optb')).find(function(x){return x.dataset.v===PREFILL_REQ;});if(rbtn){rbtn.classList.add('on');STATE.reqtype=PREFILL_REQ;paint('reqtype');}}PREFILL_REQ=null;}
+  // 증상 상세 자동 채우기
+  if(PREFILL_DETAIL){var ta=document.getElementById('detail');if(ta){ta.value=PREFILL_DETAIL;ta.focus();var L=ta.value.length;try{ta.setSelectionRange(L,L);}catch(e){}}PREFILL_DETAIL=null;}
+  var rb=document.querySelector('.dd[data-k="reqtype"]');if(rb)rb.scrollIntoView({behavior:'smooth',block:'center'});}
+
+function mylistHTML(){
+  var campusOpts='<option value="">캠퍼스 전체</option>'+META.campus.o.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');
+  var bldOpts='<option value="">건물 전체</option>'+META.building.o.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');
+  var reqOpts='<option value="">요청구분 전체</option>'+META.reqtype.o.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');
+  return '<div class="filt"><button class="flt on" data-f="all">전체</button><button class="flt" data-f="fix">유지보수</button><button class="flt" data-f="buy">구매</button><button class="flt" data-f="rent">렌탈</button><button class="flt" data-f="pen">볼펜</button><button class="flt" data-f="voice">건의</button></div>'
+  +'<div style="border:1px solid var(--line);border-radius:8px;padding:14px 15px;margin-bottom:14px;max-width:680px"><div class="lbl" style="margin-bottom:9px">접수 정보로 조회 <span class="hint" style="font-weight:400">— 이름을 몰라도 캠퍼스·건물·요청구분으로 이미 접수된 건을 확인해 이중 접수를 막을 수 있습니다.</span></div>'
+  +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px"><select id="q_campus" onchange="applyQuery()">'+campusOpts+'</select><select id="q_building" onchange="applyQuery()">'+bldOpts+'</select><select id="q_req" onchange="applyQuery()">'+reqOpts+'</select></div>'
+  +'<div style="display:flex;gap:9px"><input type="text" id="q_name" placeholder="신청자 이름 (선택)" style="flex:1" oninput="applyQuery()"><button class="flt" onclick="resetQuery()">초기화</button></div></div>'
+  +'<div class="hint" id="ml_count" style="margin-bottom:12px"></div><div id="mlcards"></div>';
+}
+var ML_TYPE='all';
+function applyQuery(){renderCards(ML_TYPE);}
+function resetQuery(){var ids=['q_campus','q_building','q_req','q_name'];ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});renderCards(ML_TYPE);}
+function qv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
+  var qc=qv('q_campus'),qb=qv('q_building'),qr=qv('q_req'),qn=qv('q_name');
+  var rows=SAMPLE.filter(function(r){
+    if(!(f==='all'||r.type===f))return false;
+    if(qc&&r.campus!==qc)return false;
+    if(qb&&r.building!==qb)return false;
+    if(qr&&r.req!==qr)return false;
+    if(qn&&(r.applicant||'').indexOf(qn)===-1)return false;
+    return true;
+  });
+  var cnt=document.getElementById('ml_count');if(cnt){var anyq=qc||qb||qr||qn;cnt.innerHTML=anyq?('조회 결과 <b>'+rows.length+'건</b>'+(rows.length?' — 이미 접수된 건이 있는지 확인하세요.':' — 동일 조건의 접수 내역이 없습니다. 새로 접수하셔도 됩니다.')):'예시입니다. 총무기획팀이 상태를 바꾸면 여기에 반영되고 알림이 갑니다.';}
+  if(!rows.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">해당 조건의 접수 내역이 없습니다.</div>';return;}
+  box.innerHTML=rows.map(function(r){var bd=r.st==='done'?['b-done','답변 완료']:r.st==='prog'?['b-prog','확인 중']:['b-wait','접수 대기'];
+  if(r.type==='voice'){
+    var rep=(r.reply&&r.reply!=='-')?'<div style="background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;font-size:12.5px;line-height:1.6"><b style="color:var(--ink2)">총무기획팀 답변</b><br>'+r.reply+'</div>':'<div class="hint">총무기획팀 답변 대기 중</div>';
+    var vt=(r.vtype==='AI 해결 요청')?'<span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span>':'<span class="ttag">건의</span>';
+    return '<div class="card"><div class="ch"><div><div class="title">'+vt+r.title+'</div><div class="rid">'+r.rid+' · 작성 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div><div style="padding:8px 15px 13px"><div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:9px">'+(r.content||'')+'</div>'+rep+'</div></div>';
+  }
+  var bd2=r.st==='done'?['b-done','완료']:r.st==='prog'?['b-prog','진행중']:['b-wait','접수 대기'];var planV=r.plan==='-'?'<span class="v-wait">총무기획팀 확인 후</span>':'<span class="'+(r.st==='wait'?'v-wait':'v-set')+'">'+r.plan+'</span>';var progV=r.prog==='-'?'<span class="v-wait">접수 대기</span>':'<span class="v-set">'+r.prog+'</span>';var doneV=r.done==='완료'?'<span class="v-done">완료</span>':r.done==='진행중'?'<span class="v-set">진행중</span>':'<span class="v-wait">대기</span>';return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd2[0]+'">'+bd2[1]+'</span></div><div class="cbody"><div class="sbi"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi"><span class="k">진행사항</span>'+progV+'</div><div class="sbi"><span class="k">완료여부</span>'+doneV+'</div></div></div>';}).join('');}
+function bindMylist(){document.querySelectorAll('.flt').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.flt').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderCards(b.dataset.f);});});renderCards('all');}
+
+function voiceHTML(){return '<div style="max-width:560px"><div class="secttl">건의사항 (신문고)</div><div class="hint" style="margin-bottom:14px;line-height:1.55">현장의 불편, 개선 아이디어, 요청 등을 자유롭게 남겨주세요. 총무기획팀이 확인 후 답변드립니다. 처리 상황과 답변은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.</div>'
+  +'<div class="fld"><div class="lbl">건의 유형</div><div class="fbtns" id="vtype"><button class="fb on" data-v="일반 건의">일반 건의</button><button class="fb" data-v="AI 해결 요청">AI로 해결 요청</button></div><div class="hint" id="vtypenote" style="margin-top:-4px;margin-bottom:6px">현장의 불편·개선·요청을 남깁니다.</div></div>'
+  +'<div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div>'
+  +'<div class="row2"><div class="fld"><div class="lbl">작성일자</div><input type="date" id="vdate"></div><div class="fld"><div class="lbl">작성자</div><input type="text" id="vapplicant" placeholder="이름"></div></div>'
+  +'<div class="fld"><div class="lbl">제목</div><input type="text" id="vtitle" placeholder="건의 제목을 한 줄로"></div>'
+  +'<div class="fld"><div class="lbl">건의 내용</div><textarea id="vcontent" rows="5" placeholder="불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요"></textarea></div>'
+  +'<button class="submit" style="width:100%" onclick="submitVoice()">건의사항 제출</button></div>';}
+function bindVoice(){['campus','building'].forEach(buildDD);document.getElementById('vdate').value=new Date().toISOString().slice(0,10);
+  ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);}}}});
+  VOICE_TYPE='일반 건의';
+  var vt=document.getElementById('vtype');if(vt){vt.querySelectorAll('.fb').forEach(function(b){b.addEventListener('click',function(){vt.querySelectorAll('.fb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');VOICE_TYPE=b.dataset.v;var note=document.getElementById('vtypenote');var ta=document.getElementById('vcontent');var tt=document.getElementById('vtitle');
+    if(VOICE_TYPE==='AI 해결 요청'){if(note)note.innerHTML='반복되는 수작업, 시간이 오래 걸리는 업무 등 <b>AI로 자동화·해결</b>했으면 하는 일을 남겨주세요. 총무기획팀이 검토합니다.';if(ta)ta.placeholder='어떤 업무가 불편한지, 무엇을 자동화하고 싶은지 구체적으로 적어주세요 (예: 매달 OO 집계를 손으로 하는데 시간이 오래 걸립니다)';if(tt)tt.placeholder='AI로 해결하고 싶은 업무를 한 줄로';}
+    else{if(note)note.textContent='현장의 불편·개선·요청을 남깁니다.';if(ta)ta.placeholder='불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요';if(tt)tt.placeholder='건의 제목을 한 줄로';}
+  });});}}
+function submitVoice(){
+  var rows=[['건의 유형',VOICE_TYPE],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['작성일자',fieldVal('vdate')],['작성자',fieldVal('vapplicant')],['제목',fieldVal('vtitle')],['건의 내용',fieldVal('vcontent')]];
+  var msg=(VOICE_TYPE==='AI 해결 요청')?'총무기획팀이 AI로 해결 가능한지 검토 후 답변드립니다. 답변은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·알림 연결은 추후)':'총무기획팀이 확인 후 답변드립니다. 답변은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·알림 연결은 추후)';
+  confirmSubmit('건의사항 제출 확인', rows, function(){submitDone(msg);});
+}
+var DOCS=[
+  {cat:"보험증권",name:"2026년 통합 보험증권",file:"2026_보험증권.pdf",updated:"2026-01-05",note:"전 캠퍼스 공통 · 매년 갱신"},
+  {cat:"교육청 양식",name:"학원 설립·운영 등록 신청서",file:"학원설립운영등록신청서.hwp",updated:"2026-03-10",note:"교육청 제출용"},
+  {cat:"교육청 양식",name:"교습소 설립·운영 신고서",file:"교습소설립운영신고서.hwp",updated:"2026-03-10",note:"교육청 제출용"},
+  {cat:"교육청 양식",name:"원비(교습비) 변경 통보서",file:"교습비변경통보서.hwp",updated:"2026-02-20",note:"교육청 제출용"},
+  {cat:"교육청 양식",name:"강사 채용 신고서",file:"강사채용신고서.hwp",updated:"2026-02-20",note:"교육청 제출용"},
+  {cat:"매뉴얼",name:"유지보수 민원 응대 가이드",file:"유지보수_민원_응대_가이드.pdf",updated:"2026-06-30",note:"1차 대응 기준"},
+  {cat:"매뉴얼",name:"에어컨 에러코드 안내",file:"에어컨_에러코드.pdf",updated:"2026-06-28",note:""}
+];
+var DOC_CATS=["전체","보험증권","교육청 양식","매뉴얼"];
+var DOC_FILTER="전체";
+function docsHTML(){
+  var tabs=DOC_CATS.map(function(c){return '<button class="flt'+(c===DOC_FILTER?' on':'')+'" data-c="'+c+'">'+c+'</button>';}).join('');
+  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:14px;line-height:1.55">본사가 올린 최신 자료를 다운로드하는 곳입니다. 보험증권은 매년 갱신되며, 항상 최신본만 여기에 표시됩니다. (파일 업로드는 총무기획팀 권한)</div>'
+    +'<div class="filt" style="margin-bottom:16px">'+tabs+'</div><div id="docs_list"></div>';
+}
+function renderDocs(){
+  var box=document.getElementById('docs_list');
+  var rows=DOCS.filter(function(d){return DOC_FILTER==='전체'||d.cat===DOC_FILTER;});
+  if(!rows.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">해당 자료가 없습니다.</div>';return;}
+  box.innerHTML=rows.map(function(d){
+    return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+d.cat+'</span>'+d.name+'</div><div class="rid">'+d.file+' · 갱신 '+d.updated+(d.note?(' · '+d.note):'')+'</div></div><button class="flt" onclick="alert(\'다운로드 — 파일 저장 연결 시 활성화됩니다 (Supabase Storage)\')">다운로드</button></div></div>';
+  }).join('');
+}
+function bindDocs(){document.querySelectorAll('.filt .flt').forEach(function(b){b.addEventListener('click',function(){DOC_FILTER=b.dataset.c;document.querySelectorAll('.filt .flt').forEach(function(x){x.classList.toggle('on',x.dataset.c===DOC_FILTER);});renderDocs();});});renderDocs();}
+function infoHTML(){return '<div class="infogrid"><div><div class="secttl">비용 처리 기준</div><div style="border:1px solid var(--line);border-radius:8px;overflow:hidden"><div style="display:flex;border-bottom:1px solid var(--line)"><div style="width:110px;background:var(--bg);padding:11px;font-size:13px;font-weight:600">10만원 이하</div><div style="flex:1;padding:11px;font-size:13px">학원 자체 — 법인카드 결제 후 기안 상신</div></div><div style="display:flex"><div style="width:110px;background:var(--bg);padding:11px;font-size:13px;font-weight:600">10만원 초과</div><div style="flex:1;padding:11px;font-size:13px">총무기획팀이 직접 진행 (접수)</div></div></div><div class="hint" style="margin-top:12px;line-height:1.6">유지보수 비용은 학원 순수익에 반영됩니다. 진행 전 원장님과 비용 협의가 필요하며, 한 층에 두 관이 있으면 분담 협의가 필요합니다.</div></div>'
+  +'<div><div class="secttl">자금집행 / 기안</div><div style="font-size:13px;line-height:1.9;background:var(--bg);border-radius:8px;padding:14px 16px;border:1px solid var(--line)">· 정기 자금집행일 — <b>10일 · 25일 · 월말</b><br>· 집행일 <b>최소 2일 전</b> 상신 권장<br>· 본사 비용 [기안] / 관 비용 [관코드][지결]<br>· <b style="color:var(--dng)">[지결] 누락 시 대금 집행 누락</b> 주의</div></div></div>';}
+
+
+function openModal(html){document.getElementById('modal').innerHTML=html;document.getElementById('ovl').classList.add('show');}
+function closeModal(){document.getElementById('ovl').classList.remove('show');}
+function esc(v){return (v==null?'':String(v));}
+// 요약 확인 모달: rows=[[label,value],...], title, onYes()
+window.__yes=null;
+function confirmSubmit(title, rows, onYes){
+  var body=rows.filter(function(r){return r[1]!==undefined&&r[1]!==null&&r[1]!=='';}).map(function(r){return '<div class="mrow"><span class="mk">'+r[0]+'</span><span class="mv">'+esc(r[1])+'</span></div>';}).join('');
+  window.__yes=onYes;
+  openModal('<div class="mh">'+title+'</div><div class="mb">'+body+'<div class="mq">위 건으로 접수하시겠습니까?</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" onclick="(window.__yes&&window.__yes());">예</button></div>');
+}
+function submitDone(msg){
+  openModal('<div class="mb" style="text-align:center;padding-top:22px"><div class="done-ic">✓</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">접수되었습니다</div><div class="hint" style="font-size:12.5px;line-height:1.5">'+msg+'</div></div><div class="mf"><button class="mbtn yes" onclick="closeModal()">확인</button></div>');
+}
+// 드롭다운 다중/단일 값 읽기
+function selVal(k){var v=STATE[k];if(v==null)return '';return Array.isArray(v)?v.join(', '):v;}
+function fieldVal(id){var el=document.getElementById(id);return el?el.value:'';}
+
+// 유지보수 접수 제출
+function submitReport(){
+  var rows=[['사업부',selVal('biz')],['브랜드',selVal('brand')],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['층수',selVal('floor')],['신청일자',fieldVal('date')],['신청자',fieldVal('applicant')],['연락처',fieldVal('phone')],['내선번호',fieldVal('ext')],['요청구분',selVal('reqtype')],['현상·상세',fieldVal('detail')],['발생 위치',fieldVal('loc')]];
+  confirmSubmit('유지보수 접수 확인', rows, function(){submitDone('총무기획팀이 확인 후 처리예정일·진행사항을 등록하면 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·알림 연결은 추후)');});
+}
+// 볼펜 신청 제출
+function submitPen(){
+  var qty=STATE.penqty?(STATE.penqty+'봉지 ('+(Number(STATE.penqty)*200).toLocaleString()+'자루)'):'';
+  var rows=[['사업부',selVal('biz')],['브랜드',selVal('brand')],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['층수',selVal('floor')],['신청일자',fieldVal('pdate')],['신청자',fieldVal('papplicant')],['방문 예정일',fieldVal('pvisit')],['수량',qty]];
+  confirmSubmit('설명회용 볼펜 신청 확인', rows, function(){submitDone('신청 후 처리 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·알림 연결은 추후)');});
+}
+// 구매/렌탈 신청 제출
+function submitItem(kind, name, opts){
+  var rows=[['구분',kind],['품목',name]].concat(opts||[]);
+  var qty=document.getElementById('qty');if(qty)rows.push(['수량',qty.value]);
+  confirmSubmit(kind+' 신청 확인', rows, function(){submitDone('총무기획팀이 견적을 확인해 회신합니다. 진행 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·연결은 추후)');});
+}
+function collectOpts(){var out=[];var g=document.getElementById('grade');if(g){var gon=g.querySelector('.fb.on');if(gon)out.push(['사용 구분',gon.dataset.v]);}var o=document.getElementById('opt');if(o){var oon=o.querySelector('.fb.on');if(oon)out.push(['옵션',oon.dataset.v]);}return out;}
+function submitBoard(){
+  var rows=[['구분','구매'],['품목','칠판'],['가로(mm)',fieldVal('w')],['수량',fieldVal('q')],['예상 합계',document.getElementById('grand')?document.getElementById('grand').textContent:'']];
+  confirmSubmit('칠판 구매 신청 확인', rows, function(){submitDone('총무기획팀이 견적을 확인해 회신합니다. (저장·연결은 추후)');});
+}
+
+
+var ADMIN_OK=false;
+var ADMIN_PIN="0000"; // 임시 비번 (편의 구분용). 실제 잠금은 Supabase 로그인 단계에서.
+function adminHTML(){
+  if(!ADMIN_OK){
+    return '<div class="gate" style="max-width:360px;margin:30px auto 0"><div class="secttl">총무기획팀 전용</div><div style="border:1px solid var(--line);border-radius:10px;padding:18px"><div style="font-size:13px;color:var(--ink2);margin-bottom:12px;line-height:1.6">처리예정일·진행사항·완료여부 입력은 <b>총무기획팀 권한</b>입니다. 비밀번호를 입력하세요.</div><input id="pin" type="password" placeholder="비밀번호" style="margin-bottom:10px" onkeydown="if(event.key===\'Enter\')tryPin()"><button class="submit" style="width:100%" onclick="tryPin()">확인</button><div class="hint" style="margin-top:10px;line-height:1.5">※ 지금은 편의용 구분입니다. 실제 권한 잠금(로그인·서버 검증)은 Supabase 연결 단계에서 적용됩니다.</div></div></div>';
+  }
+  var rows=SAMPLE.map(function(r,i){
+    var bd=r.st==='done'?['b-done',r.type==='voice'?'답변 완료':'완료']:r.st==='prog'?['b-prog',r.type==='voice'?'확인 중':'진행중']:['b-wait','접수 대기'];
+    var head='<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div>';
+    if(r.type==='voice'){
+      var vtb=(r.vtype==='AI 해결 요청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span></div>':'';
+      return head+'<div style="padding:12px 15px">'+vtb+'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:11px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px">'+(r.content||'')+'</div><div class="lbl">총무기획팀 답변</div><textarea data-i="'+i+'" data-f="reply" rows="3" placeholder="답변을 입력 (등록 시 작성자에게 알림)">'+(r.reply&&r.reply!=='-'?r.reply:'')+'</textarea></div>'
+        +'<div style="padding:0 15px 14px"><button class="submit" onclick="saveVoice('+i+')">답변 등록 · 작성자에게 알림</button></div></div>';
+    }
+    return head
+      +'<div style="padding:12px 15px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      +'<div><div class="lbl">11 · 처리예정일</div><input type="date" data-i="'+i+'" data-f="plan" value="'+(r.plan==='-'?'':r.plan)+'"></div>'
+      +'<div><div class="lbl">13 · 완료여부</div><div class="dd adstat" data-i="'+i+'"></div></div>'
+      +'<div style="grid-column:1/3"><div class="lbl">12 · 진행사항</div><input type="text" data-i="'+i+'" data-f="prog" value="'+(r.prog==='-'?'':r.prog)+'" placeholder="진행 상황을 입력 (변경 시 접수자에게 알림)"></div>'
+      +'</div>'
+      +'<div style="padding:0 15px 14px"><button class="submit" onclick="saveAdmin('+i+')">저장 · 접수자에게 알림</button></div></div>';
+  }).join('');
+  var docManage='<div class="secttl" style="margin:0 0 10px">자료실 관리 (업로드·교체)</div><div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 보험증권처럼 매년 갱신되는 자료는 같은 항목에 새 파일로 교체하면 최신본만 배포됩니다. 교체 시 <b>담당자에게 자동 안내</b>를 보낼 수 있습니다. (실제 업로드·발송은 Supabase Storage + n8n 연결 후 작동)</div>'
+    +DOCS.map(function(d,i){return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+d.cat+'</span>'+d.name+'</div><div class="rid">현재: '+d.file+' · 갱신 '+d.updated+'</div></div><label class="flt" style="cursor:pointer">파일 교체<input type="file" style="display:none" onchange="alert(\'파일 교체 — Supabase Storage 연결 후 실제 반영됩니다\')"></label></div>'
+      +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:14px;align-items:center">'
+      +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" checked style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
+      +'<span style="display:flex;gap:10px;font-size:12.5px;color:var(--mute2)"><label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" checked style="width:auto;margin:0"> 이메일</label><label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" style="width:auto;margin:0"> 카카오워크</label></span>'
+      +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
+      +'</div></div>';}).join('')
+    +'<div style="margin:6px 0 10px"><button class="flt" onclick="alert(\'새 자료 추가 — Supabase Storage 연결 후 활성화\')">+ 새 자료 추가</button></div>'
+    +'<div class="hint" style="margin-bottom:24px;line-height:1.55;border:1px solid var(--line);border-radius:7px;padding:11px 13px;background:var(--bg)"><b>안내 발송 대상</b>은 담당자 명단(이름·이메일·카카오워크 ID)을 기준으로 발송됩니다. 명단 관리와 실제 발송은 Supabase(담당자 테이블) + n8n(발송 워크플로) 연결 시 작동합니다. 발송 문구 예: \"[플로우교육] 2026년 보험증권이 업데이트되었습니다. 자료실에서 확인·다운로드해 주세요.\"</div>';
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div class="secttl" style="margin:0">총무기획팀 관리</div><button class="flt" onclick="ADMIN_OK=false;render(\'admin\')">잠그기</button></div>'
+    +docManage
+    +'<div class="secttl" style="margin:0 0 10px">접수 처리</div>'
+    +'<div class="hint" style="margin-bottom:14px;line-height:1.5">처리예정일·진행사항·완료여부를 입력하고 저장하면, 접수자에게 알림이 갑니다. (저장·알림은 Supabase + n8n 연결 후 실제 작동)</div>'+rows;
+}
+function tryPin(){var v=document.getElementById('pin').value;if(v===ADMIN_PIN){ADMIN_OK=true;render('admin');}else{alert('비밀번호가 올바르지 않습니다.');}}
+function bindAdmin(){
+  if(!ADMIN_OK)return;
+  document.querySelectorAll('.dd.adstat').forEach(function(box){
+    var i=box.dataset.i;var opts=['대기','진행중','완료'];
+    box.innerHTML='<div class="ddh"><span class="left"><span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join('')+'</div>';
+    var cur=box.querySelector('.cur');var pre=SAMPLE[i].done;if(pre&&pre!=='-'){cur.className='cur sel';cur.textContent=pre;}
+    box.querySelector('.ddh').addEventListener('click',function(){box.classList.toggle('open');});
+    box.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');cur.className='cur sel';cur.textContent=b.dataset.v;box.classList.remove('open');box.dataset.val=b.dataset.v;});});
+  });
+}
+function saveVoice(i){
+  var rep=document.querySelector('textarea[data-i="'+i+'"][data-f="reply"]').value;
+  SAMPLE[i].reply=rep||'-';SAMPLE[i].st=rep?'done':'prog';
+  submitDone('답변이 등록되었습니다. 실제 환경에서는 이 시점에 <b>작성자에게 카카오워크 알림</b>이 전송됩니다. (Supabase + n8n 연결 후)');
+}
+function saveAdmin(i){
+  var plan=document.querySelector('input[data-i="'+i+'"][data-f="plan"]').value;
+  var prog=document.querySelector('input[data-i="'+i+'"][data-f="prog"]').value;
+  var statBox=document.querySelector('.dd.adstat[data-i="'+i+'"]');var done=statBox?(statBox.dataset.val||SAMPLE[i].done):SAMPLE[i].done;
+  // 메모리상 반영 (실제 저장은 Supabase 연결 후)
+  SAMPLE[i].plan=plan||'-';SAMPLE[i].prog=prog||'-';SAMPLE[i].done=done||'-';
+  SAMPLE[i].st=(done==='완료')?'done':(done==='진행중'||plan||prog)?'prog':'wait';
+  submitDone('변경 내용이 반영되었습니다. 실제 환경에서는 이 시점에 <b>접수자에게 카카오워크 알림</b>이 전송됩니다. (Supabase + n8n 연결 후)');
+}
+
+function render(v){var el=document.getElementById('view');
+  if(v==='home')el.innerHTML=homeHTML();
+  else if(v==='guide'){el.innerHTML=guideHTML();document.querySelectorAll('.gitem').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.gitem').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderG(b.dataset.k);});});renderG('aircon');document.querySelector('.gitem[data-k=aircon]').classList.add('on');}
+  else if(v==='quote'){el.innerHTML=quoteHTML();bindQuote();}
+  else if(v==='report'){el.innerHTML=reportHTML();bindReport();}
+  else if(v==='pen'){el.innerHTML=penHTML();bindPen();}
+  else if(v==='voice'){el.innerHTML=voiceHTML();bindVoice();}
+  else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
+  else if(v==='docs'){el.innerHTML=docsHTML();bindDocs();}
+  else if(v==='info')el.innerHTML=infoHTML();
+  else if(v==='admin'){el.innerHTML=adminHTML();bindAdmin();}
+  document.querySelectorAll('.tn').forEach(function(n){n.classList.toggle('on',n.dataset.v===v);});window.scrollTo(0,0);}
+window.nav=render;
+var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["report","유지보수 접수"],["voice","건의사항"],["mylist","내 접수내역"],["docs","자료실"],["info","안내"],["admin","총무기획팀"]];
+var tabs=document.getElementById('tabs');TABS.forEach(function(t){var b=document.createElement('button');b.className='tn';b.dataset.v=t[0];b.textContent=t[1];b.onclick=function(){render(t[0]);};tabs.appendChild(b);});
+render('home');
+</script>
+</body>
+</html>
