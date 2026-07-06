@@ -734,6 +734,11 @@ function adminHTML(){
     +'<div class="hint" style="margin-bottom:10px;line-height:1.5">현장이 가입 신청한 계정입니다. 승인하려면 ① 비밀번호를 정하고 ② Supabase에서 계정을 만든 뒤 ③ 활성화하세요. (자동 승인은 추후 Edge Function으로 고도화)</div>'
     +'<div id="approve_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>'
+    +'<div class="secttl" style="margin:0 0 10px">승인된 계정 <span id="acc_count" style="font-size:12px;color:var(--mute);font-weight:400"></span></div>'
+    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">활성화된 계정과 알림 이메일 현황입니다. 이메일은 진행상황 자동 알림에 사용됩니다.</div>'
+    +'<div id="acclist_wrap" style="margin-bottom:8px"><input type="text" id="acc_search" placeholder="아이디·이름·지역 검색" style="width:100%;max-width:320px" oninput="filterAccounts()"></div>'
+    +'<div id="account_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
+    +'<div style="height:26px"></div>'
     +docManage
     +'<div class="secttl" style="margin:0 0 10px">접수 처리</div>'
     +'<div class="hint" style="margin-bottom:14px;line-height:1.5">처리예정일·진행사항·완료여부를 입력하고 저장하면, 접수자에게 알림이 갑니다. (저장·알림은 Supabase + n8n 연결 후 실제 작동)</div>'+rows;
@@ -779,9 +784,45 @@ function rejectAcct(loginId){
     loadPending();
   });
 }
+var ACCOUNTS_CACHE=[];
+function loadAccounts(){
+  var box=document.getElementById('account_list');if(!box)return;
+  if(!SB_READY){box.innerHTML='<div class="hint" style="padding:14px">서버 연결 없음</div>';return;}
+  sb.from('fac_accounts').select('*').eq('status','active').order('approved_at',{ascending:false}).then(function(res){
+    ACCOUNTS_CACHE=(res.data)||[];
+    renderAccounts(ACCOUNTS_CACHE);
+  });
+}
+function renderAccounts(rows){
+  var box=document.getElementById('account_list');if(!box)return;
+  var cnt=document.getElementById('acc_count');if(cnt)cnt.textContent='('+rows.length+'명)';
+  if(!rows.length){box.innerHTML='<div class="hint" style="padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center">승인된 계정이 없습니다.</div>';return;}
+  var head='<div style="display:grid;grid-template-columns:1.3fr 1fr 0.8fr 1.6fr 0.9fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일</div><div>승인일</div></div>';
+  var body=rows.map(function(a){
+    var em=a.email?('<span style="color:var(--ink)">'+a.email+'</span>'):'<span style="color:var(--dng)">미입력</span>';
+    var role=a.role==='admin'?' <span style="font-size:10px;color:var(--blue);border:1px solid var(--blue);border-radius:4px;padding:0 4px">관리자</span>':'';
+    return '<div style="display:grid;grid-template-columns:1.3fr 1fr 0.8fr 1.6fr 0.9fr;gap:10px;padding:11px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
+      +'<div style="font-weight:600">'+a.login_id+role+'</div>'
+      +'<div>'+(a.name||'')+'</div>'
+      +'<div>'+(a.region||'')+'</div>'
+      +'<div style="word-break:break-all">'+em+'</div>'
+      +'<div style="color:var(--mute)">'+((a.approved_at||'').slice(0,10))+'</div>'
+      +'</div>';
+  }).join('');
+  box.innerHTML='<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+head+body+'</div>';
+}
+function filterAccounts(){
+  var q=(document.getElementById('acc_search').value||'').trim().toLowerCase();
+  if(!q){renderAccounts(ACCOUNTS_CACHE);return;}
+  var f=ACCOUNTS_CACHE.filter(function(a){
+    return (a.login_id||'').toLowerCase().indexOf(q)>=0||(a.name||'').toLowerCase().indexOf(q)>=0||(a.region||'').toLowerCase().indexOf(q)>=0||(a.email||'').toLowerCase().indexOf(q)>=0;
+  });
+  renderAccounts(f);
+}
 function bindAdmin(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   loadPending();
+  loadAccounts();
   document.querySelectorAll('.dd.adstat').forEach(function(box){
     var i=box.dataset.i;var opts=['대기','진행중','완료'];
     box.innerHTML='<div class="ddh"><span class="left"><span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join('')+'</div>';
