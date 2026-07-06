@@ -457,13 +457,20 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     var vt=(r.vtype==='AI 해결 요청')?'<span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span>':'<span class="ttag">건의</span>';
     return '<div class="card"><div class="ch"><div><div class="title">'+vt+r.title+'</div><div class="rid">'+r.rid+' · 작성 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div><div style="padding:8px 15px 13px"><div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:9px">'+(r.content||'')+'</div>'+rep+'</div></div>';
   }
-  var bd2=r.st==='done'?['b-done','완료']:r.st==='prog'?['b-prog','진행중']:['b-wait','접수 대기'];var planV=r.plan==='-'?'<span class="v-wait">총무기획팀 확인 후</span>':'<span class="'+(r.st==='wait'?'v-wait':'v-set')+'">'+r.plan+'</span>';var progV=r.prog==='-'?'<span class="v-wait">접수 대기</span>':'<span class="v-set">'+r.prog+'</span>';var doneV=r.done==='완료'?'<span class="v-done">완료</span>':r.done==='진행중'?'<span class="v-set">진행중</span>':'<span class="v-wait">대기</span>';return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd2[0]+'">'+bd2[1]+'</span></div><div class="cbody"><div class="sbi"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi"><span class="k">진행사항</span>'+progV+'</div><div class="sbi"><span class="k">완료여부</span>'+doneV+'</div></div></div>';}).join('');}
+  var bd2=r.st==='done'?['b-done','완료']:r.st==='prog'?['b-prog','진행중']:['b-wait','접수 대기'];var planV=r.plan==='-'?'<span class="v-wait">총무기획팀 확인 후</span>':'<span class="'+(r.st==='wait'?'v-wait':'v-set')+'">'+r.plan+'</span>';var progV=r.prog==='-'?'<span class="v-wait">접수 대기</span>':'<span class="v-set">'+r.prog+'</span>';var doneV=r.done==='완료'?'<span class="v-done">완료</span>':r.done==='진행중'?'<span class="v-set">진행중</span>':'<span class="v-wait">대기</span>';
+  var infoRows='';
+  if(r.detail)infoRows+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink2);font-size:12.5px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
+  if(r.location)infoRows+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">발생 위치</span> <span style="color:var(--ink2);font-size:12.5px">'+esc(r.location)+'</span></div>';
+  var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
+  if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:11.5px">신청자</span> <span style="color:var(--ink2);font-size:12.5px">'+contact.join(' · ')+'</span></div>';
+  var infoBlock=infoRows?('<div style="padding:11px 15px;border-top:1px solid var(--line);background:var(--bg)">'+infoRows+'</div>'):'';
+  return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd2[0]+'">'+bd2[1]+'</span></div>'+infoBlock+'<div class="cbody"><div class="sbi"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi"><span class="k">진행사항</span>'+progV+'</div><div class="sbi"><span class="k">완료여부</span>'+doneV+'</div></div></div>';}).join('');}
 function bindMylist(){document.querySelectorAll('.flt').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.flt').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderCards(b.dataset.f);});});
   loadMyList();}
 function mapReq(r){
   var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜'}[r.type]||r.type;
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):'')),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:r.reqtype||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
+  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):'')),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
@@ -712,7 +719,13 @@ function adminHTML(){
       return head+'<div style="padding:12px 15px">'+vtb+'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:11px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px">'+(r.content||'')+'</div><div class="lbl">총무기획팀 답변</div><textarea data-i="'+i+'" data-f="reply" rows="3" placeholder="답변을 입력 (등록 시 작성자에게 알림)">'+(r.reply&&r.reply!=='-'?r.reply:'')+'</textarea></div>'
         +'<div style="padding:0 15px 14px"><button class="submit" onclick="saveVoice('+i+')">답변 등록 · 작성자에게 알림</button></div></div>';
     }
-    return head
+    var aInfo='';
+    if(r.detail)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink);font-size:13px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
+    if(r.location)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">발생 위치</span> <span style="color:var(--ink);font-size:13px">'+esc(r.location)+'</span></div>';
+    var aContact=[];if(r.applicant)aContact.push(esc(r.applicant));if(r.phone)aContact.push(esc(r.phone));if(r.ext)aContact.push('내선 '+esc(r.ext));
+    if(aContact.length)aInfo+='<div><span style="color:var(--mute);font-size:11.5px">신청자·연락처</span> <span style="color:var(--ink);font-size:13px">'+aContact.join(' · ')+'</span></div>';
+    var aInfoBlock=aInfo?('<div style="padding:12px 15px;background:var(--bg);border-bottom:1px solid var(--line)">'+aInfo+'</div>'):'';
+    return head+aInfoBlock
       +'<div style="padding:12px 15px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'
       +'<div><div class="lbl">11 · 처리예정일</div><input type="date" data-i="'+i+'" data-f="plan" value="'+(r.plan==='-'?'':r.plan)+'"></div>'
       +'<div><div class="lbl">13 · 완료여부</div><div class="dd adstat" data-i="'+i+'"></div></div>'
