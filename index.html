@@ -521,7 +521,11 @@ function confirmSubmit(title, rows, onYes){
   openModal('<div class="mh">'+title+'</div><div class="mb">'+body+'<div class="mq">위 건으로 접수하시겠습니까?</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" onclick="(window.__yes&&window.__yes());">예</button></div>');
 }
 function submitDone(msg){
-  openModal('<div class="mb" style="text-align:center;padding-top:22px"><div class="done-ic">✓</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">접수되었습니다</div><div class="hint" style="font-size:12.5px;line-height:1.5">'+msg+'</div></div><div class="mf"><button class="mbtn yes" onclick="closeModal()">확인</button></div>');
+  var isErr=/오류|실패|연결되어 있지 않|선택해 주세요|입력해 주세요/.test(msg);
+  var ic=isErr
+    ? '<div class="done-ic" style="background:var(--dngbg);border-color:var(--dngln);color:var(--dng)">!</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">처리하지 못했습니다</div>'
+    : '<div class="done-ic">✓</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">접수되었습니다</div>';
+  openModal('<div class="mb" style="text-align:center;padding-top:22px">'+ic+'<div class="hint" style="font-size:12.5px;line-height:1.5">'+msg+'</div></div><div class="mf"><button class="mbtn yes" onclick="closeModal()">확인</button></div>');
 }
 // 드롭다운 다중/단일 값 읽기
 function selVal(k){var v=STATE[k];if(v==null)return '';return Array.isArray(v)?v.join(', '):v;}
