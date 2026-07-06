@@ -762,7 +762,14 @@ function render(v){var el=document.getElementById('view');
   else if(v==='pen'){el.innerHTML=penHTML();bindPen();}
   else if(v==='voice'){el.innerHTML=voiceHTML();bindVoice();}
   else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
-  else if(v==='docs'){el.innerHTML=docsHTML();bindDocs();}
+  else if(v==='docs'){
+    el.innerHTML='<div style="max-width:560px;margin:40px auto 0;text-align:center;background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:44px 32px">'
+      +'<div style="width:52px;height:52px;border-radius:14px;background:var(--bluebg);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:24px">📁</div>'
+      +'<div style="font-size:18px;font-weight:600;letter-spacing:-.3px;margin-bottom:8px">자료실 준비 중</div>'
+      +'<div class="hint" style="line-height:1.6">현재 자료실은 업로드 진행 중입니다.<br>빠른 시일 내 보험증권·교육청 양식·매뉴얼을 업데이트하겠습니다.</div>'
+      +'</div>';
+    openModal('<div class="mb" style="text-align:center;padding-top:26px"><div style="font-size:30px;margin-bottom:12px">📁</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">자료실 준비 중</div><div class="hint" style="line-height:1.55">현재 자료실은 업로드 진행 중입니다.<br>빠른 시일 내 업데이트하겠습니다.</div></div><div class="mf"><button class="mbtn yes" onclick="closeModal()">확인</button></div>');
+  }
   else if(v==='info')el.innerHTML=infoHTML();
   else if(v==='admin'){
     if(CURRENT_USER&&CURRENT_USER.role==='admin'&&SB_READY){
