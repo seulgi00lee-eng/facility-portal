@@ -904,6 +904,35 @@ function afterLogin(){
       if(!acc){gateMsg('계정 정보를 찾을 수 없습니다.','err');return;}
       if(acc.status!=='active'){gateMsg('아직 승인되지 않은 계정입니다.','err');sb.auth.signOut();return;}
       CURRENT_USER={login_id:acc.login_id,role:acc.role,region:acc.region,name:acc.name,gwan_code:acc.gwan_code};
+      if(acc.must_reset){showForceReset();return;}
+      enterApp();
+    });
+  });
+}
+function showForceReset(){
+  document.getElementById('app').style.display='none';
+  var gate=document.getElementById('gate');gate.style.display='flex';
+  var body=document.getElementById('gate-body');
+  document.querySelector('.gate-seg').style.display='none';
+  var h2=document.querySelector('.gate-card h2');if(h2)h2.textContent='비밀번호 설정';
+  var sub=document.querySelector('.gate-card .sub');if(sub)sub.textContent='최초 로그인 — 새 비밀번호를 설정하세요';
+  body.innerHTML='<div class="gate-hint" style="margin-bottom:16px;line-height:1.5">보안을 위해 관리자가 부여한 초기 비밀번호를 <b>본인만 아는 비밀번호</b>로 변경해야 합니다.</div>'
+    +'<div class="gate-fld"><label>새 비밀번호</label><input id="fr_pw" type="password" placeholder="6자 이상"></div>'
+    +'<div class="gate-fld"><label>새 비밀번호 확인</label><input id="fr_pw2" type="password" placeholder="다시 입력"></div>'
+    +'<button class="gate-btn" onclick="doForceReset()">비밀번호 설정하고 시작하기</button><div id="gate-msg"></div>';
+}
+function doForceReset(){
+  var n1=document.getElementById('fr_pw').value||'';
+  var n2=document.getElementById('fr_pw2').value||'';
+  if(n1.length<6){gateMsg('비밀번호는 6자 이상이어야 합니다.','err');return;}
+  if(n1!==n2){gateMsg('두 비밀번호가 일치하지 않습니다.','err');return;}
+  if(!SB_READY){gateMsg('서버에 연결되어 있지 않습니다.','err');return;}
+  sb.auth.updateUser({password:n1}).then(function(res){
+    if(res.error){gateMsg('설정 실패: '+res.error.message,'err');return;}
+    sb.from('fac_accounts').update({must_reset:false}).eq('login_id',CURRENT_USER.login_id).then(function(){
+      document.querySelector('.gate-seg').style.display='';
+      var h2=document.querySelector('.gate-card h2');if(h2)h2.textContent='캠퍼스 시설지원 포털';
+      var sub=document.querySelector('.gate-card .sub');if(sub)sub.textContent='플로우교육 총무기획팀';
       enterApp();
     });
   });
@@ -914,11 +943,37 @@ function enterApp(){
   buildTabs();
   render('home');
 }
+function openPwChange(){
+  openModal('<div class="mb" style="padding:22px 22px 8px">'
+    +'<div style="font-size:16px;font-weight:600;margin-bottom:4px">비밀번호 변경</div>'
+    +'<div class="hint" style="margin-bottom:16px">새 비밀번호를 입력하세요. 변경 후 다음 로그인부터 적용됩니다.</div>'
+    +'<div class="gate-fld"><label>새 비밀번호</label><input id="pw_new" type="password" placeholder="6자 이상"></div>'
+    +'<div class="gate-fld"><label>새 비밀번호 확인</label><input id="pw_new2" type="password" placeholder="다시 입력"></div>'
+    +'<div id="pw_msg"></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" onclick="doPwChange()">변경</button></div>');
+}
+function doPwChange(){
+  var n1=document.getElementById('pw_new').value||'';
+  var n2=document.getElementById('pw_new2').value||'';
+  var m=document.getElementById('pw_msg');
+  function err(t){if(m)m.innerHTML='<div class="gate-msg err" style="margin-top:0">'+t+'</div>';}
+  if(n1.length<6){err('비밀번호는 6자 이상이어야 합니다.');return;}
+  if(n1!==n2){err('두 비밀번호가 일치하지 않습니다.');return;}
+  if(!SB_READY){err('서버에 연결되어 있지 않습니다.');return;}
+  sb.auth.updateUser({password:n1}).then(function(res){
+    if(res.error){err('변경 실패: '+res.error.message);return;}
+    closeModal();
+    submitDone('비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용하세요.');
+  });
+}
 function doLogout(){
   if(SB_READY)sb.auth.signOut();
   CURRENT_USER=null;
   document.getElementById('app').style.display='none';
   document.getElementById('gate').style.display='flex';
+  var seg=document.querySelector('.gate-seg');if(seg)seg.style.display='';
+  var h2=document.querySelector('.gate-card h2');if(h2)h2.textContent='캠퍼스 시설지원 포털';
+  var sub=document.querySelector('.gate-card .sub');if(sub)sub.textContent='플로우교육 총무기획팀';
   gateMode('login');
 }
 function buildTabs(){
@@ -933,7 +988,7 @@ function buildTabs(){
     hd.appendChild(bar);
   }
   var bar=document.getElementById('acctbar');
-  if(bar&&CURRENT_USER){bar.innerHTML='<span><b>'+(CURRENT_USER.name||CURRENT_USER.login_id)+'</b>'+(CURRENT_USER.region?(' · '+CURRENT_USER.region):'')+(CURRENT_USER.role==='admin'?' · 관리자':'')+'</span><button class="logout" onclick="doLogout()">로그아웃</button>';}
+  if(bar&&CURRENT_USER){bar.innerHTML='<span><b>'+(CURRENT_USER.name||CURRENT_USER.login_id)+'</b>'+(CURRENT_USER.region?(' · '+CURRENT_USER.region):'')+(CURRENT_USER.role==='admin'?' · 관리자':'')+'</span><button class="logout" onclick="openPwChange()">비밀번호 변경</button><button class="logout" onclick="doLogout()">로그아웃</button>';}
 }
 // 부팅: 기존 세션 있으면 바로 입장, 없으면 게이트
 gateMode('login');
