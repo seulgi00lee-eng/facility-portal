@@ -711,7 +711,11 @@ function approveAcct(loginId){
 }
 function rejectAcct(loginId){
   if(!confirm(loginId+' 가입 신청을 거절할까요?'))return;
-  sb.rpc('fac_reject_account',{p_login_id:loginId}).then(function(res){if(!res.error){loadPending();}});
+  if(!SB_READY)return;
+  sb.from('fac_accounts').update({status:'rejected'}).eq('login_id',loginId).then(function(res){
+    if(res.error){alert('거절 처리 오류: '+res.error.message);return;}
+    loadPending();
+  });
 }
 function bindAdmin(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
