@@ -238,7 +238,7 @@ var META={
 var FLOORS={},STATE={};
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
-var PREFILL_REQ=null,PREFILL_DETAIL=null,PREFILL_VOICE_TITLE=null,VOICE_TYPE='일반 건의';
+var PREFILL_REQ=null,PREFILL_DETAIL=null,PREFILL_VOICE_TITLE=null,PREFILL_AKA=false,VOICE_TYPE='일반 건의';
 var TIERS=[[1600,170000,"~1600"],[2100,220000,"1700~2100"],[2900,300000,"2500~2900"],[3100,320000,"2900~3100"],[3600,360000,"3100~3600"],[4000,390000,"3600~4000"],[4800,500000,"4000~4800"],[5400,550000,"4800~5400"]];
 var BUY=[{k:"beam",t:"프로젝트빔"},{k:"autoscreen",t:"자동 스크린"},{k:"manualscreen",t:"수동 스크린"},{k:"podium",t:"강의대"},{k:"board",t:"칠판"},{k:"tdesk",t:"선생님 책상"},{k:"tchair",t:"선생님 의자"},{k:"ptable",t:"원장실 테이블"},{k:"pchair",t:"원장실 의자"},{k:"stool",t:"상담용 스툴"},{k:"sdesk",t:"학생책상(단품)",grade:true},{k:"schair",t:"학생의자(단품)"},{k:"sset",t:"학생 책/걸상(SET)",grade:true}];
 var RENT=[{k:"mfp",t:"복합기",opt:["선택안함","중철"]},{k:"inkjet",t:"잉크젯"},{k:"laptop",t:"노트북"},{k:"monitor",t:"모니터"},{k:"desktop",t:"데스크탑"}];
@@ -279,7 +279,6 @@ function renderG(k){var d=GUIDE[k];var h='<div class="panel"><div class="ph">'+d
   h+='<div style="padding:14px 0 4px"><button class="submit" onclick="goReport(\''+k+'\')">이 건으로 접수하기 →</button><div class="hint" style="margin-top:7px">1차 대응으로 해결되지 않으면, 버튼을 누르면 요청구분이 자동 선택된 접수 화면으로 넘어갑니다.</div></div>';
   h+='</div></div>';document.getElementById('gp').innerHTML=h;if(d.code)bindCode();}
 function goReport(k){PREFILL_REQ=(GUIDE[k]&&GUIDE[k].req)||null;PREFILL_DETAIL=(GUIDE[k]&&GUIDE[k].detail)||null;render('report');}
-function goAka(){PREFILL_VOICE_TITLE='[아카 권한 신청] ';render('voice');}
 function codeBox(){var q=ECQUICK.map(function(c){return '<button class="ecode" data-c="'+c+'">'+c+'</button>';}).join('');
   var symc=SYM.map(function(sm,i){return '<button class="ecode symchip" data-i="'+i+'">'+sm.label+'</button>';}).join('');
   return '<div class="step"><div class="lab">에러코드 조회</div><div class="stx" style="margin-bottom:8px">화면에 코드가 보이면 입력하거나 선택하세요 (예: E101)</div>'
@@ -468,7 +467,7 @@ function mapReq(r){
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':'건의'),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',done:'-'};
+  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',done:'-'};
 }
 function loadMyList(){
   var box=document.getElementById('mlcards');
@@ -488,23 +487,55 @@ function loadMyList(){
 }
 
 function voiceHTML(){return '<div style="max-width:560px"><div class="secttl">건의사항 (신문고)</div><div class="hint" style="margin-bottom:14px;line-height:1.55">현장의 불편, 개선 아이디어, 요청 등을 자유롭게 남겨주세요. 총무기획팀이 확인 후 답변드립니다. 처리 상황과 답변은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.</div>'
-  +'<div class="fld"><div class="lbl">건의 유형</div><div class="fbtns" id="vtype"><button class="fb on" data-v="일반 건의">일반 건의</button><button class="fb" data-v="AI 해결 요청">AI로 해결 요청</button></div><div class="hint" id="vtypenote" style="margin-top:-4px;margin-bottom:6px">현장의 불편·개선·요청을 남깁니다.</div></div>'
+  +'<div class="fld"><div class="lbl">건의 유형</div><div class="fbtns" id="vtype"><button class="fb on" data-v="일반 건의">일반 건의</button><button class="fb" data-v="AI 해결 요청">AI로 해결 요청</button><button class="fb" data-v="아카 권한 신청">아카 권한 신청</button></div><div class="hint" id="vtypenote" style="margin-top:-4px;margin-bottom:6px">현장의 불편·개선·요청을 남깁니다.</div></div>'
   +'<div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div>'
   +'<div class="row2"><div class="fld"><div class="lbl">작성일자</div><input type="date" id="vdate"></div><div class="fld"><div class="lbl">작성자</div><input type="text" id="vapplicant" placeholder="이름"></div></div>'
-  +'<div class="fld"><div class="lbl">제목</div><input type="text" id="vtitle" placeholder="건의 제목을 한 줄로"></div>'
-  +'<div class="fld"><div class="lbl">건의 내용</div><textarea id="vcontent" rows="5" placeholder="불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요"></textarea></div>'
+  +'<div id="aka-fields" style="display:none">'
+    +'<div class="fld"><div class="lbl">신청 구분</div><div class="fbtns" id="akaAction"><button type="button" class="fb on" data-v="신청">신청</button><button type="button" class="fb" data-v="삭제">삭제</button></div></div>'
+    +'<div style="border:1px solid var(--line);border-radius:12px;padding:14px 15px;margin-bottom:13px;background:var(--bg)"><div class="lbl" style="margin-bottom:10px">권한 대상자 정보</div>'
+      +'<div class="row2"><div class="fld" style="margin-bottom:9px"><div class="lbl">관코드</div><input type="text" id="akaGwan" placeholder="예: 108"></div><div class="fld" style="margin-bottom:9px"><div class="lbl">강사·직원명</div><input type="text" id="akaName" placeholder="대상자 이름"></div></div>'
+      +'<div class="fld" style="margin-bottom:0"><div class="lbl">직원 유형</div><input type="text" id="akaRole" placeholder="예: 강사 / 팀장 / 데스크 등"></div>'
+    +'</div>'
+  +'</div>'
+  +'<div class="fld" id="vtitle-fld"><div class="lbl">제목</div><input type="text" id="vtitle" placeholder="건의 제목을 한 줄로"></div>'
+  +'<div class="fld"><div class="lbl" id="vcontent-lbl">건의 내용</div><textarea id="vcontent" rows="5" placeholder="불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요"></textarea></div>'
   +'<button class="submit" style="width:100%" onclick="submitVoice()">건의사항 제출</button></div>';}
 function bindVoice(){['campus','building'].forEach(buildDD);document.getElementById('vdate').value=new Date().toISOString().slice(0,10);
   hydrateCampus();
   VOICE_TYPE='일반 건의';
-  if(PREFILL_VOICE_TITLE){var tt=document.getElementById('vtitle');if(tt){tt.value=PREFILL_VOICE_TITLE;tt.focus();var L=tt.value.length;try{tt.setSelectionRange(L,L);}catch(e){}}var vnote=document.getElementById('vtypenote');PREFILL_VOICE_TITLE=null;}
+  if(PREFILL_AKA){var akaBtn=document.querySelector('#vtype .fb[data-v="아카 권한 신청"]');if(akaBtn){setTimeout(function(){akaBtn.click();},0);}PREFILL_AKA=false;}
   var vt=document.getElementById('vtype');if(vt){vt.querySelectorAll('.fb').forEach(function(b){b.addEventListener('click',function(){vt.querySelectorAll('.fb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');VOICE_TYPE=b.dataset.v;var note=document.getElementById('vtypenote');var ta=document.getElementById('vcontent');var tt=document.getElementById('vtitle');
-    if(VOICE_TYPE==='AI 해결 요청'){if(note)note.innerHTML='반복되는 수작업, 시간이 오래 걸리는 업무 등 <b>AI로 자동화·해결</b>했으면 하는 일을 남겨주세요. 총무기획팀이 검토합니다.';if(ta)ta.placeholder='어떤 업무가 불편한지, 무엇을 자동화하고 싶은지 구체적으로 적어주세요 (예: 매달 OO 집계를 손으로 하는데 시간이 오래 걸립니다)';if(tt)tt.placeholder='AI로 해결하고 싶은 업무를 한 줄로';}
-    else{if(note)note.textContent='현장의 불편·개선·요청을 남깁니다.';if(ta)ta.placeholder='불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요';if(tt)tt.placeholder='건의 제목을 한 줄로';}
-  });});}}
+    var akaBox=document.getElementById('aka-fields');var titleFld=document.getElementById('vtitle-fld');var clbl=document.getElementById('vcontent-lbl');
+    if(VOICE_TYPE==='아카 권한 신청'){
+      if(akaBox)akaBox.style.display='block';
+      if(titleFld)titleFld.style.display='none';
+      if(note)note.innerHTML='학원관리시스템(아카데미) <b>계정·권한 신청/삭제</b>를 요청합니다. 대상자 정보와 필요 권한을 정확히 기재해 주세요.';
+      if(clbl)clbl.textContent='필요 권한 상세';
+      if(ta)ta.placeholder='필요한 권한을 상세하게 기재해 주세요. (예: 출결 조회·수정, 수납 조회, 반편성 권한 등)';
+    } else if(VOICE_TYPE==='AI 해결 요청'){
+      if(akaBox)akaBox.style.display='none';
+      if(titleFld)titleFld.style.display='block';
+      if(clbl)clbl.textContent='건의 내용';
+      if(note)note.innerHTML='반복되는 수작업, 시간이 오래 걸리는 업무 등 <b>AI로 자동화·해결</b>했으면 하는 일을 남겨주세요. 총무기획팀이 검토합니다.';if(ta)ta.placeholder='어떤 업무가 불편한지, 무엇을 자동화하고 싶은지 구체적으로 적어주세요 (예: 매달 OO 집계를 손으로 하는데 시간이 오래 걸립니다)';if(tt)tt.placeholder='AI로 해결하고 싶은 업무를 한 줄로';
+    } else {
+      if(akaBox)akaBox.style.display='none';
+      if(titleFld)titleFld.style.display='block';
+      if(clbl)clbl.textContent='건의 내용';
+      if(note)note.textContent='현장의 불편·개선·요청을 남깁니다.';if(ta)ta.placeholder='불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요';if(tt)tt.placeholder='건의 제목을 한 줄로';
+    }
+  });});}
+  // 신청/삭제 토글
+  var akaAct=document.getElementById('akaAction');if(akaAct){akaAct.querySelectorAll('.fb').forEach(function(b){b.addEventListener('click',function(){akaAct.querySelectorAll('.fb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');});});}
+}
 function submitVoice(){
+  if(VOICE_TYPE==='아카 권한 신청'){
+    var act=(document.querySelector('#akaAction .fb.on')||{}).dataset?document.querySelector('#akaAction .fb.on').dataset.v:'신청';
+    var gwan=fieldVal('akaGwan'),nm=fieldVal('akaName'),rl=fieldVal('akaRole');
+    var rows=[['건의 유형','아카 권한 신청'],['신청 구분',act],['작성일자',fieldVal('vdate')],['작성자',fieldVal('vapplicant')],['관코드',gwan],['강사·직원명',nm],['직원 유형',rl],['필요 권한',fieldVal('vcontent')]];
+    confirmSubmit('아카 권한 '+act+' 확인', rows, function(){saveVoiceRow('아카 권한 '+act+' 요청이 제출되었습니다. 총무기획팀이 확인 후 처리합니다. <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
+    return;
+  }
   var rows=[['건의 유형',VOICE_TYPE],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['작성일자',fieldVal('vdate')],['작성자',fieldVal('vapplicant')],['제목',fieldVal('vtitle')],['건의 내용',fieldVal('vcontent')]];
-  var msg=(VOICE_TYPE==='AI 해결 요청')?'총무기획팀이 AI로 해결 가능한지 검토 후 답변드립니다. 답변은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·알림 연결은 추후)':'총무기획팀이 확인 후 답변드립니다. 답변은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다. (저장·알림 연결은 추후)';
   confirmSubmit('건의사항 제출 확인', rows, function(){saveVoiceRow('건의사항이 제출되었습니다. 총무기획팀이 확인 후 답변드립니다. <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
 var DOCS=[
@@ -590,12 +621,26 @@ function saveRequest(type, extra, okMsg){
 }
 function saveVoiceRow(okMsg){
   if(!SB_READY){submitDone('저장 서버에 연결되어 있지 않습니다.');return;}
-  var vt=(VOICE_TYPE==='AI 해결 요청')?'ai':'normal';
-  var row={vtype:vt, campus:STATE.campus||null, building:STATE.building||null,
-    applicant:fieldVal('vapplicant')||'', title:fieldVal('vtitle')||'', content:fieldVal('vcontent')||'',
-    apply_date:fieldVal('vdate')||null, status:'wait'};
-  if(!row.applicant){submitDone('작성자 이름을 입력해 주세요.');return;}
-  if(!row.title){submitDone('제목을 입력해 주세요.');return;}
+  var row;
+  if(VOICE_TYPE==='아카 권한 신청'){
+    var actEl=document.querySelector('#akaAction .fb.on');var act=actEl?actEl.dataset.v:'신청';
+    var gwan=fieldVal('akaGwan'),nm=fieldVal('akaName'),rl=fieldVal('akaRole'),perm=fieldVal('vcontent');
+    if(!fieldVal('vapplicant')){submitDone('작성자 이름을 입력해 주세요.');return;}
+    if(!gwan||!nm){submitDone('대상자 관코드와 이름을 입력해 주세요.');return;}
+    if(!perm){submitDone('필요 권한을 입력해 주세요.');return;}
+    var title='[아카 권한 '+act+'] '+nm+' ('+rl+')';
+    var content='■ 신청구분: '+act+'\n■ 관코드: '+gwan+'\n■ 대상자: '+nm+' ('+rl+')\n■ 필요 권한:\n'+perm;
+    row={vtype:'aka', campus:STATE.campus||null, building:STATE.building||null,
+      applicant:fieldVal('vapplicant')||'', title:title, content:content,
+      apply_date:fieldVal('vdate')||null, status:'wait'};
+  } else {
+    var vt=(VOICE_TYPE==='AI 해결 요청')?'ai':'normal';
+    row={vtype:vt, campus:STATE.campus||null, building:STATE.building||null,
+      applicant:fieldVal('vapplicant')||'', title:fieldVal('vtitle')||'', content:fieldVal('vcontent')||'',
+      apply_date:fieldVal('vdate')||null, status:'wait'};
+    if(!row.applicant){submitDone('작성자 이름을 입력해 주세요.');return;}
+    if(!row.title){submitDone('제목을 입력해 주세요.');return;}
+  }
   sb.from('fac_voices').insert(row).select('record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류: '+res.error.message);return;}
     var no=(res.data&&res.data[0]&&res.data[0].record_no)||'';
@@ -650,7 +695,7 @@ function adminHTML(){
     var bd=r.st==='done'?['b-done',r.type==='voice'?'답변 완료':'완료']:r.st==='prog'?['b-prog',r.type==='voice'?'확인 중':'진행중']:['b-wait','접수 대기'];
     var head='<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div>';
     if(r.type==='voice'){
-      var vtb=(r.vtype==='AI 해결 요청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span></div>':'';
+      var vtb=(r.vtype==='AI 해결 요청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span></div>':(r.vtype==='아카 권한 신청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#a5c8e6;background:#eef4fb;color:#2b5c8a">아카 권한 신청</span></div>':'';
       return head+'<div style="padding:12px 15px">'+vtb+'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:11px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px">'+(r.content||'')+'</div><div class="lbl">총무기획팀 답변</div><textarea data-i="'+i+'" data-f="reply" rows="3" placeholder="답변을 입력 (등록 시 작성자에게 알림)">'+(r.reply&&r.reply!=='-'?r.reply:'')+'</textarea></div>'
         +'<div style="padding:0 15px 14px"><button class="submit" onclick="saveVoice('+i+')">답변 등록 · 작성자에게 알림</button></div></div>';
     }
@@ -758,7 +803,7 @@ function saveAdmin(i){
 }
 
 function render(v){var el=document.getElementById('view');
-  if(v==='aka'){PREFILL_VOICE_TITLE='[아카 권한 신청] ';v='voice';}
+  if(v==='aka'){PREFILL_AKA=true;v='voice';}
   if(v==='home')el.innerHTML=homeHTML();
   else if(v==='guide'){el.innerHTML=guideHTML();document.querySelectorAll('.gitem').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.gitem').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderG(b.dataset.k);});});renderG('aircon');document.querySelector('.gitem[data-k=aircon]').classList.add('on');}
   else if(v==='quote'){el.innerHTML=quoteHTML();bindQuote();}
