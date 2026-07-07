@@ -434,9 +434,9 @@ function mylistHTML(){
   +'<div style="border:1px solid var(--line);border-radius:8px;padding:14px 15px;margin-bottom:14px;max-width:680px"><div class="lbl" style="margin-bottom:9px">접수 정보로 조회 <span class="hint" style="font-weight:400">— 이름을 몰라도 캠퍼스·건물·요청구분으로 이미 접수된 건을 확인해 이중 접수를 막을 수 있습니다.</span></div>'
   +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px"><select id="q_campus" onchange="applyQuery()">'+campusOpts+'</select><select id="q_building" onchange="applyQuery()">'+bldOpts+'</select><select id="q_req" onchange="applyQuery()">'+reqOpts+'</select></div>'
   +'<div style="display:flex;gap:9px"><input type="text" id="q_name" placeholder="신청자 이름 (선택)" style="flex:1" oninput="applyQuery()"><button class="flt" onclick="resetQuery()">초기화</button></div></div>'
-  +'<div class="hint" id="ml_count" style="margin-bottom:12px"></div><div id="mlcards"></div>';
+  +'<div id="ml_sum" style="margin-bottom:10px"></div><div class="hint" id="ml_count" style="margin-bottom:12px"></div><div id="mlcards"></div>';
 }
-var ML_TYPE='all';
+var ML_TYPE='all',ML_LIVE=false;
 function applyQuery(){renderCards(ML_TYPE);}
 function resetQuery(){var ids=['q_campus','q_building','q_req','q_name'];ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});renderCards(ML_TYPE);}
 function qv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
@@ -450,22 +450,36 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     if(qn&&(r.applicant||'').indexOf(qn)===-1)return false;
     return true;
   });
-  var cnt=document.getElementById('ml_count');if(cnt){var anyq=qc||qb||qr||qn;cnt.innerHTML=anyq?('조회 결과 <b>'+rows.length+'건</b>'+(rows.length?' — 이미 접수된 건이 있는지 확인하세요.':' — 동일 조건의 접수 내역이 없습니다. 새로 접수하셔도 됩니다.')):'예시입니다. 총무기획팀이 상태를 바꾸면 여기에 반영되고 알림이 갑니다.';}
-  if(!rows.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">해당 조건의 접수 내역이 없습니다.</div>';return;}
+  var typed=SAMPLE.filter(function(r){return f==='all'||r.type===f;});
+  var nw=typed.filter(function(r){return r.st==='wait';}).length,np=typed.filter(function(r){return r.st==='prog';}).length,nd=typed.filter(function(r){return r.st==='done';}).length;
+  var sum=document.getElementById('ml_sum');
+  if(sum){sum.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid #c5c5c8"><div style="font-size:20px;font-weight:700">'+nw+'</div><div style="font-size:11.5px;color:var(--mute)">접수 대기</div></div>'
+    +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid var(--warn)"><div style="font-size:20px;font-weight:700;color:var(--warn)">'+np+'</div><div style="font-size:11.5px;color:var(--mute)">진행중·확인중</div></div>'
+    +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid var(--ok)"><div style="font-size:20px;font-weight:700;color:var(--ok)">'+nd+'</div><div style="font-size:11.5px;color:var(--mute)">완료·답변완료</div></div></div>';}
+  var cnt=document.getElementById('ml_count');if(cnt){var anyq=qc||qb||qr||qn;cnt.innerHTML=anyq?('조회 결과 <b>'+rows.length+'건</b>'+(rows.length?' — 이미 접수된 건이 있는지 확인하세요.':' — 동일 조건의 접수 내역이 없습니다. 새로 접수하셔도 됩니다.')):(ML_LIVE?('총 <b>'+typed.length+'건</b> — 총무기획팀이 상태를 변경하면 실시간 반영되고 알림이 갑니다.'):'서버 연결 전이라 <b>예시 데이터</b>가 표시되고 있습니다.');}
+  if(!rows.length){box.innerHTML='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">'+(ML_LIVE&&!anyq?'아직 접수된 내역이 없습니다. 접수하면 이곳에서 진행 상황을 확인할 수 있습니다.':'해당 조건의 접수 내역이 없습니다.')+'</div>';return;}
   box.innerHTML=rows.map(function(r){var bd=r.st==='done'?['b-done','답변 완료']:r.st==='prog'?['b-prog','확인 중']:['b-wait','접수 대기'];
+  var edge=r.st==='done'?'var(--ok)':r.st==='prog'?'var(--warn)':'#c5c5c8';
   if(r.type==='voice'){
     var rep=(r.reply&&r.reply!=='-')?'<div style="background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;font-size:12.5px;line-height:1.6"><b style="color:var(--ink2)">총무기획팀 답변</b><br>'+r.reply+'</div>':'<div class="hint">총무기획팀 답변 대기 중</div>';
     var vt=(r.vtype==='AI 해결 요청')?'<span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span>':'<span class="ttag">건의</span>';
-    return '<div class="card"><div class="ch"><div><div class="title">'+vt+r.title+'</div><div class="rid">'+r.rid+' · 작성 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div><div style="padding:8px 15px 13px"><div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:9px">'+(r.content||'')+'</div>'+rep+'</div></div>';
+    return '<div class="card" style="border-left:3px solid '+edge+'"><div class="ch"><div><div class="title">'+vt+r.title+'</div><div class="rid">'+r.rid+' · 작성 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div><div style="padding:8px 15px 13px"><div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:9px">'+(r.content||'')+'</div>'+rep+'</div></div>';
   }
   var bd2=r.st==='done'?['b-done','완료']:r.st==='prog'?['b-prog','진행중']:['b-wait','접수 대기'];var planV=r.plan==='-'?'<span class="v-wait">총무기획팀 확인 후</span>':'<span class="'+(r.st==='wait'?'v-wait':'v-set')+'">'+r.plan+'</span>';var progV=r.prog==='-'?'<span class="v-wait">접수 대기</span>':'<span class="v-set">'+r.prog+'</span>';var doneV=r.done==='완료'?'<span class="v-done">완료</span>':r.done==='진행중'?'<span class="v-set">진행중</span>':'<span class="v-wait">대기</span>';
+  var steps=[['접수',true],['확인·예정일',r.plan&&r.plan!=='-'],['진행',r.st==='prog'||r.st==='done'],['완료',r.st==='done']];
+  var stepper='<div style="display:flex;align-items:flex-start;padding:13px 18px 2px">'+steps.map(function(s,i){
+    var on=s[1];
+    var dot='<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:56px"><div style="width:11px;height:11px;border-radius:50%;background:'+(on?(i===3?'var(--ok)':'var(--blue)'):'#e0e0e3')+';box-shadow:'+(on?'0 0 0 3px '+(i===3?'var(--okbg)':'var(--bluebg)'):'none')+'"></div><span style="font-size:10.5px;font-weight:'+(on?'600':'400')+';color:'+(on?'var(--ink2)':'#b8b8bb')+'">'+s[0]+'</span></div>';
+    var line=i<steps.length-1?'<div style="flex:1;height:2px;background:'+(steps[i+1][1]?'var(--blue)':'#e8e8ed')+';margin-top:5px"></div>':'';
+    return dot+line;}).join('')+'</div>';
   var infoRows='';
   if(r.detail)infoRows+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink2);font-size:12.5px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
   if(r.location)infoRows+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">발생 위치</span> <span style="color:var(--ink2);font-size:12.5px">'+esc(r.location)+'</span></div>';
   var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
   if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:11.5px">신청자</span> <span style="color:var(--ink2);font-size:12.5px">'+contact.join(' · ')+'</span></div>';
   var infoBlock=infoRows?('<div style="padding:11px 15px;border-top:1px solid var(--line);background:var(--bg)">'+infoRows+'</div>'):'';
-  return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd2[0]+'">'+bd2[1]+'</span></div>'+infoBlock+'<div class="cbody"><div class="sbi"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi"><span class="k">진행사항</span>'+progV+'</div><div class="sbi"><span class="k">완료여부</span>'+doneV+'</div></div></div>';}).join('');}
+  return '<div class="card" style="border-left:3px solid '+edge+'"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd2[0]+'">'+bd2[1]+'</span></div>'+stepper+infoBlock+'<div class="cbody"><div class="sbi"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi"><span class="k">진행사항</span>'+progV+'</div><div class="sbi"><span class="k">완료여부</span>'+doneV+'</div></div></div>';}).join('');}
 function bindMylist(){document.querySelectorAll('.flt').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.flt').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderCards(b.dataset.f);});});
   loadMyList();}
 function mapReq(r){
@@ -487,6 +501,7 @@ function loadMyList(){
   ]).then(function(rs){
     var reqs=(rs[0]&&rs[0].data)||[]; var voices=(rs[1]&&rs[1].data)||[];
     SAMPLE=reqs.map(mapReq).concat(voices.map(mapVoice));
+    ML_LIVE=true;
     renderCards(ML_TYPE||'all');
     // 조회 필터(캠퍼스/건물) 옵션을 지역·건물 마스터에서 채움
     loadCampuses(function(cl){var qc=document.getElementById('q_campus');if(qc){qc.innerHTML='<option value="">캠퍼스 전체</option>'+cl.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');}});
