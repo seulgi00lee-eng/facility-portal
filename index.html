@@ -499,40 +499,62 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid var(--ok)"><div style="font-size:20px;font-weight:700;color:var(--ok)">'+nd+'</div><div style="font-size:11.5px;color:var(--mute)">완료·답변완료</div></div></div>';}
   var cnt=document.getElementById('ml_count');if(cnt){var anyq=qc||qb||qr||qn;cnt.innerHTML=anyq?('조회 결과 <b>'+rows.length+'건</b>'+(rows.length?' — 이미 접수된 건이 있는지 확인하세요.':' — 동일 조건의 접수 내역이 없습니다. 새로 접수하셔도 됩니다.')):(ML_LIVE?('총 <b>'+typed.length+'건</b> — 총무기획팀이 상태를 변경하면 실시간 반영되고 알림이 갑니다.'):'서버 연결 전이라 <b>예시 데이터</b>가 표시되고 있습니다.');}
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">'+(ML_LIVE&&!anyq?'아직 접수된 내역이 없습니다. 접수하면 이곳에서 진행 상황을 확인할 수 있습니다.':'해당 조건의 접수 내역이 없습니다.')+'</div>';return;}
-  box.innerHTML=rows.map(function(r,idx){var bd=r.st==='done'?['b-done','답변 완료']:r.st==='prog'?['b-prog','확인 중']:['b-wait','접수 대기'];
-  var edge=r.st==='done'?'var(--ok)':r.st==='prog'?'var(--warn)':'#c5c5c8';
-  var open=(r.st==='wait'); // 접수 대기만 펼침, 나머지는 접힘
-  var cid='mlc'+idx;
-  var chev=open?'':'<span style="color:#b5b5b8;font-size:13px;margin-left:8px;transition:transform .15s">⌄</span>';
-  if(r.type==='voice'){
-    var rep=(r.reply&&r.reply!=='-')?'<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.6"><b style="color:var(--ink2)">총무기획팀 답변</b><br>'+r.reply+'</div>':'<div class="hint" style="font-size:13px">총무기획팀 답변 대기 중</div>';
-    var vt=(r.vtype==='AI 해결 요청')?'<span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span>':'<span class="ttag">건의</span>';
-    var vbody='<div style="padding:10px 17px 15px"><div style="font-size:14px;color:var(--ink2);line-height:1.65;margin-bottom:10px">'+(r.content||'')+'</div>'+rep+'</div>';
-    return '<div class="card mlcard" style="border-left:3px solid '+edge+'"><div class="ch mlhead" data-t="'+cid+'" style="cursor:pointer"><div><div class="title" style="font-size:15px">'+vt+r.title+'</div><div class="rid" style="font-size:12.5px">'+r.rid+' · 작성 '+r.when+'</div></div><div style="display:flex;align-items:center"><span class="badge '+bd[0]+'">'+bd[1]+'</span>'+chev+'</div></div><div class="mlbody" id="'+cid+'" style="display:'+(open?'block':'none')+'">'+vbody+'</div></div>';
+  // 카드 1개 HTML 생성 (idx로 고유 id)
+  function mlCardHTML(r,idx){
+    var edge=r.st==='done'?'var(--ok)':r.st==='prog'?'var(--warn)':'#c5c5c8';
+    var open=(r.st==='wait');
+    var cid='mlc'+idx;
+    var chev=open?'':'<span class="mlchev" style="color:#b5b5b8;font-size:13px;margin-left:8px;transition:transform .15s;display:inline-block">⌄</span>';
+    // 헤더 부가정보: 신청자 · 지역 · 건물
+    var meta=[];
+    if(r.applicant)meta.push('신청자 '+esc(r.applicant));
+    if(r.campus)meta.push(esc(r.campus));
+    if(r.building)meta.push(esc(r.building));
+    var metaLine=meta.length?'<div style="font-size:12.5px;color:#6a6a6e;margin-top:4px">'+meta.join(' · ')+'</div>':'';
+    if(r.type==='voice'){
+      var bdv=r.st==='done'?['b-done','답변 완료']:r.st==='prog'?['b-prog','확인 중']:['b-wait','접수 대기'];
+      var rep=(r.reply&&r.reply!=='-')?'<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.6"><b style="color:var(--ink2)">총무기획팀 답변</b><br>'+r.reply+'</div>':'<div class="hint" style="font-size:13px">총무기획팀 답변 대기 중</div>';
+      var vt=(r.vtype==='AI 해결 요청')?'<span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span>':'<span class="ttag">건의</span>';
+      var vbody='<div style="padding:10px 17px 15px"><div style="font-size:14px;color:var(--ink2);line-height:1.65;margin-bottom:10px">'+(r.content||'')+'</div>'+rep+'</div>';
+      return '<div class="card mlcard" style="border-left:3px solid '+edge+'"><div class="ch mlhead" data-t="'+cid+'" style="cursor:pointer"><div><div class="title" style="font-size:15px">'+vt+r.title+'</div><div class="rid" style="font-size:12.5px">'+r.rid+' · 작성 '+r.when+'</div>'+metaLine+'</div><div style="display:flex;align-items:center"><span class="badge '+bdv[0]+'">'+bdv[1]+'</span>'+chev+'</div></div><div class="mlbody" id="'+cid+'" style="display:'+(open?'block':'none')+'">'+vbody+'</div></div>';
+    }
+    var bd2=r.st==='done'?['b-done','완료']:r.st==='prog'?['b-prog','진행중']:['b-wait','접수 대기'];
+    var planV=r.plan==='-'?'<span class="v-wait">총무기획팀 확인 후</span>':'<span class="'+(r.st==='wait'?'v-wait':'v-set')+'">'+r.plan+'</span>';
+    var progV=r.prog==='-'?'<span class="v-wait">접수 대기</span>':'<span class="v-set">'+r.prog+'</span>';
+    var doneV=r.done==='완료'?'<span class="v-done">완료</span>':r.done==='진행중'?'<span class="v-set">진행중</span>':'<span class="v-wait">대기</span>';
+    var steps=[['접수',true],['확인·예정일',r.plan&&r.plan!=='-'],['진행',r.st==='prog'||r.st==='done'],['완료',r.st==='done']];
+    var stepper='<div style="display:flex;align-items:flex-start;padding:15px 18px 4px">'+steps.map(function(s,i){
+      var on=s[1];
+      var dot='<div style="display:flex;flex-direction:column;align-items:center;gap:5px;min-width:60px"><div style="width:12px;height:12px;border-radius:50%;background:'+(on?(i===3?'var(--ok)':'var(--blue)'):'#e0e0e3')+';box-shadow:'+(on?'0 0 0 3px '+(i===3?'var(--okbg)':'var(--bluebg)'):'none')+'"></div><span style="font-size:11.5px;font-weight:'+(on?'600':'400')+';color:'+(on?'var(--ink2)':'#b8b8bb')+'">'+s[0]+'</span></div>';
+      var line=i<steps.length-1?'<div style="flex:1;height:2px;background:'+(steps[i+1][1]?'var(--blue)':'#e8e8ed')+';margin-top:6px"></div>':'';
+      return dot+line;}).join('')+'</div>';
+    var infoRows='';
+    if(r.detail)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">현상·요청</span><div style="color:var(--ink2);font-size:14px;line-height:1.6;margin-top:3px">'+esc(r.detail)+'</div></div>';
+    if(r.location)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">발생 위치</span> <span style="color:var(--ink2);font-size:14px">'+esc(r.location)+'</span></div>';
+    var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
+    if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:12.5px">신청자</span> <span style="color:var(--ink2);font-size:14px">'+contact.join(' · ')+'</span></div>';
+    var infoBlock=infoRows?('<div style="padding:13px 17px;border-top:1px solid var(--line);background:var(--bg)">'+infoRows+'</div>'):'';
+    var statusBlock='<div class="cbody" style="padding:10px 17px"><div class="sbi" style="font-size:13.5px"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi" style="font-size:13.5px"><span class="k">진행사항</span>'+progV+'</div><div class="sbi" style="font-size:13.5px"><span class="k">완료여부</span>'+doneV+'</div></div>';
+    var bodyH=stepper+infoBlock+statusBlock;
+    return '<div class="card mlcard" style="border-left:3px solid '+edge+'"><div class="ch mlhead" data-t="'+cid+'" style="cursor:pointer"><div><div class="title" style="font-size:15px"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid" style="font-size:12.5px">'+r.rid+' · 접수 '+r.when+'</div>'+metaLine+'</div><div style="display:flex;align-items:center"><span class="badge '+bd2[0]+'">'+bd2[1]+'</span>'+chev+'</div></div><div class="mlbody" id="'+cid+'" style="display:'+(open?'block':'none')+'">'+bodyH+'</div></div>';
   }
-  var bd2=r.st==='done'?['b-done','완료']:r.st==='prog'?['b-prog','진행중']:['b-wait','접수 대기'];var planV=r.plan==='-'?'<span class="v-wait">총무기획팀 확인 후</span>':'<span class="'+(r.st==='wait'?'v-wait':'v-set')+'">'+r.plan+'</span>';var progV=r.prog==='-'?'<span class="v-wait">접수 대기</span>':'<span class="v-set">'+r.prog+'</span>';var doneV=r.done==='완료'?'<span class="v-done">완료</span>':r.done==='진행중'?'<span class="v-set">진행중</span>':'<span class="v-wait">대기</span>';
-  var steps=[['접수',true],['확인·예정일',r.plan&&r.plan!=='-'],['진행',r.st==='prog'||r.st==='done'],['완료',r.st==='done']];
-  var stepper='<div style="display:flex;align-items:flex-start;padding:15px 18px 4px">'+steps.map(function(s,i){
-    var on=s[1];
-    var dot='<div style="display:flex;flex-direction:column;align-items:center;gap:5px;min-width:60px"><div style="width:12px;height:12px;border-radius:50%;background:'+(on?(i===3?'var(--ok)':'var(--blue)'):'#e0e0e3')+';box-shadow:'+(on?'0 0 0 3px '+(i===3?'var(--okbg)':'var(--bluebg)'):'none')+'"></div><span style="font-size:11.5px;font-weight:'+(on?'600':'400')+';color:'+(on?'var(--ink2)':'#b8b8bb')+'">'+s[0]+'</span></div>';
-    var line=i<steps.length-1?'<div style="flex:1;height:2px;background:'+(steps[i+1][1]?'var(--blue)':'#e8e8ed')+';margin-top:6px"></div>':'';
-    return dot+line;}).join('')+'</div>';
-  var infoRows='';
-  if(r.detail)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">현상·요청</span><div style="color:var(--ink2);font-size:14px;line-height:1.6;margin-top:3px">'+esc(r.detail)+'</div></div>';
-  if(r.location)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">발생 위치</span> <span style="color:var(--ink2);font-size:14px">'+esc(r.location)+'</span></div>';
-  var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
-  if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:12.5px">신청자</span> <span style="color:var(--ink2);font-size:14px">'+contact.join(' · ')+'</span></div>';
-  var infoBlock=infoRows?('<div style="padding:13px 17px;border-top:1px solid var(--line);background:var(--bg)">'+infoRows+'</div>'):'';
-  var statusBlock='<div class="cbody" style="padding:10px 17px"><div class="sbi" style="font-size:13.5px"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi" style="font-size:13.5px"><span class="k">진행사항</span>'+progV+'</div><div class="sbi" style="font-size:13.5px"><span class="k">완료여부</span>'+doneV+'</div></div>';
-  var body=stepper+infoBlock+statusBlock;
-  return '<div class="card mlcard" style="border-left:3px solid '+edge+'"><div class="ch mlhead" data-t="'+cid+'" style="cursor:pointer"><div><div class="title" style="font-size:15px"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid" style="font-size:12.5px">'+r.rid+' · 접수 '+r.when+'</div></div><div style="display:flex;align-items:center"><span class="badge '+bd2[0]+'">'+bd2[1]+'</span>'+chev+'</div></div><div class="mlbody" id="'+cid+'" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';}).join('');
+  // 대기 / 처리된 요청 분리
+  var waiting=rows.filter(function(r){return r.st==='wait';});
+  var handled=rows.filter(function(r){return r.st!=='wait';});
+  var html='';
+  if(waiting.length){html+='<div class="secttl" style="margin:4px 0 10px">처리 대기 <span style="color:var(--mute);font-weight:400">'+waiting.length+'건</span></div>'+waiting.map(function(r,i){return mlCardHTML(r,'w'+i);}).join('');}
+  if(handled.length){
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px"><div class="secttl" style="margin:0">처리된 요청 <span style="color:var(--mute);font-weight:400">'+handled.length+'건</span></div><span class="hint" style="font-size:12px">카드를 누르면 상세가 열립니다</span></div>';
+    html+=handled.map(function(r,i){return mlCardHTML(r,'h'+i);}).join('');
+  }
+  if(!waiting.length&&!handled.length){html='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">해당 조건의 접수 내역이 없습니다.</div>';}
+  box.innerHTML=html;
   // 카드 헤더 클릭 → 접기/펼치기
   box.querySelectorAll('.mlhead').forEach(function(h){h.addEventListener('click',function(){
     var b=document.getElementById(h.dataset.t);if(!b)return;
     var show=b.style.display==='none';b.style.display=show?'block':'none';
-    var cv=h.querySelector('span[style*="rotate"],span:last-child');
-    var chevEl=h.querySelectorAll('span');chevEl=chevEl[chevEl.length-1];
-    if(chevEl&&chevEl.textContent==='⌄')chevEl.style.transform=show?'rotate(180deg)':'';
+    var chevEl=h.querySelector('.mlchev');
+    if(chevEl)chevEl.style.transform=show?'rotate(180deg)':'';
   });});}
 function bindMylist(){document.querySelectorAll('.flt').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.flt').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderCards(b.dataset.f);});});
   loadMyList();}
@@ -977,7 +999,7 @@ function adminHTML(){
     if(r.type==='voice'){
       var vtb=(r.vtype==='AI 해결 요청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span></div>':(r.vtype==='아카 권한 신청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#a5c8e6;background:#eef4fb;color:#2b5c8a">아카 권한 신청</span></div>':'';
       return head+'<div style="padding:12px 15px">'+vtb+'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:11px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px">'+(r.content||'')+'</div><div class="lbl">총무기획팀 답변</div><textarea data-i="'+i+'" data-f="reply" rows="3" placeholder="답변을 입력 (등록 시 작성자에게 알림)">'+(r.reply&&r.reply!=='-'?r.reply:'')+'</textarea></div>'
-        +'<div style="padding:0 15px 14px"><button class="submit" onclick="saveVoice('+i+')">답변 등록 · 작성자에게 알림</button></div></div>';
+        +'<div style="padding:0 15px 14px;display:flex;gap:8px"><button class="submit" style="flex:1" onclick="saveVoice('+i+')">답변 등록 · 작성자에게 알림</button><button class="fb" style="border-color:var(--dngln);color:var(--dng)" onclick="askDelete('+i+')">삭제</button></div></div>';
     }
     var aInfo='';
     if(r.detail)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink);font-size:13px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
@@ -991,7 +1013,7 @@ function adminHTML(){
       +'<div><div class="lbl">13 · 완료여부</div><div class="dd adstat" data-i="'+i+'"></div></div>'
       +'<div style="grid-column:1/3"><div class="lbl">12 · 진행사항</div><input type="text" data-i="'+i+'" data-f="prog" value="'+(r.prog==='-'?'':r.prog)+'" placeholder="진행 상황을 입력 (변경 시 접수자에게 알림)"></div>'
       +'</div>'
-      +'<div style="padding:0 15px 14px"><button class="submit" onclick="saveAdmin('+i+')">저장 · 접수자에게 알림</button></div></div>';
+      +'<div style="padding:0 15px 14px;display:flex;gap:8px"><button class="submit" style="flex:1" onclick="saveAdmin('+i+')">저장 · 접수자에게 알림</button><button class="fb" style="border-color:var(--dngln);color:var(--dng)" onclick="askDelete('+i+')">삭제</button></div></div>';
   }).join('');
   var docManage='<div class="secttl" style="margin:0 0 10px">자료실 관리 (업로드·교체)</div><div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 보험증권처럼 매년 갱신되는 자료는 같은 항목에 새 파일로 교체하면 최신본만 배포됩니다. 교체 시 <b>담당자에게 자동 안내</b>를 보낼 수 있습니다. (실제 업로드·발송은 Supabase Storage + n8n 연결 후 작동)</div>'
     +DOCS.map(function(d,i){return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+d.cat+'</span>'+d.name+'</div><div class="rid">현재: '+d.file+' · 갱신 '+d.updated+'</div></div><label class="flt" style="cursor:pointer">파일 교체<input type="file" style="display:none" onchange="alert(\'파일 교체 — Supabase Storage 연결 후 실제 반영됩니다\')"></label></div>'
@@ -1158,6 +1180,33 @@ function saveAdmin(i){
       notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.');
     });
   } else { rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;submitDone('변경 내용이 반영되었습니다.'); }
+}
+// 삭제: 2차 확인 모달 → 실행
+var __delIdx=null;
+function askDelete(i){
+  var r=SAMPLE[i];if(!r)return;__delIdx=i;
+  var label=(r.type==='voice')?'건의':(r.tt||'접수');
+  openModal('<div class="mh" style="color:var(--dng)">접수 내역 삭제</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">구분</span><span class="mv">'+esc(label)+'</span></div>'
+    +'<div class="mrow"><span class="mk">접수번호</span><span class="mv">'+esc(r.rid||'')+'</span></div>'
+    +'<div class="mrow"><span class="mk">제목</span><span class="mv">'+esc(r.title||'')+'</span></div>'
+    +'<div class="mq" style="color:var(--dng)">이 내역을 영구 삭제하시겠습니까?</div>'
+    +'<div class="hint" style="text-align:center;font-size:12px">삭제하면 복구할 수 없습니다. 접수자에게는 알림이 가지 않습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" style="background:var(--dng);border-color:var(--dng)" onclick="doDelete()">삭제</button></div>');
+}
+function doDelete(){
+  var i=__delIdx;if(i==null){closeModal();return;}
+  var r=SAMPLE[i];if(!r){closeModal();return;}
+  if(!(SB_READY&&r.id)){SAMPLE.splice(i,1);closeModal();render('admin');return;}
+  var table=(r.type==='voice')?'fac_voices':'fac_requests';
+  sb.from(table).delete().eq('id',r.id).then(function(res){
+    if(res.error){submitDone('삭제 오류: '+res.error.message);return;}
+    closeModal();
+    // 관리자 화면 데이터 재로드
+    if(CURRENT_USER&&CURRENT_USER.role==='admin'&&SB_READY){
+      Promise.all([sb.from('fac_requests').select('*').order('created_at',{ascending:false}).limit(200),sb.from('fac_voices').select('*').order('created_at',{ascending:false}).limit(200)]).then(function(rs){var reqs=(rs[0]&&rs[0].data)||[];var voices=(rs[1]&&rs[1].data)||[];SAMPLE=reqs.map(mapReq).concat(voices.map(mapVoice));var el=document.getElementById('view');el.innerHTML=adminHTML();bindAdmin();submitDone('삭제되었습니다.');});
+    } else { render('admin'); }
+  });
 }
 
 function render(v){var el=document.getElementById('view');
