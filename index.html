@@ -392,6 +392,7 @@ function onCampusPicked(region){
   var bb=document.querySelector('.dd[data-k="building"]');if(bb)fillDDOptions('building',[]);
   var fb=document.querySelector('.dd[data-k="floor"]');if(fb)fillDDOptions('floor',[]);
   loadBuildings(region,function(list){fillDDOptions('building',list);});
+  if(typeof autoMatchNotifyEmail==='function')autoMatchNotifyEmail(region);
 }
 // 건물 선택 시: 층 로드
 function onBuildingPicked(building){
@@ -425,16 +426,43 @@ function hydrateCampus(){
 function bindPen(){Object.keys(META).forEach(buildDD);document.getElementById('pdate').value=new Date().toISOString().slice(0,10);
   ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);if(k==='building')refreshFloor();}}}});
   var pq=document.querySelector('.dd[data-k="penqty"]');if(pq){pq.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.dataset.v)||0;var note=document.getElementById('penqtynote');if(note)note.textContent=n?('= '+(n*200).toLocaleString()+'자루'):'봉지 단위로 신청';});});}}
-function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
+function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
   +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
 function bindReport(){Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
   // 캠퍼스/건물/층: Supabase 실시간 조회 + 방문기억 복원
   hydrateCampus();
+  // 알림 이메일 자동 채우기
+  setupNotifyEmail();
   // 증상에서 넘어온 경우: 요청구분 자동선택
   if(PREFILL_REQ){var rbox=document.querySelector('.dd[data-k="reqtype"]');if(rbox){var rbtn=[].slice.call(rbox.querySelectorAll('.optb')).find(function(x){return x.dataset.v===PREFILL_REQ;});if(rbtn){rbtn.classList.add('on');STATE.reqtype=PREFILL_REQ;paint('reqtype');}}PREFILL_REQ=null;}
   // 증상 상세 자동 채우기
   if(PREFILL_DETAIL){var ta=document.getElementById('detail');if(ta){ta.value=PREFILL_DETAIL;ta.focus();var L=ta.value.length;try{ta.setSelectionRange(L,L);}catch(e){}}PREFILL_DETAIL=null;}
   var rb=document.querySelector('.dd[data-k="reqtype"]');if(rb)rb.scrollIntoView({behavior:'smooth',block:'center'});}
+// 알림 이메일: 현장=본인 가입 이메일 자동 / 관리자=캠퍼스 담당자 자동매칭 + 수정
+var NOTIFY_TOUCHED=false;
+function setupNotifyEmail(){
+  var inp=document.getElementById('notify_email');var hint=document.getElementById('notify_hint');if(!inp)return;
+  inp.addEventListener('input',function(){NOTIFY_TOUCHED=true;if(hint)hint.textContent='';});
+  var isAdmin=CURRENT_USER&&CURRENT_USER.role==='admin';
+  if(!isAdmin){
+    // 현장 사용자: 본인 가입 이메일 고정
+    if(CURRENT_USER&&CURRENT_USER.email){inp.value=CURRENT_USER.email;if(hint)hint.innerHTML='내 가입 이메일로 자동 설정됨';}
+    else if(hint)hint.innerHTML='<span style="color:var(--warn)">가입 이메일이 없어 알림을 못 받습니다. 총무기획팀에 등록을 요청하세요.</span>';
+  } else {
+    if(hint)hint.innerHTML='관리자 대리접수 — 캠퍼스를 선택하면 담당자 이메일이 자동 입력됩니다 (수정 가능)';
+  }
+}
+// 캠퍼스 선택 시 담당자 이메일 자동매칭 (관리자만, 미수정 상태에서만)
+function autoMatchNotifyEmail(region){
+  var inp=document.getElementById('notify_email');var hint=document.getElementById('notify_hint');
+  if(!inp||!(CURRENT_USER&&CURRENT_USER.role==='admin')||NOTIFY_TOUCHED||!SB_READY||!region)return;
+  // 해당 지역의 활성 계정 중 이메일 보유자 조회 → 첫 담당자 자동 채움
+  sb.from('fac_accounts').select('email,name,login_id').eq('region',region).eq('status','active').not('email','is',null).order('approved_at',{ascending:true}).limit(1).then(function(res){
+    var acc=(res.data&&res.data[0])||null;
+    if(acc&&acc.email&&!NOTIFY_TOUCHED){inp.value=acc.email;if(hint)hint.innerHTML=region+' 담당자('+(acc.name||acc.login_id)+') 이메일 자동 입력 — 필요시 수정하세요';}
+    else if(hint)hint.innerHTML='<span style="color:var(--warn)">'+region+' 담당자 이메일이 없습니다. 직접 입력하세요.</span>';
+  });
+}
 
 function mylistHTML(){
   var campusOpts='<option value="">캠퍼스 전체</option>';
@@ -873,7 +901,8 @@ function submitReport(){
   confirmSubmit('유지보수 접수 확인', rows, function(){saveRequest('fix',{
     applicant:fieldVal('applicant'), phone:fieldVal('phone'), ext:fieldVal('ext'),
     apply_date:fieldVal('date')||null, reqtype:STATE.reqtype||null,
-    detail:fieldVal('detail')||null, location:fieldVal('loc')||null
+    detail:fieldVal('detail')||null, location:fieldVal('loc')||null,
+    notify_email:fieldVal('notify_email')||null
   },'접수되었습니다. 총무기획팀이 확인 후 처리예정일·진행사항을 등록하면 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
 // 볼펜 신청 제출
