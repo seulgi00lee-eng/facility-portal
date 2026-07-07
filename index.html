@@ -1011,19 +1011,39 @@ function renderAccounts(rows){
   var box=document.getElementById('account_list');if(!box)return;
   var cnt=document.getElementById('acc_count');if(cnt)cnt.textContent='('+rows.length+'명)';
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center">승인된 계정이 없습니다.</div>';return;}
-  var head='<div style="display:grid;grid-template-columns:1.3fr 1fr 0.8fr 1.6fr 0.9fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일</div><div>승인일</div></div>';
+  var missing=rows.filter(function(a){return !a.email;}).length;
+  var warn=missing?('<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:9px;color:var(--warn)">이메일 미입력 <b>'+missing+'명</b> — 미입력 계정은 접수·진행 알림을 받지 못합니다. 이메일을 등록해 주세요.</div>'):'';
+  var head='<div style="display:grid;grid-template-columns:1.3fr 1fr 0.7fr 2fr 0.9fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>승인일</div></div>';
   var body=rows.map(function(a){
-    var em=a.email?('<span style="color:var(--ink)">'+a.email+'</span>'):'<span style="color:var(--dng)">미입력</span>';
     var role=a.role==='admin'?' <span style="font-size:10px;color:var(--blue);border:1px solid var(--blue);border-radius:4px;padding:0 4px">관리자</span>':'';
-    return '<div style="display:grid;grid-template-columns:1.3fr 1fr 0.8fr 1.6fr 0.9fr;gap:10px;padding:11px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
+    var id=a.login_id;
+    var emCell='<div style="display:flex;align-items:center;gap:6px">'
+      +'<input type="email" data-em-id="'+id+'" value="'+(a.email||'')+'" placeholder="이메일 미입력 — 등록" style="flex:1;padding:6px 9px;font-size:12px;border:1px solid '+(a.email?'var(--line)':'var(--warnln)')+';border-radius:8px;background:'+(a.email?'#fff':'var(--warnbg)')+'">'
+      +'<button class="flt" data-em-save="'+id+'" style="padding:6px 11px;white-space:nowrap">'+(a.email?'수정':'등록')+'</button></div>';
+    return '<div style="display:grid;grid-template-columns:1.3fr 1fr 0.7fr 2fr 0.9fr;gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
       +'<div style="font-weight:600">'+a.login_id+role+'</div>'
       +'<div>'+(a.name||'')+'</div>'
       +'<div>'+(a.region||'')+'</div>'
-      +'<div style="word-break:break-all">'+em+'</div>'
+      +emCell
       +'<div style="color:var(--mute)">'+((a.approved_at||'').slice(0,10))+'</div>'
       +'</div>';
   }).join('');
-  box.innerHTML='<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+head+body+'</div>';
+  box.innerHTML=warn+'<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+head+body+'</div>';
+  box.querySelectorAll('[data-em-save]').forEach(function(btn){btn.addEventListener('click',function(){saveEmail(btn.dataset.emSave);});});
+  box.querySelectorAll('[data-em-id]').forEach(function(inp){inp.addEventListener('keydown',function(e){if(e.key==='Enter')saveEmail(inp.dataset.emId);});});
+}
+function saveEmail(loginId){
+  var inp=document.querySelector('[data-em-id="'+loginId+'"]');if(!inp)return;
+  var email=(inp.value||'').trim();
+  if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){inp.style.borderColor='var(--dng)';inp.focus();return;}
+  if(!SB_READY){submitDone('서버에 연결되어 있지 않습니다.');return;}
+  var btn=document.querySelector('[data-em-save="'+loginId+'"]');if(btn){btn.textContent='저장중';btn.disabled=true;}
+  sb.from('fac_accounts').update({email:email||null}).eq('login_id',loginId).then(function(res){
+    if(res.error){if(btn){btn.textContent='재시도';btn.disabled=false;}submitDone('저장 오류: '+res.error.message);return;}
+    var hit=ACCOUNTS_CACHE.filter(function(x){return x.login_id===loginId;})[0];if(hit)hit.email=email||null;
+    inp.style.borderColor=email?'var(--okln)':'var(--warnln)';inp.style.background=email?'var(--okbg)':'var(--warnbg)';
+    if(btn){btn.textContent=email?'수정':'등록';btn.disabled=false;}
+  });
 }
 function filterAccounts(){
   var q=(document.getElementById('acc_search').value||'').trim().toLowerCase();
