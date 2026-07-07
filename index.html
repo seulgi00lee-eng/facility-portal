@@ -168,6 +168,16 @@ var SB_URL="https://gegrylivlqxwcobnuwie.supabase.co";
 var SB_KEY="sb_publishable_PInNA4d_JkTn4_U1QeI1RQ_vCz2HFyV";
 var sb=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SB_URL,SB_KEY):null;
 var SB_READY=!!sb;
+// ===== 알림 채널 (n8n + Gmail) =====
+// n8n Webhook URL — 배포 후 실제 URL로 교체 (예: https://n8n.flowedu.co.kr/webhook/fac-notify)
+var N8N_NOTIFY_URL="https://seulgi00lee.app.n8n.cloud/webhook/fac-notify";
+// n8n으로 알림 발송 요청. type: 'received'(접수완료) | 'progress'(진행업데이트)
+function n8nNotify(payload){
+  if(N8N_NOTIFY_URL.indexOf('YOUR-N8N-HOST')>-1)return Promise.resolve({ok:false,error:'n8n_url_not_set'});
+  return fetch(N8N_NOTIFY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json().catch(function(){return {ok:r.ok};});})
+    .catch(function(e){return {ok:false,error:String(e)};});
+}
 // 캠퍼스(지역)/건물/층 캐시
 var CAMPUS_CACHE=null, BLD_CACHE={}, FLR_CACHE={};
 var GUIDE={
@@ -807,15 +817,27 @@ function saveRequest(type, extra, okMsg){
     biz:arrOrNull(STATE.biz), brand:arrOrNull(STATE.brand),
     campus:STATE.campus||'', building:STATE.building||null,
     floors:arrOrNull(STATE.floor),
-    applicant:'', apply_date:null, status:'wait'
+    applicant:'', apply_date:null, status:'wait',
+    applicant_login:(CURRENT_USER&&CURRENT_USER.login_id)||null
   }, extra);
   if(!row.campus){submitDone('캠퍼스(지역)를 선택해 주세요.');return;}
   if(!row.applicant){submitDone('신청자 이름을 입력해 주세요.');return;}
-  sb.from('fac_requests').insert(row).select('record_no').then(function(res){
+  sb.from('fac_requests').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류가 발생했습니다: '+res.error.message);return;}
-    var no=(res.data&&res.data[0]&&res.data[0].record_no)||'';
-    submitDone(okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
-    CAMPUS_CACHE=CAMPUS_CACHE; // no-op
+    var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
+    fireReceipt('request',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
+  });
+}
+// 접수 완료 알림(접수자+총무팀) 발송 후 완료 모달
+function fireReceipt(kind,id,baseMsg){
+  var email=(CURRENT_USER&&CURRENT_USER.email)||null;
+  n8nNotify({type:'received',kind:kind,id:id,applicant_email:email,
+    applicant_name:(CURRENT_USER&&CURRENT_USER.name)||''}).then(function(r){
+    var note;
+    if(r&&r.ok)note='<b style="color:var(--ok)">접수 완료 알림을 발송했습니다.</b> (접수자·총무기획팀)';
+    else if(r&&r.error==='n8n_url_not_set')note='<span style="color:var(--warn)">알림 채널(n8n) 연결 전이라 메일은 발송되지 않았습니다. 접수는 정상 저장되었습니다.</span>';
+    else note='<span style="color:var(--dng)">접수 알림 발송 실패 — 접수는 정상 저장되었습니다.</span>';
+    submitDone(baseMsg+'<br><br>'+note);
   });
 }
 function saveVoiceRow(okMsg){
@@ -831,19 +853,19 @@ function saveVoiceRow(okMsg){
     var content='■ 신청구분: '+act+'\n■ 관코드: '+gwan+'\n■ 대상자: '+nm+' ('+rl+')\n■ 필요 권한:\n'+perm;
     row={vtype:'aka', campus:STATE.campus||null, building:null,
       applicant:fieldVal('vapplicant')||'', title:title, content:content,
-      apply_date:fieldVal('vdate')||null, status:'wait'};
+      apply_date:fieldVal('vdate')||null, status:'wait', applicant_login:(CURRENT_USER&&CURRENT_USER.login_id)||null};
   } else {
     var vt=(VOICE_TYPE==='AI 해결 요청')?'ai':'normal';
     row={vtype:vt, campus:STATE.campus||null, building:STATE.building||null,
       applicant:fieldVal('vapplicant')||'', title:fieldVal('vtitle')||'', content:fieldVal('vcontent')||'',
-      apply_date:fieldVal('vdate')||null, status:'wait'};
+      apply_date:fieldVal('vdate')||null, status:'wait', applicant_login:(CURRENT_USER&&CURRENT_USER.login_id)||null};
     if(!row.applicant){submitDone('작성자 이름을 입력해 주세요.');return;}
     if(!row.title){submitDone('제목을 입력해 주세요.');return;}
   }
-  sb.from('fac_voices').insert(row).select('record_no').then(function(res){
+  sb.from('fac_voices').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류: '+res.error.message);return;}
-    var no=(res.data&&res.data[0]&&res.data[0].record_no)||'';
-    submitDone(okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
+    var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
+    fireReceipt('voice',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
   });
 }
 function submitReport(){
@@ -1023,6 +1045,16 @@ function bindAdmin(){
     box.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');cur.className='cur sel';cur.textContent=b.dataset.v;box.classList.remove('open');box.dataset.val=b.dataset.v;});});
   });
 }
+function maskEmail(e){if(!e)return '';var p=e.split('@');return p[0].slice(0,2)+'***@'+(p[1]||'');}
+function notifyApplicant(kind,id,baseMsg){
+  n8nNotify({type:'progress',kind:kind,id:id}).then(function(d){
+    var note=(d&&d.ok)?'<b style="color:var(--ok)">접수자'+(d.to?('('+maskEmail(d.to)+')'):'')+'에게 진행상황 알림을 발송했습니다.</b>'
+      :(d&&d.error==='no_email')?'<span style="color:var(--warn)">접수자 이메일이 미등록이라 알림은 발송되지 않았습니다. (승인된 계정 목록에서 확인)</span>'
+      :(d&&d.error==='n8n_url_not_set')?'<span style="color:var(--warn)">알림 채널(n8n) 연결 전이라 메일은 발송되지 않았습니다. 저장은 완료되었습니다.</span>'
+      :'<span style="color:var(--dng)">알림 발송 실패'+(d&&d.error?(': '+d.error):'')+' — 저장은 완료되었습니다.</span>';
+    submitDone(baseMsg+'<br><br>'+note);
+  });
+}
 function saveVoice(i){
   var rep=document.querySelector('textarea[data-i="'+i+'"][data-f="reply"]').value;
   var rec=SAMPLE[i];
@@ -1030,7 +1062,7 @@ function saveVoice(i){
     sb.from('fac_voices').update({reply:rep||null,status:rep?'done':'prog'}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
       rec.reply=rep||'-';rec.st=rep?'done':'prog';
-      submitDone('답변이 등록되었습니다. (알림 발송은 n8n 연결 후 작동)');
+      notifyApplicant('voice',rec.id,'답변이 등록되었습니다.');
     });
   } else { rec.reply=rep||'-';rec.st=rep?'done':'prog';submitDone('답변이 반영되었습니다.'); }
 }
@@ -1044,7 +1076,7 @@ function saveAdmin(i){
     sb.from('fac_requests').update({plan_date:plan||null,progress:prog||null,status:st,done_note:done||null}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
       rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;
-      submitDone('변경 내용이 저장되었습니다. (알림 발송은 n8n 연결 후 작동)');
+      notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.');
     });
   } else { rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;submitDone('변경 내용이 반영되었습니다.'); }
 }
@@ -1148,7 +1180,7 @@ function afterLogin(knownLoginId){
       var acc=(res.data&&res.data[0])||null;
       if(!acc){gateMsg('계정 정보를 찾을 수 없습니다.','err');return;}
       if(acc.status!=='active'){gateMsg('아직 승인되지 않은 계정입니다.','err');sb.auth.signOut();return;}
-      CURRENT_USER={login_id:acc.login_id,role:acc.role,region:acc.region,name:acc.name,gwan_code:acc.gwan_code};
+      CURRENT_USER={login_id:acc.login_id,role:acc.role,region:acc.region,name:acc.name,gwan_code:acc.gwan_code,email:acc.email||null};
       if(acc.must_reset){showForceReset();return;}
       enterApp();
     });
