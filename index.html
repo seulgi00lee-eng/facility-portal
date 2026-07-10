@@ -476,7 +476,8 @@ function mylistHTML(){
   +'<div style="display:flex;gap:9px"><input type="text" id="q_name" placeholder="신청자 이름 (선택)" style="flex:1" oninput="applyQuery()"><button class="flt" onclick="resetQuery()">초기화</button></div></div>'
   +'<div id="ml_sum" style="margin-bottom:10px"></div><div class="hint" id="ml_count" style="margin-bottom:12px"></div><div id="mlcards"></div>';
 }
-var ML_TYPE='all',ML_LIVE=false;
+var ML_TYPE='all',ML_LIVE=false,ML_STATUS='all';
+function setStatusFilter(s){ML_STATUS=(ML_STATUS===s)?'all':s;renderCards(ML_TYPE);}
 function applyQuery(){renderCards(ML_TYPE);}
 function resetQuery(){var ids=['q_campus','q_building','q_req','q_name'];ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});renderCards(ML_TYPE);}
 function qv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
@@ -484,6 +485,7 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
   var qc=qv('q_campus'),qb=qv('q_building'),qr=qv('q_req'),qn=qv('q_name');
   var rows=SAMPLE.filter(function(r){
     if(!(f==='all'||r.type===f))return false;
+    if(ML_STATUS!=='all'&&r.st!==ML_STATUS)return false;
     if(qc&&r.campus!==qc)return false;
     if(qb&&r.building!==qb)return false;
     if(qr&&r.req!==qr)return false;
@@ -493,11 +495,23 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
   var typed=SAMPLE.filter(function(r){return f==='all'||r.type===f;});
   var nw=typed.filter(function(r){return r.st==='wait';}).length,np=typed.filter(function(r){return r.st==='prog';}).length,nd=typed.filter(function(r){return r.st==='done';}).length;
   var sum=document.getElementById('ml_sum');
-  if(sum){sum.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap">'
-    +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid #c5c5c8"><div style="font-size:20px;font-weight:700">'+nw+'</div><div style="font-size:11.5px;color:var(--mute)">접수 대기</div></div>'
-    +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid var(--warn)"><div style="font-size:20px;font-weight:700;color:var(--warn)">'+np+'</div><div style="font-size:11.5px;color:var(--mute)">진행중·확인중</div></div>'
-    +'<div style="flex:1;min-width:100px;background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:12px 15px;border-left:3px solid var(--ok)"><div style="font-size:20px;font-weight:700;color:var(--ok)">'+nd+'</div><div style="font-size:11.5px;color:var(--mute)">완료·답변완료</div></div></div>';}
-  var cnt=document.getElementById('ml_count');if(cnt){var anyq=qc||qb||qr||qn;cnt.innerHTML=anyq?('조회 결과 <b>'+rows.length+'건</b>'+(rows.length?' — 이미 접수된 건이 있는지 확인하세요.':' — 동일 조건의 접수 내역이 없습니다. 새로 접수하셔도 됩니다.')):(ML_LIVE?('총 <b>'+typed.length+'건</b> — 총무기획팀이 상태를 변경하면 실시간 반영되고 알림이 갑니다.'):'서버 연결 전이라 <b>예시 데이터</b>가 표시되고 있습니다.');}
+  if(sum){
+    function statCard(key,val,label,edge,numColor,tint){
+      var on=(ML_STATUS===key);
+      var box=on?('background:'+tint+';box-shadow:0 0 0 2px '+edge+' inset, var(--shadow)'):'background:#fff;box-shadow:var(--shadow)';
+      return '<div role="button" tabindex="0" title="눌러서 '+label+'만 보기" onclick="setStatusFilter(\''+key+'\')" style="flex:1;min-width:100px;'+box+';border-radius:12px;padding:12px 15px;border-left:3px solid '+edge+';cursor:pointer;transition:.12s;user-select:none">'
+        +'<div style="font-size:20px;font-weight:700;color:'+numColor+'">'+val+'</div>'
+        +'<div style="font-size:11.5px;color:var(--mute)">'+label+(on?' <span style="color:'+edge+';font-weight:700">✓</span>':'')+'</div></div>';
+    }
+    sum.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +statCard('wait',nw,'접수 대기','#c5c5c8','var(--ink)','#f3f3f4')
+      +statCard('prog',np,'진행중·확인중','var(--warn)','var(--warn)','var(--warnbg)')
+      +statCard('done',nd,'완료·답변완료','var(--ok)','var(--ok)','var(--okbg)')
+      +'</div>'
+      +(ML_STATUS!=='all'?'<div style="margin-top:8px;font-size:12px;color:var(--mute)">선택한 상태만 표시 중 · <a onclick="setStatusFilter(\''+ML_STATUS+'\')" style="cursor:pointer;color:var(--blue);font-weight:600">전체 보기</a></div>':'');
+  }
+  var STLBL={wait:'접수 대기',prog:'진행중·확인중',done:'완료·답변완료'};
+  var cnt=document.getElementById('ml_count');if(cnt){var anyq=qc||qb||qr||qn;cnt.innerHTML=anyq?('조회 결과 <b>'+rows.length+'건</b>'+(rows.length?' — 이미 접수된 건이 있는지 확인하세요.':' — 동일 조건의 접수 내역이 없습니다. 새로 접수하셔도 됩니다.')):(ML_STATUS!=='all'?('<b>'+STLBL[ML_STATUS]+'</b> '+rows.length+'건만 표시 중'):(ML_LIVE?('총 <b>'+typed.length+'건</b> — 총무기획팀이 상태를 변경하면 실시간 반영되고 알림이 갑니다.'):'서버 연결 전이라 <b>예시 데이터</b>가 표시되고 있습니다.'));}
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">'+(ML_LIVE&&!anyq?'아직 접수된 내역이 없습니다. 접수하면 이곳에서 진행 상황을 확인할 수 있습니다.':'해당 조건의 접수 내역이 없습니다.')+'</div>';return;}
   // 카드 1개 HTML 생성 (idx로 고유 id)
   function mlCardHTML(r,idx){
@@ -538,16 +552,22 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     var bodyH=stepper+infoBlock+statusBlock;
     return '<div class="card mlcard" style="border-left:3px solid '+edge+'"><div class="ch mlhead" data-t="'+cid+'" style="cursor:pointer"><div><div class="title" style="font-size:15px"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid" style="font-size:12.5px">'+r.rid+' · 접수 '+r.when+'</div>'+metaLine+'</div><div style="display:flex;align-items:center"><span class="badge '+bd2[0]+'">'+bd2[1]+'</span>'+chev+'</div></div><div class="mlbody" id="'+cid+'" style="display:'+(open?'block':'none')+'">'+bodyH+'</div></div>';
   }
-  // 대기 / 처리된 요청 분리
-  var waiting=rows.filter(function(r){return r.st==='wait';});
-  var handled=rows.filter(function(r){return r.st!=='wait';});
   var html='';
-  if(waiting.length){html+='<div class="secttl" style="margin:4px 0 10px">처리 대기 <span style="color:var(--mute);font-weight:400">'+waiting.length+'건</span></div>'+waiting.map(function(r,i){return mlCardHTML(r,'w'+i);}).join('');}
-  if(handled.length){
-    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px"><div class="secttl" style="margin:0">처리된 요청 <span style="color:var(--mute);font-weight:400">'+handled.length+'건</span></div><span class="hint" style="font-size:12px">카드를 누르면 상세가 열립니다</span></div>';
-    html+=handled.map(function(r,i){return mlCardHTML(r,'h'+i);}).join('');
+  if(ML_STATUS!=='all'){
+    // 특정 상태 선택 시: 구분 없이 해당 상태만 목록으로 표시
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px"><div class="secttl" style="margin:0">'+STLBL[ML_STATUS]+' <span style="color:var(--mute);font-weight:400">'+rows.length+'건</span></div><span class="hint" style="font-size:12px">카드를 누르면 상세가 열립니다</span></div>';
+    html+=rows.map(function(r,i){return mlCardHTML(r,'s'+i);}).join('');
+  }else{
+    // 전체 보기: 대기 / 처리된 요청 분리
+    var waiting=rows.filter(function(r){return r.st==='wait';});
+    var handled=rows.filter(function(r){return r.st!=='wait';});
+    if(waiting.length){html+='<div class="secttl" style="margin:4px 0 10px">처리 대기 <span style="color:var(--mute);font-weight:400">'+waiting.length+'건</span></div>'+waiting.map(function(r,i){return mlCardHTML(r,'w'+i);}).join('');}
+    if(handled.length){
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px"><div class="secttl" style="margin:0">처리된 요청 <span style="color:var(--mute);font-weight:400">'+handled.length+'건</span></div><span class="hint" style="font-size:12px">카드를 누르면 상세가 열립니다</span></div>';
+      html+=handled.map(function(r,i){return mlCardHTML(r,'h'+i);}).join('');
+    }
+    if(!waiting.length&&!handled.length){html='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">해당 조건의 접수 내역이 없습니다.</div>';}
   }
-  if(!waiting.length&&!handled.length){html='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">해당 조건의 접수 내역이 없습니다.</div>';}
   box.innerHTML=html;
   // 카드 헤더 클릭 → 접기/펼치기
   box.querySelectorAll('.mlhead').forEach(function(h){h.addEventListener('click',function(){
