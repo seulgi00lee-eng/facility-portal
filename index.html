@@ -1330,6 +1330,15 @@ function doSignup(){
     if(r&&r.ok){
       // 이메일 저장(컬럼 있으면 반영, 없으면 무시)
       if(email){sb.from('fac_accounts').update({email:email}).eq('login_id',id).then(function(){}).catch(function(){});}
+      // 가입 승인 대기 알림(총무기획팀) — 실패해도 가입 신청 자체에는 영향 없음
+      try{
+        n8nNotify({type:'signup',kind:'signup',id:id,
+          applicant_email:email||'',applicant_name:(r.name||''),
+          summary:{record_no:'-',typelabel:'가입 승인 대기',
+            campus:(r.region||'-'),building:'-',
+            detail:('아이디: '+id+(email?(' / 이메일: '+email):' / 이메일 미등록')),
+            applicant:(r.name||'-'),status:'승인 대기'}});
+      }catch(e){}
       gateMsg('가입 신청이 접수되었습니다. ('+r.region+' · '+r.name+')<br>총무기획팀 승인 후 로그인할 수 있습니다.','ok');
     }
     else{gateMsg((r&&r.error)||'신청에 실패했습니다.','err');}
