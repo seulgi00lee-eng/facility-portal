@@ -687,12 +687,39 @@ function docAllFolders(){
 }
 
 // ===== 현장 화면 =====
+var DOC_Q="";        // 검색어
+var DOC_SEL={};      // 체크된 자료 id
+var DOC_BUSY=false;  // 일괄 다운로드 진행 중
+
+function docSelCount(){var n=0;for(var k in DOC_SEL){if(DOC_SEL[k])n++;}return n;}
+function docMatch(d){
+  if(DOC_FILTER!=='전체'&&d.cat!==DOC_FILTER)return false;
+  if(DOC_FOLDER!=='전체'&&(d.folder||'')!==DOC_FOLDER)return false;
+  if(DOC_Q){
+    var hay=[d.name,d.file,d.note,d.folder,d.cat].join(' ').toLowerCase();
+    var ts=DOC_Q.toLowerCase().split(/\s+/).filter(Boolean);
+    for(var i=0;i<ts.length;i++){if(hay.indexOf(ts[i])<0)return false;}
+  }
+  return true;
+}
+function docVisible(){return DOCS.filter(docMatch);}
+
 function docsHTML(){
   var tabs=DOC_CATS.map(function(c){return '<button class="flt'+(c===DOC_FILTER?' on':'')+'" data-c="'+docEsc(c)+'">'+docEsc(c)+'</button>';}).join('');
-  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:14px;line-height:1.55">총무기획팀이 올린 최신 자료를 다운로드하는 곳입니다. 보험증권·이수증처럼 매년 갱신되는 자료는 <b>년도 폴더</b>로 구분되어 있습니다. (파일 업로드는 총무기획팀 권한)</div>'
+  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:12px;line-height:1.55">총무기획팀이 올린 최신 자료를 다운로드하는 곳입니다. <b>학원명·자료명으로 검색</b>하거나, 여러 건을 체크해 <b>한 번에 다운로드</b>할 수 있습니다.</div>'
+    +'<div style="position:relative;margin-bottom:11px;max-width:460px">'
+    +'<input type="text" id="doc_q" value="'+docEsc(DOC_Q)+'" placeholder="학원명·자료명·파일명 검색 (예: 정자, 이수증)" oninput="docSearch(this.value)" style="width:100%;padding-right:34px">'
+    +'<button type="button" id="doc_qx" onclick="docSearch(\'\');document.getElementById(\'doc_q\').value=\'\';" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--mute);font-size:16px;cursor:pointer;display:none">×</button>'
+    +'</div>'
     +'<div class="filt" id="doc_cats" style="margin-bottom:9px">'+tabs+'</div>'
-    +'<div id="doc_folders" style="margin-bottom:16px"></div>'
+    +'<div id="doc_folders" style="margin-bottom:12px"></div>'
+    +'<div id="doc_bar"></div>'
     +'<div id="docs_list"></div>';
+}
+function docSearch(v){
+  DOC_Q=String(v||'').trim();
+  var x=document.getElementById('doc_qx');if(x)x.style.display=DOC_Q?'block':'none';
+  renderDocFolderBar();renderDocs();
 }
 function renderDocFolderBar(){
   var bar=document.getElementById('doc_folders');if(!bar)return;
@@ -708,29 +735,53 @@ function renderDocFolderBar(){
     b.addEventListener('click',function(){DOC_FOLDER=b.dataset.fd;renderDocFolderBar();renderDocs();});
   });
 }
+// 선택 바 (전체선택 · 선택건수 · 일괄 다운로드)
+function renderDocBar(msg){
+  var bar=document.getElementById('doc_bar');if(!bar)return;
+  var vis=docVisible().filter(function(d){return d.path;});
+  var n=docSelCount();
+  if(!vis.length&&!n){bar.innerHTML='';return;}
+  var allOn=vis.length>0&&vis.every(function(d){return DOC_SEL[d.id];});
+  bar.innerHTML='<div style="position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:'+(n?'var(--bluebg)':'#fff')+';border:1px solid '+(n?'var(--blue)':'var(--line)')+';border-radius:9px;padding:9px 13px;margin-bottom:12px">'
+    +'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" '+(allOn?'checked':'')+' onchange="docSelAll(this.checked)" style="width:auto;margin:0"> 전체 선택</label>'
+    +'<span style="font-size:12.5px;color:var(--mute)">표시 <b>'+vis.length+'건</b>'+(n?(' · <b style="color:var(--blue)">선택 '+n+'건</b>'):'')+'</span>'
+    +(msg?('<span style="font-size:12.5px;margin-left:4px">'+msg+'</span>'):'')
+    +'<span style="margin-left:auto;display:flex;gap:7px">'
+    +(n?'<button class="flt" onclick="docSelClear()">선택 해제</button>':'')
+    +'<button class="submit" style="padding:6px 14px;font-size:12.5px;width:auto;margin:0" '+((n&&!DOC_BUSY)?'':'disabled style="padding:6px 14px;font-size:12.5px;width:auto;margin:0;opacity:.4;cursor:default"')+' onclick="docDownloadSel()">선택 항목 다운로드'+(n?(' ('+n+')'):'')+'</button>'
+    +'</span></div>';
+}
+function docSel(id,on){if(on)DOC_SEL[id]=true;else delete DOC_SEL[id];renderDocBar();}
+function docSelAll(on){
+  docVisible().forEach(function(d){if(!d.path)return;if(on)DOC_SEL[d.id]=true;else delete DOC_SEL[d.id];});
+  renderDocs();
+}
+function docSelClear(){DOC_SEL={};renderDocs();}
+
 function docCardHTML(d){
   var meta=[];
   if(d.file)meta.push(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):''));
   if(d.updated)meta.push('갱신 '+d.updated);
   if(d.note)meta.push(docEsc(d.note));
-  var btn=d.path?'<button class="flt" onclick="docDownload(\''+d.id+'\')">다운로드</button>':'<span class="pill">파일 준비 중</span>';
-  return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid">'+(meta.join(' · ')||'-')+'</div></div>'+btn+'</div></div>';
+  var chk=d.path?('<label style="display:flex;align-items:center;padding:0 11px 0 2px;cursor:pointer"><input type="checkbox" class="dchk" '+(DOC_SEL[d.id]?'checked':'')+' onchange="docSel(\''+d.id+'\',this.checked)" style="width:auto;margin:0;transform:scale(1.15)"></label>'):'';
+  var btn=d.path?'<button class="flt" id="dbtn_'+d.id+'" onclick="docDownload(\''+d.id+'\')">다운로드</button>':'<span class="pill">파일 준비 중</span>';
+  return '<div class="card"'+(DOC_SEL[d.id]?' style="border-color:var(--blue)"':'')+'><div class="ch">'+chk
+    +'<div style="flex:1;min-width:0"><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid">'+(meta.join(' · ')||'-')+'</div></div>'+btn+'</div></div>';
 }
 function docGroupHead(f,n){
   return '<div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px"><span style="font-size:14px;font-weight:600;letter-spacing:-.2px">'+(f===''?'📁 폴더 없음':'📂 '+docEsc(f))+'</span><span class="hint" style="font-size:11.5px">'+n+'건</span></div>';
 }
 function renderDocs(){
   var box=document.getElementById('docs_list');if(!box)return;
-  var rows=DOCS.filter(function(d){
-    if(DOC_FILTER!=='전체'&&d.cat!==DOC_FILTER)return false;
-    if(DOC_FOLDER!=='전체'&&(d.folder||'')!==DOC_FOLDER)return false;
-    return true;
-  });
-  if(!rows.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">해당 자료가 없습니다.</div>';return;}
+  var rows=docVisible();
+  renderDocBar();
+  if(!rows.length){
+    box.innerHTML='<div class="hint" style="padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">'
+      +(DOC_Q?('<b>"'+docEsc(DOC_Q)+'"</b> 검색 결과가 없습니다.<br>학원명 일부만 입력해 보세요. (예: 정자)'):'해당 자료가 없습니다.')+'</div>';
+    return;
+  }
   var real=docFolders(DOC_FILTER).filter(function(f){return f!=='';});
-  // 폴더가 없거나 특정 폴더를 고른 상태 → 그냥 목록
-  if(!real.length||DOC_FOLDER!=='전체'){box.innerHTML=rows.map(docCardHTML).join('');return;}
-  // 폴더별 섹션으로 묶어서 표시
+  if(!real.length||DOC_FOLDER!=='전체'||DOC_Q){box.innerHTML=rows.map(docCardHTML).join('');return;}
   var g={},order=[];
   rows.forEach(function(d){var f=d.folder||'';if(!(f in g)){g[f]=[];order.push(f);}g[f].push(d);});
   order.sort(docFolderSort);
@@ -759,17 +810,64 @@ function loadDocs(){
     }
     var rows=(res.data)||[];
     DOCS=rows.map(function(r){return {id:r.id,cat:r.category,name:r.name,folder:r.folder||'',file:r.file_name||'',path:r.file_path||'',size:r.file_size||0,updated:(r.updated_at||'').slice(0,10),note:r.note||''};});
+    // 사라진 자료의 선택 상태 정리
+    var live={};DOCS.forEach(function(d){live[d.id]=1;});
+    for(var k in DOC_SEL){if(!live[k])delete DOC_SEL[k];}
     renderDocFolderBar(); renderDocs(); renderDocAdmin();
   });
 }
 
-// ===== 다운로드 (60초 서명 URL) =====
+// ===== 다운로드 =====
+// Blob으로 받아 a.download 로 저장 → 원본 한글 파일명 100% 보존
+function docFetchBlob(d){
+  return sb.storage.from(DOC_BUCKET).download(d.path).then(function(res){
+    if(res.error||!res.data)throw new Error((res.error&&res.error.message)||'파일을 가져오지 못했습니다');
+    return res.data;
+  });
+}
+function docSaveBlob(blob,filename){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=filename||'download'; a.style.display='none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},4000);
+}
 function docDownload(id){
   var d=docById(id);
   if(!d||!d.path){alert('아직 파일이 등록되지 않은 항목입니다.');return;}
-  sb.storage.from(DOC_BUCKET).createSignedUrl(d.path,60,{download:d.file||true}).then(function(res){
-    if(res.error||!res.data){alert('다운로드 링크를 만들지 못했습니다.\n'+((res.error&&res.error.message)||''));return;}
-    var a=document.createElement('a');a.href=res.data.signedUrl;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  var btn=document.getElementById('dbtn_'+id);
+  if(btn){btn.disabled=true;btn.textContent='받는 중...';}
+  docFetchBlob(d).then(function(blob){
+    docSaveBlob(blob,d.file||d.name);
+    if(btn){btn.disabled=false;btn.textContent='다운로드';}
+  }).catch(function(e){
+    if(btn){btn.disabled=false;btn.textContent='다운로드';}
+    alert('다운로드 실패\n'+(e.message||String(e)));
+  });
+}
+// 일괄 다운로드 — 순차 처리 (동시 요청 시 브라우저가 뒷건을 취소함)
+function docDownloadSel(){
+  if(DOC_BUSY)return;
+  var ids=[];for(var k in DOC_SEL){if(DOC_SEL[k])ids.push(k);}
+  var list=ids.map(docById).filter(function(d){return d&&d.path;});
+  if(!list.length){alert('다운로드할 자료를 체크해 주세요.');return;}
+  DOC_BUSY=true;
+  var done=0,fail=0,names=[];
+  function tick(){renderDocBar('<b style="color:var(--blue)">받는 중 '+(done+fail)+'/'+list.length+'</b>'+(fail?(' · <b style="color:var(--dng)">실패 '+fail+'</b>'):''));}
+  tick();
+  var chain=Promise.resolve();
+  list.forEach(function(d){
+    chain=chain.then(function(){
+      return docFetchBlob(d).then(function(blob){
+        docSaveBlob(blob,d.file||d.name);done++;tick();
+        return new Promise(function(r){setTimeout(r,350);}); // 브라우저 저장 큐 여유
+      }).catch(function(e){fail++;names.push(d.name);tick();});
+    });
+  });
+  chain.then(function(){
+    DOC_BUSY=false;
+    if(fail){renderDocBar('<b style="color:var(--dng)">'+fail+'건 실패</b> — '+docEsc(names.slice(0,3).join(', '))+(names.length>3?' 외':''));}
+    else{DOC_SEL={};renderDocs();renderDocBar('<b style="color:var(--ok)">✓ '+done+'건 저장 완료</b>');}
   });
 }
 
@@ -777,7 +875,10 @@ function docDownload(id){
 function docAdminHTML(){
   return '<div class="secttl" style="margin:0 0 10px">자료실 관리 (업로드·교체)</div>'
     +'<div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 매년 갱신되는 자료는 <b>폴더(년도)</b>로 나눠 관리하세요. 같은 항목에 <b>파일 교체</b>로 새 파일을 올리면 최신본만 배포되고 이전 파일은 자동 삭제됩니다. (파일당 최대 '+DOC_MAXMB+'MB)</div>'
-    +'<div style="margin:6px 0 12px"><button class="flt" onclick="docAddOpen()">+ 새 자료 추가</button></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin:6px 0 12px;flex-wrap:wrap">'
+    +'<button class="flt" onclick="docAddOpen()">+ 새 자료 추가</button>'
+    +'<input type="text" id="docadm_q" placeholder="학원명·자료명 검색" oninput="DOC_AQ=this.value.trim();renderDocAdmin()" style="flex:1;max-width:280px;margin:0">'
+    +'<span class="hint" id="docadm_cnt"></span></div>'
     +'<div id="docadmin_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>';
 }
@@ -792,12 +893,24 @@ function docAdminCard(d){
     +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
     +'</div></div>';
 }
+var DOC_AQ="";
+function docAdmMatch(d){
+  if(!DOC_AQ)return true;
+  var hay=[d.name,d.file,d.note,d.folder,d.cat].join(' ').toLowerCase();
+  var ts=DOC_AQ.toLowerCase().split(/\s+/).filter(Boolean);
+  for(var i=0;i<ts.length;i++){if(hay.indexOf(ts[i])<0)return false;}
+  return true;
+}
 function renderDocAdmin(){
   var box=document.getElementById('docadmin_list');if(!box)return;
+  var cnt=document.getElementById('docadm_cnt');
+  var pool=DOCS.filter(docAdmMatch);
+  if(cnt)cnt.innerHTML=DOC_AQ?('검색 <b>'+pool.length+'</b>/'+DOCS.length+'건'):('총 <b>'+DOCS.length+'</b>건');
   if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
+  if(!pool.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px"><b>"'+docEsc(DOC_AQ)+'"</b> 검색 결과가 없습니다.</div>';return;}
   var h='';
   DOC_UPCATS.forEach(function(c){
-    var inCat=DOCS.filter(function(d){return d.cat===c;});
+    var inCat=pool.filter(function(d){return d.cat===c;});
     if(!inCat.length)return;
     h+='<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)"><span style="font-size:14.5px;font-weight:700;letter-spacing:-.2px">'+docEsc(c)+'</span><span class="hint" style="font-size:11.5px">'+inCat.length+'건</span></div>';
     var g={},order=[];
@@ -809,8 +922,7 @@ function renderDocAdmin(){
       h+=g[f].map(docAdminCard).join('');
     });
   });
-  // DOC_UPCATS에 없는 카테고리(과거 데이터) 방어
-  var others=DOCS.filter(function(d){return DOC_UPCATS.indexOf(d.cat)<0;});
+  var others=pool.filter(function(d){return DOC_UPCATS.indexOf(d.cat)<0;});
   if(others.length){h+='<div style="margin:18px 0 8px;font-size:14.5px;font-weight:700">기타 카테고리</div>'+others.map(docAdminCard).join('');}
   box.innerHTML=h;
 }
