@@ -650,41 +650,183 @@ function submitVoice(){
   var rows=[['건의 유형',VOICE_TYPE],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['작성일자',fieldVal('vdate')],['작성자',fieldVal('vapplicant')],['제목',fieldVal('vtitle')],['건의 내용',fieldVal('vcontent')]];
   confirmSubmit('건의사항 제출 확인', rows, function(){saveVoiceRow('건의사항이 제출되었습니다. 총무기획팀이 확인 후 답변드립니다. <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
-var DOCS=[
-  {cat:"보험증권",name:"2026년 통합 보험증권",file:"2026_보험증권.pdf",updated:"2026-01-05",note:"전 캠퍼스 공통 · 매년 갱신"},
-  {cat:"교육청 양식",name:"학원 설립·운영 등록 신청서",file:"학원설립운영등록신청서.hwp",updated:"2026-03-10",note:"교육청 제출용"},
-  {cat:"교육청 양식",name:"교습소 설립·운영 신고서",file:"교습소설립운영신고서.hwp",updated:"2026-03-10",note:"교육청 제출용"},
-  {cat:"교육청 양식",name:"원비(교습비) 변경 통보서",file:"교습비변경통보서.hwp",updated:"2026-02-20",note:"교육청 제출용"},
-  {cat:"교육청 양식",name:"강사 채용 신고서",file:"강사채용신고서.hwp",updated:"2026-02-20",note:"교육청 제출용"},
-  {cat:"매뉴얼",name:"유지보수 민원 응대 가이드",file:"유지보수_민원_응대_가이드.pdf",updated:"2026-06-30",note:"1차 대응 기준"},
-  {cat:"매뉴얼",name:"에어컨 에러코드 안내",file:"에어컨_에러코드.pdf",updated:"2026-06-28",note:""}
-];
+var DOCS=[];
 var DOC_CATS=["전체","보험증권","교육청 양식","매뉴얼"];
+var DOC_UPCATS=["보험증권","교육청 양식","매뉴얼"];
 var DOC_FILTER="전체";
+var DOC_BUCKET="fac-docs";
+var DOC_MAXMB=50;
+
+function docEsc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function docExt(n){var m=/\.([A-Za-z0-9]{1,8})$/.exec(n||'');return m?m[1].toLowerCase():'bin';}
+function docSize(b){b=Number(b||0);if(!b)return '';if(b<1024)return b+'B';if(b<1048576)return (b/1024).toFixed(0)+'KB';return (b/1048576).toFixed(1)+'MB';}
+function docById(id){for(var i=0;i<DOCS.length;i++){if(String(DOCS[i].id)===String(id))return DOCS[i];}return null;}
+function docIsAdmin(){return !!(CURRENT_USER&&CURRENT_USER.role==='admin');}
+
+// ===== 현장 화면 =====
 function docsHTML(){
   var tabs=DOC_CATS.map(function(c){return '<button class="flt'+(c===DOC_FILTER?' on':'')+'" data-c="'+c+'">'+c+'</button>';}).join('');
-  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:14px;line-height:1.55">본사가 올린 최신 자료를 다운로드하는 곳입니다. 보험증권은 매년 갱신되며, 항상 최신본만 여기에 표시됩니다. (파일 업로드는 총무기획팀 권한)</div>'
+  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:14px;line-height:1.55">총무기획팀이 올린 최신 자료를 다운로드하는 곳입니다. 보험증권은 매년 갱신되며, 항상 최신본만 여기에 표시됩니다. (파일 업로드는 총무기획팀 권한)</div>'
     +'<div class="filt" style="margin-bottom:16px">'+tabs+'</div><div id="docs_list"></div>';
 }
 function renderDocs(){
-  var box=document.getElementById('docs_list');
+  var box=document.getElementById('docs_list');if(!box)return;
   var rows=DOCS.filter(function(d){return DOC_FILTER==='전체'||d.cat===DOC_FILTER;});
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">해당 자료가 없습니다.</div>';return;}
   box.innerHTML=rows.map(function(d){
-    return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+d.cat+'</span>'+d.name+'</div><div class="rid">'+d.file+' · 갱신 '+d.updated+(d.note?(' · '+d.note):'')+'</div></div><button class="flt" onclick="alert(\'다운로드 — 파일 저장 연결 시 활성화됩니다 (Supabase Storage)\')">다운로드</button></div></div>';
+    var meta=[];
+    if(d.file)meta.push(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):''));
+    if(d.updated)meta.push('갱신 '+d.updated);
+    if(d.note)meta.push(docEsc(d.note));
+    var btn=d.path
+      ? '<button class="flt" onclick="docDownload(\''+d.id+'\')">다운로드</button>'
+      : '<span class="pill">파일 준비 중</span>';
+    return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid">'+(meta.join(' · ')||'-')+'</div></div>'+btn+'</div></div>';
   }).join('');
 }
-function bindDocs(){document.querySelectorAll('.filt .flt').forEach(function(b){b.addEventListener('click',function(){DOC_FILTER=b.dataset.c;document.querySelectorAll('.filt .flt').forEach(function(x){x.classList.toggle('on',x.dataset.c===DOC_FILTER);});renderDocs();});});
-  loadDocs();}
-function loadDocs(){
-  if(!SB_READY){renderDocs();return;}
-  var box=document.getElementById('docs_list');if(box)box.innerHTML='<div class="hint" style="padding:18px;text-align:center">불러오는 중...</div>';
-  sb.from('fac_documents').select('*').order('updated_at',{ascending:false}).then(function(res){
-    var rows=(res&&res.data)||[];
-    DOCS=rows.map(function(r){return {cat:r.category,name:r.name,file:r.file_name||'',updated:(r.updated_at||'').slice(0,10),note:r.note||'',id:r.id};});
-    renderDocs();
-  }).catch(function(){renderDocs();});
+function bindDocs(){
+  document.querySelectorAll('.filt .flt').forEach(function(b){b.addEventListener('click',function(){DOC_FILTER=b.dataset.c;document.querySelectorAll('.filt .flt').forEach(function(x){x.classList.toggle('on',x.dataset.c===DOC_FILTER);});renderDocs();});});
+  loadDocs();
 }
+function loadDocs(){
+  var box=document.getElementById('docs_list');
+  if(!SB_READY){if(box)box.innerHTML='<div class="hint" style="padding:18px;text-align:center">서버에 연결되어 있지 않습니다.</div>';return;}
+  if(box)box.innerHTML='<div class="hint" style="padding:18px;text-align:center">불러오는 중...</div>';
+  var ab=document.getElementById('docadmin_list');if(ab)ab.innerHTML='<div class="hint" style="padding:14px">불러오는 중...</div>';
+  sb.from('fac_documents').select('*').order('sort_order',{ascending:true}).order('updated_at',{ascending:false}).then(function(res){
+    if(res.error){
+      var m='<div class="hint" style="padding:18px;text-align:center;color:var(--dng)">자료 목록을 불러오지 못했습니다.<br>'+docEsc(res.error.message)+'</div>';
+      if(box)box.innerHTML=m; if(ab)ab.innerHTML=m; return;
+    }
+    var rows=(res.data)||[];
+    DOCS=rows.map(function(r){return {id:r.id,cat:r.category,name:r.name,file:r.file_name||'',path:r.file_path||'',size:r.file_size||0,updated:(r.updated_at||'').slice(0,10),note:r.note||''};});
+    renderDocs(); renderDocAdmin();
+  });
+}
+
+// ===== 다운로드 (60초 서명 URL) =====
+function docDownload(id){
+  var d=docById(id);
+  if(!d||!d.path){alert('아직 파일이 등록되지 않은 항목입니다.');return;}
+  sb.storage.from(DOC_BUCKET).createSignedUrl(d.path,60,{download:d.file||true}).then(function(res){
+    if(res.error||!res.data){alert('다운로드 링크를 만들지 못했습니다.\n'+((res.error&&res.error.message)||''));return;}
+    var a=document.createElement('a');a.href=res.data.signedUrl;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  });
+}
+
+// ===== 총무기획팀 · 자료실 관리 =====
+function docAdminHTML(){
+  return '<div class="secttl" style="margin:0 0 10px">자료실 관리 (업로드·교체)</div>'
+    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 보험증권처럼 매년 갱신되는 자료는 같은 항목에 <b>파일 교체</b>로 새 파일을 올리면 최신본만 배포되고 이전 파일은 자동 삭제됩니다. (파일당 최대 '+DOC_MAXMB+'MB)</div>'
+    +'<div style="margin:6px 0 12px"><button class="flt" onclick="docAddOpen()">+ 새 자료 추가</button></div>'
+    +'<div id="docadmin_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
+    +'<div style="height:26px"></div>';
+}
+function renderDocAdmin(){
+  var box=document.getElementById('docadmin_list');if(!box)return;
+  if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
+  box.innerHTML=DOCS.map(function(d){
+    var cur=d.file?(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):'')+' · 갱신 '+d.updated):'파일 없음 — 업로드 필요';
+    return '<div class="card" id="dcard_'+d.id+'"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid" id="dstat_'+d.id+'">현재: '+cur+'</div></div>'
+      +'<label class="flt" style="cursor:pointer">'+(d.path?'파일 교체':'파일 업로드')+'<input type="file" style="display:none" onchange="docUpload(\''+d.id+'\',this)"></label></div>'
+      +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:14px;align-items:center">'
+      +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(d.cat==='보험증권'?'checked':'')+' style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
+      +(d.path?'<button class="flt" style="border-color:var(--dngln);color:var(--dng);padding:3px 10px" onclick="docDelete(\''+d.id+'\')">항목 삭제</button>':'')
+      +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
+      +'</div></div>';
+  }).join('');
+}
+function docStat(id,html,color){var el=document.getElementById('dstat_'+id);if(el){el.innerHTML=html;el.style.color=color||'';}}
+
+function docUpload(id,inp){
+  var f=inp&&inp.files&&inp.files[0];if(!f)return;
+  if(!docIsAdmin()){alert('총무기획팀 계정만 업로드할 수 있습니다.');inp.value='';return;}
+  if(f.size>DOC_MAXMB*1024*1024){alert(DOC_MAXMB+'MB 이하 파일만 업로드할 수 있습니다. (선택한 파일: '+docSize(f.size)+')');inp.value='';return;}
+  var d=docById(id);if(!d){inp.value='';return;}
+  var oldPath=d.path;
+  var newPath='docs/'+id+'/'+Date.now()+'.'+docExt(f.name);
+  var notify=(document.getElementById('dnoti_'+id)||{}).checked;
+  inp.disabled=true;
+  docStat(id,'업로드 중... ('+docSize(f.size)+')','var(--warn)');
+  sb.storage.from(DOC_BUCKET).upload(newPath,f,{upsert:false,contentType:f.type||'application/octet-stream'}).then(function(up){
+    if(up.error)throw new Error('업로드 실패: '+up.error.message);
+    return sb.from('fac_documents').update({
+      file_name:f.name, file_path:newPath, file_size:f.size,
+      updated_at:new Date().toISOString(),
+      created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null
+    }).eq('id',id).select();
+  }).then(function(res){
+    if(res.error)throw new Error('목록 반영 실패: '+res.error.message);
+    if(oldPath&&oldPath!==newPath)sb.storage.from(DOC_BUCKET).remove([oldPath]);
+    d.file=f.name;d.path=newPath;d.size=f.size;d.updated=new Date().toISOString().slice(0,10);
+    docStat(id,'<b style="color:var(--ok)">✓ 업로드 완료</b> · '+docEsc(f.name)+' ('+docSize(f.size)+')','');
+    if(notify){
+      n8nNotify({type:'doc_update',doc_id:id,category:d.cat,name:d.name,file_name:f.name,
+        updated_at:d.updated,by:(CURRENT_USER&&CURRENT_USER.name)||''}).then(function(){});
+    }
+    setTimeout(loadDocs,900);
+  }).catch(function(e){
+    docStat(id,'<b style="color:var(--dng)">'+docEsc(e.message||String(e))+'</b>','');
+    inp.disabled=false;inp.value='';
+  });
+}
+
+function docAddOpen(){
+  var opts=DOC_UPCATS.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+  openModal('<div class="mh">새 자료 추가</div><div class="mb">'
+    +'<div class="lbl">카테고리</div><select id="dnew_cat" style="width:100%">'+opts+'</select>'
+    +'<div class="lbl" style="margin-top:10px">자료명 (화면에 표시)</div><input type="text" id="dnew_name" placeholder="예: 2026년 통합 보험증권" style="width:100%">'
+    +'<div class="lbl" style="margin-top:10px">부가 설명 (선택)</div><input type="text" id="dnew_note" placeholder="예: 전 캠퍼스 공통 · 매년 갱신" style="width:100%">'
+    +'<div class="lbl" style="margin-top:10px">파일</div><input type="file" id="dnew_file" style="width:100%">'
+    +'<div class="hint" id="dnew_msg" style="margin-top:9px;line-height:1.5">파일은 나중에 올려도 됩니다. 항목만 먼저 만들 수 있습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="dnew_ok" onclick="docAddSave()">추가</button></div>');
+}
+function docAddSave(){
+  var cat=document.getElementById('dnew_cat').value;
+  var name=(document.getElementById('dnew_name').value||'').trim();
+  var note=(document.getElementById('dnew_note').value||'').trim();
+  var fi=document.getElementById('dnew_file');
+  var f=fi&&fi.files&&fi.files[0];
+  var msg=document.getElementById('dnew_msg');
+  var ok=document.getElementById('dnew_ok');
+  if(!name){msg.innerHTML='<b style="color:var(--dng)">자료명을 입력해 주세요.</b>';return;}
+  if(f&&f.size>DOC_MAXMB*1024*1024){msg.innerHTML='<b style="color:var(--dng)">'+DOC_MAXMB+'MB 이하 파일만 업로드할 수 있습니다.</b>';return;}
+  ok.disabled=true;ok.textContent='저장 중...';
+  msg.innerHTML='등록 중입니다...';
+  var newId=null;
+  sb.from('fac_documents').insert({category:cat,name:name,note:note,
+    created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null}).select('id').then(function(res){
+    if(res.error)throw new Error('등록 실패: '+res.error.message);
+    newId=res.data[0].id;
+    if(!f)return {error:null,skip:true};
+    var path='docs/'+newId+'/'+Date.now()+'.'+docExt(f.name);
+    return sb.storage.from(DOC_BUCKET).upload(path,f,{upsert:false,contentType:f.type||'application/octet-stream'}).then(function(up){
+      if(up.error)throw new Error('항목은 만들어졌지만 파일 업로드에 실패했습니다: '+up.error.message);
+      return sb.from('fac_documents').update({file_name:f.name,file_path:path,file_size:f.size,updated_at:new Date().toISOString()}).eq('id',newId);
+    });
+  }).then(function(){
+    closeModal();loadDocs();
+  }).catch(function(e){
+    ok.disabled=false;ok.textContent='추가';
+    msg.innerHTML='<b style="color:var(--dng)">'+docEsc(e.message||String(e))+'</b>';
+    if(newId)loadDocs();
+  });
+}
+
+function docDelete(id){
+  var d=docById(id);if(!d)return;
+  openModal('<div class="mh">자료 삭제</div><div class="mb"><div class="mrow"><span class="mk">카테고리</span><span class="mv">'+docEsc(d.cat)+'</span></div><div class="mrow"><span class="mk">자료명</span><span class="mv">'+docEsc(d.name)+'</span></div><div class="mrow"><span class="mk">파일</span><span class="mv">'+docEsc(d.file||'-')+'</span></div><div class="mq">이 항목과 파일을 삭제하시겠습니까? 되돌릴 수 없습니다.</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" style="background:var(--dng);border-color:var(--dng)" onclick="docDeleteGo(\''+id+'\')">삭제</button></div>');
+}
+function docDeleteGo(id){
+  var d=docById(id);if(!d){closeModal();return;}
+  var p=d.path?sb.storage.from(DOC_BUCKET).remove([d.path]):Promise.resolve({});
+  p.then(function(){return sb.from('fac_documents').delete().eq('id',id);}).then(function(res){
+    closeModal();
+    if(res&&res.error)alert('삭제 실패: '+res.error.message);
+    loadDocs();
+  });
+}
+
 function infoHTML(){return '<div class="infogrid"><div><div class="secttl">비용 처리 기준</div><div style="border:1px solid var(--line);border-radius:8px;overflow:hidden"><div style="display:flex;border-bottom:1px solid var(--line)"><div style="width:110px;background:var(--bg);padding:11px;font-size:13px;font-weight:600">10만원 이하</div><div style="flex:1;padding:11px;font-size:13px">학원 자체 — 법인카드 결제 후 기안 상신</div></div><div style="display:flex"><div style="width:110px;background:var(--bg);padding:11px;font-size:13px;font-weight:600">10만원 초과</div><div style="flex:1;padding:11px;font-size:13px">총무기획팀이 직접 진행 (접수)</div></div></div><div class="hint" style="margin-top:12px;line-height:1.6">유지보수 비용은 해당 관 관별손익에 반영됩니다. 진행 전 원장님과 비용 협의가 필요하며, 한 층에 두 관이 있으면 분담 협의가 필요합니다.</div></div>'
   +'<div><div class="secttl">자금집행 / 기안</div><div style="font-size:13px;line-height:1.9;background:var(--bg);border-radius:8px;padding:14px 16px;border:1px solid var(--line)">· 정기 자금집행일 — <b>10일 · 25일 · 월말</b><br>· 집행일 <b>최소 2일 전</b> 상신 권장<br>· 본사 비용 [기안] / 관 비용 [관코드][지결]<br>· <b style="color:var(--dng)">[지결] 누락 시 대금 집행 누락</b> 주의</div></div></div>';}
 
@@ -860,24 +1002,9 @@ window.__yes=null;
 function confirmSubmit(title, rows, onYes){
   var body=rows.filter(function(r){return r[1]!==undefined&&r[1]!==null&&r[1]!=='';}).map(function(r){return '<div class="mrow"><span class="mk">'+r[0]+'</span><span class="mv">'+esc(r[1])+'</span></div>';}).join('');
   window.__yes=onYes;
-  openModal('<div class="mh">'+title+'</div><div class="mb">'+body+'<div class="mq">위 건으로 접수하시겠습니까?</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" onclick="doConfirmYes(this)">예</button></div>');
-}
-// 중복 접수 방지: 첫 클릭에 버튼 잠금 + "접수 중…" 표시. 20초 안전장치로 자동 해제.
-window.__submitting=false; window.__submitTimer=null;
-function doConfirmYes(btn){
-  if(window.__submitting)return;
-  window.__submitting=true;
-  if(btn){btn.disabled=true;btn.dataset.txt=btn.textContent;btn.textContent='접수 중…';btn.style.opacity='.6';btn.style.cursor='wait';
-    var no=btn.parentNode&&btn.parentNode.querySelector('.no');if(no){no.disabled=true;no.style.opacity='.5';no.style.cursor='not-allowed';}}
-  window.__submitTimer=setTimeout(function(){
-    window.__submitting=false;
-    if(btn){btn.disabled=false;btn.textContent=btn.dataset.txt||'예';btn.style.opacity='';btn.style.cursor='';}
-  },20000);
-  try{ if(window.__yes)window.__yes(); }
-  catch(e){ if(window.__submitTimer)clearTimeout(window.__submitTimer); window.__submitting=false; submitDone('오류가 발생했습니다: '+String(e)); }
+  openModal('<div class="mh">'+title+'</div><div class="mb">'+body+'<div class="mq">위 건으로 접수하시겠습니까?</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" onclick="(window.__yes&&window.__yes());">예</button></div>');
 }
 function submitDone(msg){
-  window.__submitting=false; if(window.__submitTimer){clearTimeout(window.__submitTimer);window.__submitTimer=null;}
   var isErr=/오류|실패|연결되어 있지 않|선택해 주세요|입력해 주세요/.test(msg);
   var ic=isErr
     ? '<div class="done-ic" style="background:var(--dngbg);border-color:var(--dngln);color:var(--dng)">!</div><div style="font-size:14px;font-weight:600;margin-bottom:5px">처리하지 못했습니다</div>'
@@ -906,13 +1033,13 @@ function saveRequest(type, extra, okMsg){
   sb.from('fac_requests').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류가 발생했습니다: '+res.error.message);return;}
     var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
-    fireReceipt('request',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''),rowSummary('request',row,no));
+    fireReceipt('request',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
   });
 }
 // 접수 완료 알림(접수자+총무팀) 발송 후 완료 모달
-function fireReceipt(kind,id,baseMsg,summary){
+function fireReceipt(kind,id,baseMsg){
   var email=(CURRENT_USER&&CURRENT_USER.email)||null;
-  var sm=summary||collectSummary(kind);
+  var sm=collectSummary(kind);
   n8nNotify({type:'received',kind:kind,id:id,applicant_email:email,
     applicant_name:(CURRENT_USER&&CURRENT_USER.name)||'',summary:sm}).then(function(r){
     var note;
@@ -921,39 +1048,6 @@ function fireReceipt(kind,id,baseMsg,summary){
     else note='<span style="color:var(--dng)">접수 알림 발송 실패 — 접수는 정상 저장되었습니다.</span>';
     submitDone(baseMsg+'<br><br>'+note);
   });
-}
-// 메일 라벨 매핑
-var TYPE_LABEL={fix:'유지보수',pen:'설명회 볼펜',buy:'구매',rent:'렌탈'};
-// 접수완료 메일용 요약: 방금 insert한 row 기준(신뢰 가능한 단일 소스)
-function rowSummary(kind,row,record_no){
-  var s={record_no:record_no||'',campus:row.campus||'',building:row.building||'',
-    floors:(Array.isArray(row.floors)?row.floors.join(', '):(row.floors||'')),
-    applicant:row.applicant||'',status:'접수 대기'};
-  if(kind==='voice'){
-    s.typelabel=(row.vtype==='ai'?'AI 해결 요청':row.vtype==='aka'?'아카 권한 신청':'건의사항');
-    s.title=row.title||'';s.content=row.content||'';
-  }else{
-    s.typelabel=TYPE_LABEL[row.type]||'유지보수';
-    s.reqtype=row.reqtype||'';s.detail=row.detail||'';s.location=row.location||'';
-    s.phone=row.phone||'';s.ext=row.ext||'';
-  }
-  return s;
-}
-// 진행 업데이트 메일용 요약: 관리자 화면 레코드(SAMPLE) + 방금 입력한 진행값
-function progressSummary(kind,rec,upd){
-  upd=upd||{};
-  var s={record_no:rec.rid||'',campus:rec.campus||'',building:rec.building||'',
-    floors:(Array.isArray(rec.floors)?rec.floors.join(', '):(rec.floors||'')),
-    applicant:rec.applicant||''};
-  if(kind==='voice'){
-    s.typelabel=rec.vtype||'건의사항';s.title=rec.title||'';s.content=rec.content||'';
-    s.reply=upd.reply||'';s.status=(upd.st==='done')?'답변 완료':'확인 중';
-  }else{
-    s.typelabel=rec.tt||'유지보수';s.reqtype=rec.req||'';s.detail=rec.detail||'';s.location=rec.location||'';
-    s.plan_date=upd.plan||'';s.progress=upd.prog||'';
-    s.status=(upd.st==='done')?'완료':(upd.st==='prog')?'진행중':'접수 대기';
-  }
-  return s;
 }
 // 접수 요약: 메일 본문에 넣을 핵심 필드 수집
 function collectSummary(kind){
@@ -993,7 +1087,7 @@ function saveVoiceRow(okMsg){
   sb.from('fac_voices').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류: '+res.error.message);return;}
     var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
-    fireReceipt('voice',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''),rowSummary('voice',row,no));
+    fireReceipt('voice',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
   });
 }
 function submitReport(){
@@ -1063,15 +1157,7 @@ function adminHTML(){
       +'</div>'
       +'<div style="padding:0 15px 14px;display:flex;gap:8px"><button class="submit" style="flex:1" onclick="saveAdmin('+i+')">저장 · 접수자에게 알림</button><button class="fb" style="border-color:var(--dngln);color:var(--dng)" onclick="askDelete('+i+')">삭제</button></div></div>';
   }).join('');
-  var docManage='<div class="secttl" style="margin:0 0 10px">자료실 관리 (업로드·교체)</div><div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 보험증권처럼 매년 갱신되는 자료는 같은 항목에 새 파일로 교체하면 최신본만 배포됩니다. 교체 시 <b>담당자에게 자동 안내</b>를 보낼 수 있습니다. (실제 업로드·발송은 Supabase Storage + n8n 연결 후 작동)</div>'
-    +DOCS.map(function(d,i){return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+d.cat+'</span>'+d.name+'</div><div class="rid">현재: '+d.file+' · 갱신 '+d.updated+'</div></div><label class="flt" style="cursor:pointer">파일 교체<input type="file" style="display:none" onchange="alert(\'파일 교체 — Supabase Storage 연결 후 실제 반영됩니다\')"></label></div>'
-      +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:14px;align-items:center">'
-      +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" checked style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
-      +'<span style="display:flex;gap:10px;font-size:12.5px;color:var(--mute2)"><label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" checked style="width:auto;margin:0"> 이메일</label><label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" style="width:auto;margin:0"> 카카오워크</label></span>'
-      +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
-      +'</div></div>';}).join('')
-    +'<div style="margin:6px 0 10px"><button class="flt" onclick="alert(\'새 자료 추가 — Supabase Storage 연결 후 활성화\')">+ 새 자료 추가</button></div>'
-    +'<div class="hint" style="margin-bottom:24px;line-height:1.55;border:1px solid var(--line);border-radius:7px;padding:11px 13px;background:var(--bg)"><b>안내 발송 대상</b>은 담당자 명단(이름·이메일·카카오워크 ID)을 기준으로 발송됩니다. 명단 관리와 실제 발송은 Supabase(담당자 테이블) + n8n(발송 워크플로) 연결 시 작동합니다. 발송 문구 예: \"[플로우교육] 2026년 보험증권이 업데이트되었습니다. 자료실에서 확인·다운로드해 주세요.\"</div>';
+  var docManage=docAdminHTML();
   return '<div style="margin-bottom:14px"><div class="secttl" style="margin:0">총무기획팀 관리</div></div>'
     +'<div class="secttl" style="margin:0 0 10px">가입 승인 대기</div>'
     +'<div class="hint" style="margin-bottom:10px;line-height:1.5">현장이 가입 신청한 계정입니다. 승인하려면 ① 비밀번호를 정하고 ② Supabase에서 계정을 만든 뒤 ③ 활성화하세요. (자동 승인은 추후 Edge Function으로 고도화)</div>'
@@ -1186,6 +1272,7 @@ function bindAdmin(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
   loadPending();
   loadAccounts();
+  loadDocs();
   document.querySelectorAll('.dd.adstat').forEach(function(box){
     var i=box.dataset.i;var opts=['대기','진행중','완료'];
     box.innerHTML='<div class="ddh"><span class="left"><span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join('')+'</div>';
@@ -1195,8 +1282,8 @@ function bindAdmin(){
   });
 }
 function maskEmail(e){if(!e)return '';var p=e.split('@');return p[0].slice(0,2)+'***@'+(p[1]||'');}
-function notifyApplicant(kind,id,baseMsg,summary){
-  n8nNotify({type:'progress',kind:kind,id:id,summary:summary||{}}).then(function(d){
+function notifyApplicant(kind,id,baseMsg){
+  n8nNotify({type:'progress',kind:kind,id:id}).then(function(d){
     var note=(d&&d.ok)?'<b style="color:var(--ok)">접수자'+(d.to?('('+maskEmail(d.to)+')'):'')+'에게 진행상황 알림을 발송했습니다.</b>'
       :(d&&d.error==='no_email')?'<span style="color:var(--warn)">접수자 이메일이 미등록이라 알림은 발송되지 않았습니다. (승인된 계정 목록에서 확인)</span>'
       :(d&&d.error==='n8n_url_not_set')?'<span style="color:var(--warn)">알림 채널(n8n) 연결 전이라 메일은 발송되지 않았습니다. 저장은 완료되었습니다.</span>'
@@ -1211,7 +1298,7 @@ function saveVoice(i){
     sb.from('fac_voices').update({reply:rep||null,status:rep?'done':'prog'}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
       rec.reply=rep||'-';rec.st=rep?'done':'prog';
-      notifyApplicant('voice',rec.id,'답변이 등록되었습니다.',progressSummary('voice',rec,{reply:rep,st:rec.st}));
+      notifyApplicant('voice',rec.id,'답변이 등록되었습니다.');
     });
   } else { rec.reply=rep||'-';rec.st=rep?'done':'prog';submitDone('답변이 반영되었습니다.'); }
 }
@@ -1225,7 +1312,7 @@ function saveAdmin(i){
     sb.from('fac_requests').update({plan_date:plan||null,progress:prog||null,status:st,done_note:done||null}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
       rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;
-      notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.',progressSummary('request',rec,{plan:plan,prog:prog,st:st}));
+      notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.');
     });
   } else { rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;submitDone('변경 내용이 반영되었습니다.'); }
 }
@@ -1267,14 +1354,7 @@ function render(v){var el=document.getElementById('view');
   else if(v==='voice'){el.innerHTML=voiceHTML();bindVoice();}
   else if(v==='lms'){el.innerHTML=lmsHTML();bindLms();}
   else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
-  else if(v==='docs'){
-    el.innerHTML='<div style="max-width:560px;margin:40px auto 0;text-align:center;background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:44px 32px">'
-      +'<div style="width:52px;height:52px;border-radius:14px;background:var(--bluebg);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:24px">📁</div>'
-      +'<div style="font-size:18px;font-weight:600;letter-spacing:-.3px;margin-bottom:8px">자료실 준비 중</div>'
-      +'<div class="hint" style="line-height:1.6">현재 자료실은 업로드 진행 중입니다.<br>빠른 시일 내 보험증권·교육청 양식·매뉴얼을 업데이트하겠습니다.</div>'
-      +'</div>';
-    openModal('<div class="mb" style="text-align:center;padding-top:26px"><div style="font-size:30px;margin-bottom:12px">📁</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">자료실 준비 중</div><div class="hint" style="line-height:1.55">현재 자료실은 업로드 진행 중입니다.<br>빠른 시일 내 업데이트하겠습니다.</div></div><div class="mf"><button class="mbtn yes" onclick="closeModal()">확인</button></div>');
-  }
+  else if(v==='docs'){el.innerHTML=docsHTML();bindDocs();}
   else if(v==='info')el.innerHTML=infoHTML();
   else if(v==='admin'){
     if(CURRENT_USER&&CURRENT_USER.role==='admin'&&SB_READY){
@@ -1330,15 +1410,6 @@ function doSignup(){
     if(r&&r.ok){
       // 이메일 저장(컬럼 있으면 반영, 없으면 무시)
       if(email){sb.from('fac_accounts').update({email:email}).eq('login_id',id).then(function(){}).catch(function(){});}
-      // 가입 승인 대기 알림(총무기획팀) — 실패해도 가입 신청 자체에는 영향 없음
-      try{
-        n8nNotify({type:'signup',kind:'signup',id:id,
-          applicant_email:email||'',applicant_name:(r.name||''),
-          summary:{record_no:'-',typelabel:'가입 승인 대기',
-            campus:(r.region||'-'),building:'-',
-            detail:('아이디: '+id+(email?(' / 이메일: '+email):' / 이메일 미등록')),
-            applicant:(r.name||'-'),status:'승인 대기'}});
-      }catch(e){}
       gateMsg('가입 신청이 접수되었습니다. ('+r.region+' · '+r.name+')<br>총무기획팀 승인 후 로그인할 수 있습니다.','ok');
     }
     else{gateMsg((r&&r.error)||'신청에 실패했습니다.','err');}
