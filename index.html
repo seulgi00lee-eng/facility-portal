@@ -480,6 +480,14 @@ var ML_TYPE='all',ML_LIVE=false;
 function applyQuery(){renderCards(ML_TYPE);}
 function resetQuery(){var ids=['q_campus','q_building','q_req','q_name'];ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});renderCards(ML_TYPE);}
 function qv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+function plogToggle(cid,btn){
+  var box=document.getElementById('plg'+cid); if(!box)return;
+  var rows=box.querySelectorAll('.plogmore');
+  var show=(btn.dataset.on!=='1');
+  rows.forEach(function(el){el.style.display=show?'flex':'none';});
+  btn.dataset.on=show?'1':'';
+  btn.textContent=show?'이전 진행 접기':('이전 진행 '+rows.length+'건 보기');
+}
 function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
   var qc=qv('q_campus'),qb=qv('q_building'),qr=qv('q_req'),qn=qv('q_name');
   var rows=SAMPLE.filter(function(r){
@@ -534,8 +542,19 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
     if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:12.5px">신청자</span> <span style="color:var(--ink2);font-size:14px">'+contact.join(' · ')+'</span></div>';
     var infoBlock=infoRows?('<div style="padding:13px 17px;border-top:1px solid var(--line);background:var(--bg)">'+infoRows+'</div>'):'';
-    var statusBlock='<div class="cbody" style="padding:10px 17px"><div class="sbi" style="font-size:13.5px"><span class="k">처리예정일</span>'+planV+'</div><div class="sbi" style="font-size:13.5px"><span class="k">진행사항</span>'+progV+'</div><div class="sbi" style="font-size:13.5px"><span class="k">완료여부</span>'+doneV+'</div></div>';
-    var bodyH=stepper+infoBlock+statusBlock;
+    var lg=plogRows(r);
+    var plogBlock='';
+    if(lg.length){
+      var more=lg.length-1;
+      plogBlock='<div style="padding:12px 17px;border-top:1px solid var(--line)"><div style="font-size:12.5px;color:var(--mute);margin-bottom:4px">진행상황</div>'
+        +'<div id="plg'+cid+'" style="border-left:2px solid var(--line2);padding-left:12px">'+plogHTML(r,{limit:1})+'</div>'
+        +(more>0?('<button type="button" class="flt" style="margin-top:8px;padding:3px 10px;font-size:12px" onclick="plogToggle(\''+cid+'\',this)">이전 진행 '+more+'건 보기</button>'):'')
+        +'</div>';
+    }
+    var statusBlock='<div class="cbody" style="padding:10px 17px"><div class="sbi" style="font-size:13.5px"><span class="k">처리예정일</span>'+planV+'</div>'
+      +(lg.length?'':'<div class="sbi" style="font-size:13.5px"><span class="k">진행사항</span>'+progV+'</div>')
+      +'<div class="sbi" style="font-size:13.5px"><span class="k">완료여부</span>'+doneV+'</div></div>';
+    var bodyH=stepper+infoBlock+statusBlock+plogBlock;
     return '<div class="card mlcard" style="border-left:3px solid '+edge+'"><div class="ch mlhead" data-t="'+cid+'" style="cursor:pointer"><div><div class="title" style="font-size:15px"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid" style="font-size:12.5px">'+r.rid+' · 접수 '+r.when+'</div>'+metaLine+'</div><div style="display:flex;align-items:center"><span class="badge '+bd2[0]+'">'+bd2[1]+'</span>'+chev+'</div></div><div class="mlbody" id="'+cid+'" style="display:'+(open?'block':'none')+'">'+bodyH+'</div></div>';
   }
   // 대기 / 처리된 요청 분리
@@ -558,14 +577,60 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
   });});}
 function bindMylist(){document.querySelectorAll('.flt').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.flt').forEach(function(x){x.classList.remove('on');});b.classList.add('on');renderCards(b.dataset.f);});});
   loadMyList();}
+// ===== 진행 단계 정의 =====
+var STAGES={
+  fix : ['접수 확인','업체 배정','현장 점검','견적·승인','조치 예정','조치 완료','보류'],
+  buy : ['접수 확인','견적 요청','견적 확정','발주','입고·설치','완료','보류'],
+  rent: ['접수 확인','견적 요청','견적 확정','발주','입고·설치','완료','보류'],
+  pen : ['접수 확인','준비 중','전달 완료','보류'],
+  voice:['접수 확인','검토 중','답변 완료','보류']
+};
+var STAGE_DONE={fix:'조치 완료', buy:'완료', rent:'완료', pen:'전달 완료', voice:'답변 완료'};
+function stagesOf(t){return STAGES[t]||STAGES.fix;}
+function stageDone(t){return STAGE_DONE[t]||'완료';}
+function stageStatus(t,name){return (name===stageDone(t))?'done':'prog';}
+// 진행률 (보류는 계산 제외)
+function stageProgress(t,name){
+  var list=stagesOf(t).filter(function(x){return x!=='보류';});
+  var i=list.indexOf(name);
+  return {i:(i<0?0:i+1), n:list.length};
+}
+// 다음 단계 기본 선택값
+function nextStage(r){
+  var log=r.plog||[];
+  var list=stagesOf(r.type);
+  if(!log.length)return list[0];
+  var cur=log[log.length-1].stage;
+  if(cur==='보류')return cur;
+  var i=list.indexOf(cur);
+  return (i<0||i>=list.length-2)?cur:list[i+1];
+}
+function plogRows(r){return Array.isArray(r.plog)?r.plog:[];}
+// 진행 이력 타임라인 (줄바꿈 보존)
+function plogHTML(r,opt){
+  var log=plogRows(r).slice().reverse();
+  if(!log.length)return '<div class="hint" style="padding:9px 0;font-size:12.5px">아직 등록된 진행 이력이 없습니다.</div>';
+  var lim=(opt&&opt.limit)?opt.limit:log.length;
+  return log.map(function(e,k){
+    var last=(k===0), hide=(k>=lim);
+    var dot=last?'var(--blue)':'#d5d5d8';
+    return '<div class="plogrow'+(hide?' plogmore':'')+'" style="display:flex;gap:10px;padding:7px 0'+(hide?';display:none':'')+'">'
+      +'<div style="width:8px;flex:0 0 8px;padding-top:5px"><div style="width:8px;height:8px;border-radius:50%;background:'+dot+'"></div></div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:12.5px;font-weight:'+(last?'700':'600')+';color:'+(last?'var(--ink)':'var(--ink2)')+'">'+esc(e.stage||'')
+      +' <span class="hint" style="font-weight:400;font-size:11px">'+esc(e.at||'')+(e.by?(' · '+esc(e.by)):'')+'</span></div>'
+      +'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-top:2px;white-space:pre-wrap;word-break:break-word">'+esc(e.note||'')+'</div>'
+      +'</div></div>';
+  }).join('');
+}
 function mapReq(r){
   var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜'}[r.type]||r.type;
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):'')),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
+  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):'')),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',done:'-'};
+  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:'-'};
 }
 function loadMyList(){
   var box=document.getElementById('mlcards');
@@ -1579,12 +1644,21 @@ function adminHTML(){
     if(aContact.length)aInfo+='<div><span style="color:var(--mute);font-size:11.5px">신청자·연락처</span> <span style="color:var(--ink);font-size:13px">'+aContact.join(' · ')+'</span></div>';
     var aInfoBlock=aInfo?('<div style="padding:12px 15px;background:var(--bg);border-bottom:1px solid var(--line)">'+aInfo+'</div>'):'';
     return head+aInfoBlock
-      +'<div style="padding:12px 15px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-      +'<div><div class="lbl">11 · 처리예정일</div><input type="date" data-i="'+i+'" data-f="plan" value="'+(r.plan==='-'?'':r.plan)+'"></div>'
-      +'<div><div class="lbl">13 · 완료여부</div><div class="dd adstat" data-i="'+i+'"></div></div>'
-      +'<div style="grid-column:1/3"><div class="lbl">12 · 진행사항</div><input type="text" data-i="'+i+'" data-f="prog" value="'+(r.prog==='-'?'':r.prog)+'" placeholder="진행 상황을 입력 (변경 시 접수자에게 알림)"></div>'
+      +'<div style="padding:12px 15px;border-bottom:1px solid var(--line)">'
+      +'<div class="lbl">진행 이력 <span class="hint" style="font-weight:400">'+plogRows(r).length+'건</span></div>'
+      +'<div style="border-left:2px solid var(--line2);padding-left:12px;margin-top:6px">'+plogHTML(r)+'</div>'
       +'</div>'
-      +'<div style="padding:0 15px 14px;display:flex;gap:8px"><button class="submit" style="flex:1" onclick="saveAdmin('+i+')">저장 · 접수자에게 알림</button><button class="fb" style="border-color:var(--dngln);color:var(--dng)" onclick="askDelete('+i+')">삭제</button></div></div>';
+      +'<div style="padding:12px 15px">'
+      +'<div class="lbl">새 진행 추가</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:9px">'
+      +'<div><div class="lbl" style="font-size:11.5px;color:var(--mute)">단계</div><select data-i="'+i+'" data-f="stage" style="width:100%">'
+        +stagesOf(r.type).map(function(o){return '<option value="'+o+'"'+(o===nextStage(r)?' selected':'')+'>'+o+'</option>';}).join('')
+      +'</select></div>'
+      +'<div><div class="lbl" style="font-size:11.5px;color:var(--mute)">처리예정일</div><input type="date" data-i="'+i+'" data-f="plan" value="'+(r.plan==='-'?'':r.plan)+'"></div>'
+      +'</div>'
+      +'<textarea data-i="'+i+'" data-f="note" rows="3" placeholder="진행 내용 (여러 줄 입력 가능 · 저장 시 접수자에게 알림)"></textarea>'
+      +'</div>'
+      +'<div style="padding:0 15px 14px;display:flex;gap:8px"><button class="submit" style="flex:1" onclick="saveAdmin('+i+')">진행 추가 · 접수자에게 알림</button><button class="fb" style="border-color:var(--dngln);color:var(--dng)" onclick="askDelete('+i+')">삭제</button></div></div>';
   }).join('');
   var docManage=docAdminHTML();
   return '<div style="margin-bottom:14px"><div class="secttl" style="margin:0">총무기획팀 관리</div></div>'
@@ -1765,6 +1839,10 @@ function progressSummary(rec){
     location   : isVoice?'':clean(rec.location),
     status     : statusLabel(rec),
     progress   : isVoice?'':clean(rec.prog),
+    stage      : (function(){var l=plogRows(rec);return l.length?clean(l[l.length-1].stage):'';})(),
+    stage_note : (function(){var l=plogRows(rec);return l.length?clean(l[l.length-1].note):'';})(),
+    stage_step : (function(){var l=plogRows(rec);if(!l.length||isVoice)return '';var p=stageProgress(rec.type,l[l.length-1].stage);return p.i+'/'+p.n;})(),
+    history    : (function(){var l=plogRows(rec);return l.map(function(e){return (e.stage||'')+' ('+(e.at||'')+'): '+(e.note||'').replace(/\n/g,' ');}).join('\n');})(),
     plan_date  : isVoice?'':clean(rec.plan),
     reply      : isVoice?clean(rec.reply):'',
     updated_by : clean(CURRENT_USER&&CURRENT_USER.name),
@@ -1776,7 +1854,9 @@ function progressSummary(rec){
   // 슬랙 한 줄 요약 (워크플로에서 변수 하나만 써도 되도록)
   var head=[s.campus,s.building].filter(Boolean).join(' ');
   s.headline=(s.typelabel+' · '+(head||'-')+' · '+(s.title||s.detail.slice(0,30)||'-')).slice(0,140);
-  s.changed=isVoice?('답변 등록: '+(s.reply||'(내용 없음)')):('진행사항: '+(s.progress||'(미입력)')+(s.plan_date?(' / 처리예정 '+s.plan_date):''));
+  s.changed=isVoice?('답변 등록: '+(s.reply||'(내용 없음)'))
+    :(s.stage?(s.stage+(s.stage_step?(' ('+s.stage_step+')'):'')+': '+(s.stage_note||'-').split('\n')[0]+(s.plan_date?(' / 처리예정 '+s.plan_date):''))
+             :('진행사항: '+(s.progress||'(미입력)')));
   return s;
 }
 function notifyApplicant(kind,id,baseMsg,rec){
@@ -1802,18 +1882,32 @@ function saveVoice(i){
   } else { rec.reply=rep||'-';rec.st=rep?'done':'prog';submitDone('답변이 반영되었습니다.'); }
 }
 function saveAdmin(i){
-  var plan=document.querySelector('input[data-i="'+i+'"][data-f="plan"]').value;
-  var prog=document.querySelector('input[data-i="'+i+'"][data-f="prog"]').value;
-  var statBox=document.querySelector('.dd.adstat[data-i="'+i+'"]');var done=statBox?(statBox.dataset.val||SAMPLE[i].done):SAMPLE[i].done;
-  var st=(done==='완료')?'done':(done==='진행중'||plan||prog)?'prog':'wait';
-  var rec=SAMPLE[i];
-  if(SB_READY&&rec&&rec.id){
-    sb.from('fac_requests').update({plan_date:plan||null,progress:prog||null,status:st,done_note:done||null}).eq('id',rec.id).then(function(res){
+  var rec=SAMPLE[i]; if(!rec)return;
+  var planEl=document.querySelector('input[data-i="'+i+'"][data-f="plan"]');
+  var stEl=document.querySelector('select[data-i="'+i+'"][data-f="stage"]');
+  var noteEl=document.querySelector('textarea[data-i="'+i+'"][data-f="note"]');
+  var plan=planEl?planEl.value:'';
+  var stage=stEl?stEl.value:stagesOf(rec.type)[0];
+  var note=noteEl?(noteEl.value||'').trim():'';
+  if(!note){submitDone('진행 내용을 입력해 주세요. 무엇이 진행됐는지 한 줄이라도 남겨야 접수자가 알 수 있습니다.');return;}
+  var log=plogRows(rec).concat([{
+    n:plogRows(rec).length+1, stage:stage, note:note,
+    by:(CURRENT_USER&&CURRENT_USER.name)||'', at:new Date().toISOString().slice(0,10)
+  }]);
+  var st=stageStatus(rec.type,stage);
+  var progText=stage+' · '+note.split('\n')[0].slice(0,80);
+  var doneNote=(st==='done')?'완료':'진행중';
+  if(SB_READY&&rec.id){
+    sb.from('fac_requests').update({plan_date:plan||null,progress:progText,progress_log:log,status:st,done_note:doneNote}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
-      rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;
-      notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.',rec);
+      rec.plan=plan||'-';rec.prog=progText;rec.plog=log;rec.done=doneNote;rec.st=st;
+      notifyApplicant('request',rec.id,'<b>'+esc(stage)+'</b> 단계가 추가되었습니다.',rec);
+      if(document.getElementById('adm_rows')){var el=document.getElementById('view');el.innerHTML=adminHTML();bindAdmin();}
     });
-  } else { rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;submitDone('변경 내용이 반영되었습니다.'); }
+  } else {
+    rec.plan=plan||'-';rec.prog=progText;rec.plog=log;rec.done=doneNote;rec.st=st;
+    submitDone('진행이 추가되었습니다.');
+  }
 }
 // 삭제: 2차 확인 모달 → 실행
 var __delIdx=null;
