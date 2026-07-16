@@ -861,47 +861,164 @@ function docFolderPicker(inputId,cur){
     }).join('')+'<button type="button" class="flt" style="padding:2px 9px;font-size:12px" onclick="document.getElementById(\''+inputId+'\').value=\'\'">폴더 없음</button></div>':'');
 }
 
+// ===== 카테고리별 파일명 규칙 =====
+// 이수증·수료증: 지역_학원명_자료명  (예: 수내_수내캠퍼스_안전교육이수증.pdf)
+var DOC_RULE={
+  "이수증 및 수료증":{
+    guide:'파일명 규칙 — <b>지역_학원명_자료명</b> &nbsp;(예: <code>수내_수내캠퍼스_안전교육이수증.pdf</code>)<br>규칙대로 올리면 자료명이 자동으로 정확히 들어갑니다.',
+    test:function(base){
+      var p=String(base).split('_');
+      if(p.length<3)return '규칙 확인 — 지역_학원명_자료명 형태가 아닙니다';
+      if(p.some(function(x){return !x.trim();}))return '규칙 확인 — 비어있는 구간이 있습니다';
+      return '';
+    }
+  }
+};
+function docRule(){return DOC_RULE[(document.getElementById('dnew_cat')||{}).value]||null;}
+
+var DNEW_FILES=[];
+function docBaseName(n){return String(n||'').replace(/\.[A-Za-z0-9]{1,8}$/,'');}
 function docAddOpen(){
+  DNEW_FILES=[];
   var opts=DOC_UPCATS.map(function(c){return '<option value="'+docEsc(c)+'"'+(c===DOC_FILTER?' selected':'')+'>'+docEsc(c)+'</option>';}).join('');
-  openModal('<div class="mh">새 자료 추가</div><div class="mb">'
-    +'<div class="lbl">카테고리</div><select id="dnew_cat" style="width:100%">'+opts+'</select>'
+  openModal('<div class="mh">새 자료 추가</div><div class="mb" style="max-height:62vh;overflow:auto">'
+    +'<div class="lbl">카테고리</div><select id="dnew_cat" style="width:100%" onchange="docNewRender()">'+opts+'</select>'
+    +'<div id="dnew_rule"></div>'
     +'<div class="lbl" style="margin-top:11px">폴더 (선택 · 년도 구분용)</div>'+docFolderPicker('dnew_folder','')
-    +'<div class="lbl" style="margin-top:11px">자료명 (화면에 표시)</div><input type="text" id="dnew_name" placeholder="예: 2026년 통합 보험증권" style="width:100%">'
-    +'<div class="lbl" style="margin-top:11px">부가 설명 (선택)</div><input type="text" id="dnew_note" placeholder="예: 전 캠퍼스 공통 · 매년 갱신" style="width:100%">'
-    +'<div class="lbl" style="margin-top:11px">파일</div><input type="file" id="dnew_file" style="width:100%">'
-    +'<div class="hint" id="dnew_msg" style="margin-top:9px;line-height:1.5">폴더는 <b>기존 이름을 클릭</b>하거나 직접 입력하세요. 같은 이름이면 같은 폴더로 묶입니다. 파일은 나중에 올려도 됩니다.</div>'
+    +'<div class="lbl" style="margin-top:11px">부가 설명 (선택 · 전체 공통)</div><input type="text" id="dnew_note" placeholder="예: 전 캠퍼스 공통 · 매년 갱신" style="width:100%">'
+    +'<div class="lbl" style="margin-top:13px">파일 <span style="font-weight:400;color:var(--mute)">— 여러 개 한 번에 선택할 수 있습니다</span></div>'
+    +'<label class="flt" style="cursor:pointer;display:inline-block">+ 파일 선택 (여러 개 가능)<input type="file" id="dnew_file" multiple style="display:none" onchange="docNewFiles(this)"></label>'
+    +'<div id="dnew_files" style="margin-top:9px"></div>'
+    +'<div id="dnew_solo" style="margin-top:11px"><div class="lbl">자료명 (파일 없이 항목만 만들 때)</div><input type="text" id="dnew_name" placeholder="예: 2026년 통합 보험증권" style="width:100%"></div>'
+    +'<div class="hint" id="dnew_msg" style="margin-top:10px;line-height:1.5">파일을 여러 개 고르면 <b>파일 1개당 자료 1건</b>으로 등록되고, 자료명은 파일명이 자동으로 들어갑니다. 아래에서 개별 수정할 수 있습니다.</div>'
     +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="dnew_ok" onclick="docAddSave()">추가</button></div>');
+  docNewRender();
+}
+function docNewFiles(inp){
+  var fs=inp.files?Array.prototype.slice.call(inp.files):[];
+  fs.forEach(function(f){
+    var dup=DNEW_FILES.some(function(x){return x.f.name===f.name&&x.f.size===f.size;});
+    if(!dup)DNEW_FILES.push({f:f,name:docBaseName(f.name),err:(f.size>DOC_MAXMB*1024*1024)?('용량 초과 ('+docSize(f.size)+')'):''});
+  });
+  inp.value='';
+  var ok=document.getElementById('dnew_ok');if(ok){delete ok.dataset.warned;ok.textContent='추가';}
+  docNewRender();
+}
+function docNewRemove(i){DNEW_FILES.splice(i,1);docNewRender();}
+var __dnT=null;
+function docNewName(i,v){if(!DNEW_FILES[i])return;DNEW_FILES[i].name=v;var r=docRule();var st=document.getElementById('dnfs_'+i),row=document.getElementById('dnf_'+i);if(!r||!st||!row)return;var w=DNEW_FILES[i].err?'':r.test(v);DNEW_FILES[i].warn=w;row.style.background=DNEW_FILES[i].err?'var(--dngbg)':(w?'var(--warnbg)':'#fff');st.innerHTML=DNEW_FILES[i].err?('<b style="color:var(--dng)">'+docEsc(DNEW_FILES[i].err)+'</b>'):(w?('<b style="color:var(--warn)">'+docEsc(w)+'</b>'):(docEsc(DNEW_FILES[i].f.name)+' · '+docSize(DNEW_FILES[i].f.size)));}
+function docNewRender(){
+  var box=document.getElementById('dnew_files');if(!box)return;
+  var rule=docRule();
+  // 규칙 안내 배너
+  var rb=document.getElementById('dnew_rule');
+  if(rb)rb.innerHTML=rule?('<div class="hint" style="margin-top:8px;line-height:1.55;border:1px solid var(--bluln,var(--line));background:var(--bluebg);border-radius:7px;padding:9px 11px">'+rule.guide+'</div>'):'';
+  // 파일별 규칙 재검사
+  DNEW_FILES.forEach(function(x){
+    x.err=(x.f.size>DOC_MAXMB*1024*1024)?('용량 초과 ('+docSize(x.f.size)+')'):'';
+    x.warn=(!x.err&&rule)?rule.test(x.name):'';
+  });
+  var solo=document.getElementById('dnew_solo');
+  if(solo)solo.style.display=DNEW_FILES.length?'none':'';
+  if(!DNEW_FILES.length){box.innerHTML='';return;}
+  var bad=DNEW_FILES.filter(function(x){return x.err;}).length;
+  var wrn=DNEW_FILES.filter(function(x){return x.warn;}).length;
+  var tot=DNEW_FILES.reduce(function(a,x){return a+x.f.size;},0);
+  box.innerHTML='<div class="hint" style="margin-bottom:7px">선택 <b>'+DNEW_FILES.length+'건</b> · 합계 '+docSize(tot)
+      +(bad?(' · <b style="color:var(--dng)">오류 '+bad+'건</b>'):'')
+      +(wrn?(' · <b style="color:var(--warn)">규칙 확인 '+wrn+'건</b>'):'')+'</div>'
+    +'<div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">'
+    +DNEW_FILES.map(function(x,i){
+      var bg=x.err?'var(--dngbg)':(x.warn?'var(--warnbg)':'#fff');
+      var right=x.err?('<b style="color:var(--dng)">'+docEsc(x.err)+'</b>')
+        :(x.warn?('<b style="color:var(--warn)">'+docEsc(x.warn)+'</b>')
+        :(docEsc(x.f.name)+' · '+docSize(x.f.size)));
+      return '<div id="dnf_'+i+'" style="display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line2);background:'+bg+'">'
+        +'<input type="text" value="'+docEsc(x.name)+'" oninput="docNewName('+i+',this.value)" style="flex:1;min-width:0;font-size:12.5px;padding:5px 8px">'
+        +'<span class="hint" id="dnfs_'+i+'" style="font-size:11.5px;white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis">'+right+'</span>'
+        +'<button type="button" class="flt" style="padding:2px 8px;font-size:12px;border-color:var(--dngln);color:var(--dng)" onclick="docNewRemove('+i+')">×</button>'
+        +'</div>';
+    }).join('')+'</div>';
 }
 function docAddSave(){
   var cat=document.getElementById('dnew_cat').value;
   var folder=(document.getElementById('dnew_folder').value||'').trim();
-  var name=(document.getElementById('dnew_name').value||'').trim();
   var note=(document.getElementById('dnew_note').value||'').trim();
-  var fi=document.getElementById('dnew_file');
-  var f=fi&&fi.files&&fi.files[0];
   var msg=document.getElementById('dnew_msg');
   var ok=document.getElementById('dnew_ok');
-  if(!name){msg.innerHTML='<b style="color:var(--dng)">자료명을 입력해 주세요.</b>';return;}
-  if(f&&f.size>DOC_MAXMB*1024*1024){msg.innerHTML='<b style="color:var(--dng)">'+DOC_MAXMB+'MB 이하 파일만 업로드할 수 있습니다.</b>';return;}
-  ok.disabled=true;ok.textContent='저장 중...';
-  msg.innerHTML='등록 중입니다...';
-  var newId=null;
-  sb.from('fac_documents').insert({category:cat,folder:folder||null,name:name,note:note,
-    created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null}).select('id').then(function(res){
-    if(res.error)throw new Error('등록 실패: '+res.error.message);
-    newId=res.data[0].id;
-    if(!f)return {error:null};
-    var path='docs/'+newId+'/'+Date.now()+'.'+docExt(f.name);
-    return sb.storage.from(DOC_BUCKET).upload(path,f,{upsert:false,contentType:f.type||'application/octet-stream'}).then(function(up){
-      if(up.error)throw new Error('항목은 만들어졌지만 파일 업로드에 실패했습니다: '+up.error.message);
-      return sb.from('fac_documents').update({file_name:f.name,file_path:path,file_size:f.size,updated_at:new Date().toISOString()}).eq('id',newId);
+  if(!docIsAdmin()){msg.innerHTML='<b style="color:var(--dng)">총무기획팀 계정만 등록할 수 있습니다.</b>';return;}
+
+  // 파일 없이 항목만 생성
+  if(!DNEW_FILES.length){
+    var name=(document.getElementById('dnew_name').value||'').trim();
+    if(!name){msg.innerHTML='<b style="color:var(--dng)">파일을 선택하거나 자료명을 입력해 주세요.</b>';return;}
+    ok.disabled=true;ok.textContent='저장 중...';
+    sb.from('fac_documents').insert({category:cat,folder:folder||null,name:name,note:note,
+      created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null}).then(function(res){
+      if(res.error){ok.disabled=false;ok.textContent='추가';msg.innerHTML='<b style="color:var(--dng)">등록 실패: '+docEsc(res.error.message)+'</b>';return;}
+      closeModal();loadDocs();
     });
-  }).then(function(){
-    closeModal();loadDocs();
-  }).catch(function(e){
-    ok.disabled=false;ok.textContent='추가';
-    msg.innerHTML='<b style="color:var(--dng)">'+docEsc(e.message||String(e))+'</b>';
-    if(newId)loadDocs();
+    return;
+  }
+
+  // 검증
+  var bad=DNEW_FILES.filter(function(x){return x.err;});
+  if(bad.length){msg.innerHTML='<b style="color:var(--dng)">'+DOC_MAXMB+'MB 초과 파일 '+bad.length+'건을 목록에서 제거해 주세요.</b>';return;}
+  var noname=DNEW_FILES.filter(function(x){return !String(x.name||'').trim();});
+  if(noname.length){msg.innerHTML='<b style="color:var(--dng)">자료명이 비어있는 항목이 '+noname.length+'건 있습니다.</b>';return;}
+  var warns=DNEW_FILES.filter(function(x){return x.warn;});
+  if(warns.length&&!ok.dataset.warned){
+    ok.dataset.warned='1';ok.textContent='규칙 무시하고 추가';
+    msg.innerHTML='<b style="color:var(--warn)">'+warns.length+'건이 파일명 규칙과 다릅니다.</b> 자료명을 고치거나, 그대로 진행하려면 버튼을 한 번 더 누르세요.';
+    return;
+  }
+
+  ok.disabled=true;
+  var total=DNEW_FILES.length,done=0,fail=0;
+  function tick(){ok.textContent='업로드 '+(done+fail)+'/'+total;
+    msg.innerHTML='업로드 중입니다... <b>'+(done+fail)+'/'+total+'</b>'+(fail?(' · <b style="color:var(--dng)">실패 '+fail+'</b>'):'')+'<br>창을 닫지 마세요.';}
+  tick();
+
+  // 순차 업로드 (동시 업로드 시 Storage 레이트리밋 위험 → 1건씩)
+  var chain=Promise.resolve();
+  DNEW_FILES.forEach(function(x,i){
+    chain=chain.then(function(){
+      var st=document.getElementById('dnfs_'+i);
+      if(st)st.innerHTML='<b style="color:var(--warn)">업로드 중...</b>';
+      var newId=null;
+      return sb.from('fac_documents').insert({category:cat,folder:folder||null,name:String(x.name).trim(),note:note,
+        created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null}).select('id').then(function(res){
+        if(res.error)throw new Error('등록 실패: '+res.error.message);
+        newId=res.data[0].id;
+        var path='docs/'+newId+'/'+Date.now()+'.'+docExt(x.f.name);
+        return sb.storage.from(DOC_BUCKET).upload(path,x.f,{upsert:false,contentType:x.f.type||'application/octet-stream'}).then(function(up){
+          if(up.error)throw new Error('파일 업로드 실패: '+up.error.message);
+          return sb.from('fac_documents').update({file_name:x.f.name,file_path:path,file_size:x.f.size,
+            updated_at:new Date().toISOString()}).eq('id',newId);
+        });
+      }).then(function(){
+        done++;if(st)st.innerHTML='<b style="color:var(--ok)">✓ 완료</b>';
+        var row=document.getElementById('dnf_'+i);if(row)row.style.background='var(--okbg)';
+        tick();
+      }).catch(function(e){
+        fail++;if(st)st.innerHTML='<b style="color:var(--dng)">'+docEsc(e.message||String(e))+'</b>';
+        var row2=document.getElementById('dnf_'+i);if(row2)row2.style.background='var(--dngbg)';
+        // 파일은 실패했지만 행이 만들어진 경우 → 빈 항목 정리
+        if(newId)sb.from('fac_documents').delete().eq('id',newId);
+        tick();
+      });
+    });
+  });
+  chain.then(function(){
+    if(!fail){closeModal();loadDocs();return;}
+    ok.disabled=false;ok.textContent='실패분 재시도';
+    // 성공분은 목록에서 제거 → 버튼 다시 누르면 실패분만 재업로드
+    DNEW_FILES=DNEW_FILES.filter(function(x,i){
+      var st=document.getElementById('dnfs_'+i);
+      return !(st&&st.textContent.indexOf('완료')>=0);
+    });
+    msg.innerHTML='<b style="color:var(--dng)">'+fail+'건 실패</b> · 성공 '+done+'건은 등록되었습니다. 실패한 항목만 남겨두었으니 <b>실패분 재시도</b>를 누르거나 창을 닫으세요.';
+    loadDocs();
   });
 }
 
@@ -1396,8 +1513,49 @@ function bindAdmin(){
   });
 }
 function maskEmail(e){if(!e)return '';var p=e.split('@');return p[0].slice(0,2)+'***@'+(p[1]||'');}
-function notifyApplicant(kind,id,baseMsg){
-  n8nNotify({type:'progress',kind:kind,id:id}).then(function(d){
+
+// ===== 진행/답변 알림 페이로드 =====
+// Slack Workflow Builder 요구사항: 평면 구조 + 모든 값 문자열(undefined 금지)
+function statusLabel(rec){
+  var v=rec.st;
+  if(rec.type==='voice')return v==='done'?'답변 완료':v==='prog'?'확인 중':'접수 대기';
+  return v==='done'?'완료':v==='prog'?'진행중':'접수 대기';
+}
+function clean(v){var x=(v==null||v==='-')?'':String(v);return x.trim();}
+// 진행상황 요약 — 메일 본문 + 슬랙 메시지 공용
+function progressSummary(rec){
+  var isVoice=(rec.type==='voice');
+  var s={
+    record_no  : clean(rec.rid),
+    typelabel  : clean(rec.tt)||(isVoice?'건의':'접수'),
+    subtype    : clean(rec.vtype)||clean(rec.req),
+    title      : clean(rec.title),
+    campus     : clean(rec.campus),
+    building   : clean(rec.building),
+    applicant  : clean(rec.applicant),
+    received   : clean(rec.when),
+    detail     : isVoice?clean(rec.content):clean(rec.detail),
+    location   : isVoice?'':clean(rec.location),
+    status     : statusLabel(rec),
+    progress   : isVoice?'':clean(rec.prog),
+    plan_date  : isVoice?'':clean(rec.plan),
+    reply      : isVoice?clean(rec.reply):'',
+    updated_by : clean(CURRENT_USER&&CURRENT_USER.name),
+    updated_at : new Date().toISOString().slice(0,16).replace('T',' '),
+    portal_url : location.origin+location.pathname
+  };
+  // 슬랙 변수는 빈 문자열도 허용하지만 undefined는 무음 실패 → 전 필드 문자열 보장
+  Object.keys(s).forEach(function(k){ if(typeof s[k]!=='string')s[k]=String(s[k]==null?'':s[k]); });
+  // 슬랙 한 줄 요약 (워크플로에서 변수 하나만 써도 되도록)
+  var head=[s.campus,s.building].filter(Boolean).join(' ');
+  s.headline=(s.typelabel+' · '+(head||'-')+' · '+(s.title||s.detail.slice(0,30)||'-')).slice(0,140);
+  s.changed=isVoice?('답변 등록: '+(s.reply||'(내용 없음)')):('진행사항: '+(s.progress||'(미입력)')+(s.plan_date?(' / 처리예정 '+s.plan_date):''));
+  return s;
+}
+function notifyApplicant(kind,id,baseMsg,rec){
+  var sm=rec?progressSummary(rec):{};
+  n8nNotify({type:'progress',kind:kind,id:id,summary:sm,
+    applicant_name:sm.applicant||'',record_no:sm.record_no||''}).then(function(d){
     var note=(d&&d.ok)?'<b style="color:var(--ok)">접수자'+(d.to?('('+maskEmail(d.to)+')'):'')+'에게 진행상황 알림을 발송했습니다.</b>'
       :(d&&d.error==='no_email')?'<span style="color:var(--warn)">접수자 이메일이 미등록이라 알림은 발송되지 않았습니다. (승인된 계정 목록에서 확인)</span>'
       :(d&&d.error==='n8n_url_not_set')?'<span style="color:var(--warn)">알림 채널(n8n) 연결 전이라 메일은 발송되지 않았습니다. 저장은 완료되었습니다.</span>'
@@ -1412,7 +1570,7 @@ function saveVoice(i){
     sb.from('fac_voices').update({reply:rep||null,status:rep?'done':'prog'}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
       rec.reply=rep||'-';rec.st=rep?'done':'prog';
-      notifyApplicant('voice',rec.id,'답변이 등록되었습니다.');
+      notifyApplicant('voice',rec.id,'답변이 등록되었습니다.',rec);
     });
   } else { rec.reply=rep||'-';rec.st=rep?'done':'prog';submitDone('답변이 반영되었습니다.'); }
 }
@@ -1426,7 +1584,7 @@ function saveAdmin(i){
     sb.from('fac_requests').update({plan_date:plan||null,progress:prog||null,status:st,done_note:done||null}).eq('id',rec.id).then(function(res){
       if(res.error){submitDone('저장 오류: '+res.error.message);return;}
       rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;
-      notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.');
+      notifyApplicant('request',rec.id,'변경 내용이 저장되었습니다.',rec);
     });
   } else { rec.plan=plan||'-';rec.prog=prog||'-';rec.done=done||'-';rec.st=st;submitDone('변경 내용이 반영되었습니다.'); }
 }
