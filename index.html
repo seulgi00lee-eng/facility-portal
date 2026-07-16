@@ -878,7 +878,11 @@ function docAdminHTML(){
     +'<div style="display:flex;gap:8px;align-items:center;margin:6px 0 12px;flex-wrap:wrap">'
     +'<button class="flt" onclick="docAddOpen()">+ 새 자료 추가</button>'
     +'<input type="text" id="docadm_q" placeholder="학원명·자료명 검색" oninput="DOC_AQ=this.value.trim();renderDocAdmin()" style="flex:1;max-width:280px;margin:0">'
-    +'<span class="hint" id="docadm_cnt"></span></div>'
+    +'<span class="hint" id="docadm_cnt"></span>'
+    +'<span style="margin-left:auto;display:flex;gap:6px">'
+    +'<button class="flt" style="padding:3px 10px;font-size:12px" onclick="docOpenAll(true)">전체 펼치기</button>'
+    +'<button class="flt" style="padding:3px 10px;font-size:12px" onclick="docOpenAll(false)">전체 접기</button>'
+    +'</span></div>'
     +'<div id="docadmin_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>';
 }
@@ -894,12 +898,33 @@ function docAdminCard(d){
     +'</div></div>';
 }
 var DOC_AQ="";
+var DOC_OPEN={};   // 접기/펼치기 상태 (카테고리·폴더별)
 function docAdmMatch(d){
   if(!DOC_AQ)return true;
   var hay=[d.name,d.file,d.note,d.folder,d.cat].join(' ').toLowerCase();
   var ts=DOC_AQ.toLowerCase().split(/\s+/).filter(Boolean);
   for(var i=0;i<ts.length;i++){if(hay.indexOf(ts[i])<0)return false;}
   return true;
+}
+function docToggle(key){ DOC_OPEN[key]=!DOC_OPEN[key]; renderDocAdmin(); }
+function docOpenAll(on){
+  if(!on){DOC_OPEN={};}
+  else{
+    DOC_UPCATS.forEach(function(c){DOC_OPEN['c:'+c]=true;});
+    DOCS.forEach(function(d){DOC_OPEN['f:'+d.cat+'|'+(d.folder||'')]=true;});
+  }
+  renderDocAdmin();
+}
+function docAccRow(key,label,count,depth,forced){
+  var open=forced||!!DOC_OPEN[key];
+  var pad=depth?'padding-left:16px;':'';
+  return '<div onclick="docToggle(\''+key.replace(/'/g,"\\'")+'\')" style="'+pad+'display:flex;align-items:center;gap:8px;margin:'+(depth?'8px 0 6px':'14px 0 6px')+';padding-top:6px;padding-bottom:6px;'
+    +(depth?'':'border-bottom:1px solid var(--line);')+'cursor:pointer;user-select:none">'
+    +'<span style="font-size:11px;color:var(--mute);width:10px;display:inline-block;transform:rotate('+(open?'90':'0')+'deg);transition:transform .12s">▶</span>'
+    +'<span style="font-size:'+(depth?'13px':'14.5px')+';font-weight:'+(depth?'600':'700')+';letter-spacing:-.2px">'+label+'</span>'
+    +'<span class="hint" style="font-size:11.5px">'+count+'건</span>'
+    +(open?'':'<span class="hint" style="font-size:11px;margin-left:auto;color:var(--mute)">펼치기</span>')
+    +'</div>';
 }
 function renderDocAdmin(){
   var box=document.getElementById('docadmin_list');if(!box)return;
@@ -909,22 +934,27 @@ function renderDocAdmin(){
   var dbg=document.getElementById('admc_docs');if(dbg)dbg.textContent=DOCS.length?('('+DOCS.length+')'):'';
   if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
   if(!pool.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px"><b>"'+docEsc(DOC_AQ)+'"</b> 검색 결과가 없습니다.</div>';return;}
+  var searching=!!DOC_AQ;   // 검색 중에는 결과를 자동으로 펼침
   var h='';
-  DOC_UPCATS.forEach(function(c){
+  var cats=DOC_UPCATS.concat([]);
+  DOCS.forEach(function(d){if(cats.indexOf(d.cat)<0)cats.push(d.cat);});
+  cats.forEach(function(c){
     var inCat=pool.filter(function(d){return d.cat===c;});
     if(!inCat.length)return;
-    h+='<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)"><span style="font-size:14.5px;font-weight:700;letter-spacing:-.2px">'+docEsc(c)+'</span><span class="hint" style="font-size:11.5px">'+inCat.length+'건</span></div>';
+    var ck='c:'+c;
+    h+=docAccRow(ck,docEsc(c),inCat.length,0,searching);
+    if(!(searching||DOC_OPEN[ck]))return;
     var g={},order=[];
     inCat.forEach(function(d){var f=d.folder||'';if(!(f in g)){g[f]=[];order.push(f);}g[f].push(d);});
     order.sort(docFolderSort);
     var multi=(order.length>1||(order.length===1&&order[0]!==''));
     order.forEach(function(f){
-      if(multi)h+=docGroupHead(f,g[f].length);
-      h+=g[f].map(docAdminCard).join('');
+      if(!multi){h+=g[f].map(docAdminCard).join('');return;}
+      var fk='f:'+c+'|'+f;
+      h+=docAccRow(fk,(f===''?'📁 폴더 없음':'📂 '+docEsc(f)),g[f].length,1,searching);
+      if(searching||DOC_OPEN[fk])h+='<div style="padding-left:16px">'+g[f].map(docAdminCard).join('')+'</div>';
     });
   });
-  var others=pool.filter(function(d){return DOC_UPCATS.indexOf(d.cat)<0;});
-  if(others.length){h+='<div style="margin:18px 0 8px;font-size:14.5px;font-weight:700">기타 카테고리</div>'+others.map(docAdminCard).join('');}
   box.innerHTML=h;
 }
 function docStat(id,html,color){var el=document.getElementById('dstat_'+id);if(el){el.innerHTML=html;el.style.color=color||'';}}
