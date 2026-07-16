@@ -1376,14 +1376,14 @@ function saveRequest(type, extra, okMsg){
   sb.from('fac_requests').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류가 발생했습니다: '+res.error.message);return;}
     var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
-    fireReceipt('request',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
+    fireReceipt(type,rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''),no);
   });
 }
 // 접수 완료 알림(접수자+총무팀) 발송 후 완료 모달
-function fireReceipt(kind,id,baseMsg){
+function fireReceipt(kind,id,baseMsg,no){
   var email=(CURRENT_USER&&CURRENT_USER.email)||null;
-  var sm=collectSummary(kind);
-  n8nNotify({type:'received',kind:kind,id:id,applicant_email:email,
+  var sm=collectSummary(kind,no);
+  n8nNotify({type:'received',kind:kind,id:id,record_no:no||'',applicant_email:email,
     applicant_name:(CURRENT_USER&&CURRENT_USER.name)||'',summary:sm}).then(function(r){
     var note;
     if(r&&r.ok)note='<b style="color:var(--ok)">접수 완료 알림을 발송했습니다.</b> (접수자·총무기획팀)';
@@ -1393,8 +1393,11 @@ function fireReceipt(kind,id,baseMsg){
   });
 }
 // 접수 요약: 메일 본문에 넣을 핵심 필드 수집
-function collectSummary(kind){
+// 접수 유형 라벨 (진행 알림의 typelabel 과 동일 규격)
+var RECV_TYPE_LABEL={fix:'유지보수', buy:'구매', rent:'렌탈', pen:'볼펜', voice:'건의'};
+function collectSummary(kind, no){
   var s={};
+  // ── 기존 필드 (n8n '접수 메일 구성'이 사용 중 — 절대 제거 금지)
   s.campus=STATE.campus||'';
   s.building=STATE.building||'';
   s.floors=(Array.isArray(STATE.floor)?STATE.floor.join(', '):STATE.floor)||'';
@@ -1403,6 +1406,24 @@ function collectSummary(kind){
   else if(kind==='pen'){s.qty=STATE.penqty?(STATE.penqty+'봉지'):'';s.visit=fieldVal('pvisit')||'';s.applicant=fieldVal('papplicant')||'';}
   else if(kind==='voice'){s.vtype=VOICE_TYPE;s.title=fieldVal('vtitle')||'';s.content=fieldVal('vcontent')||'';s.applicant=fieldVal('vapplicant')||'';}
   else {s.applicant=fieldVal('applicant')||'현장';}
+
+  // ── 추가 필드 (진행 알림 progressSummary 와 동일한 이름 규격)
+  s.record_no = no||'';                                   // DB가 발급한 접수번호
+  s.typelabel = RECV_TYPE_LABEL[kind]||kind||'';
+  s.subtype   = (kind==='voice') ? (VOICE_TYPE||'') : (STATE.reqtype||'');
+  s.status    = '접수 대기';
+  s.received  = new Date().toISOString().slice(0,10);
+  s.applicant_login = (CURRENT_USER&&CURRENT_USER.login_id)||'';
+  s.updated_by = (CURRENT_USER&&CURRENT_USER.name)||'';
+  s.updated_at = new Date().toISOString().slice(0,16).replace('T',' ');
+  s.portal_url = location.origin+location.pathname;
+  if(!s.title) s.title = [s.campus, s.building].filter(Boolean).join(' ') + (s.subtype?(' · '+s.subtype):'');
+  if(!s.detail) s.detail = (kind==='voice') ? (s.content||'') : (s.qty||s.reqtype||'');
+  // Slack Workflow Builder 는 undefined 를 무음 실패시킴 → 전 필드 문자열 보장
+  Object.keys(s).forEach(function(k){ if(typeof s[k]!=='string')s[k]=String(s[k]==null?'':s[k]); });
+  var head=[s.campus,s.building].filter(Boolean).join(' ');
+  s.headline=(s.typelabel+' · '+(head||'-')+' · '+(s.title||s.detail.slice(0,30)||'-')).slice(0,140);
+  s.changed='신규 접수 · 신청자 '+(s.applicant||'-');
   return s;
 }
 function saveVoiceRow(okMsg){
@@ -1430,7 +1451,7 @@ function saveVoiceRow(okMsg){
   sb.from('fac_voices').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류: '+res.error.message);return;}
     var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
-    fireReceipt('voice',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''));
+    fireReceipt('voice',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''),no);
   });
 }
 function submitReport(){
