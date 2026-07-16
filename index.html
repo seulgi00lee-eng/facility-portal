@@ -1906,13 +1906,28 @@ function doSignup(){
   sb.rpc('fac_signup',{p_login_id:id}).then(function(res){
     if(res.error){gateMsg('오류: '+res.error.message,'err');return;}
     var r=res.data;
-    if(r&&r.ok){
-      // 이메일 저장(컬럼 있으면 반영, 없으면 무시)
-      if(email){sb.from('fac_accounts').update({email:email}).eq('login_id',id).then(function(){}).catch(function(){});}
-      gateMsg('가입 신청이 접수되었습니다. ('+r.region+' · '+r.name+')<br>총무기획팀 승인 후 로그인할 수 있습니다.','ok');
-    }
-    else{gateMsg((r&&r.error)||'신청에 실패했습니다.','err');}
+    if(!(r&&r.ok)){gateMsg((r&&r.error)||'신청에 실패했습니다.','err');return;}
+    gateMsg('가입 신청이 접수되었습니다. ('+r.region+' · '+r.name+')<br>총무기획팀 승인 후 로그인할 수 있습니다.','ok');
+    // 이메일 저장(컬럼 있으면 반영, 없으면 무시)
+    var save = email ? sb.from('fac_accounts').update({email:email}).eq('login_id',id).then(function(){}).catch(function(){}) : Promise.resolve();
+    // 총무기획팀 슬랙 알림 (실패해도 가입 신청 자체엔 영향 없음)
+    save.then(function(){ return signupNotify(id, r, email); }).catch(function(){});
   });
+}
+// 가입 신청 알림 — Slack Workflow Builder 규격(평면·전 필드 문자열)
+function signupNotify(id, r, email){
+  var s={
+    login_id : String(id||''),
+    name     : String((r&&r.name)||''),
+    region   : String((r&&r.region)||''),
+    gwan_code: String((r&&r.gwan_code)||(String(id).split('_')[0])||''),
+    email    : String(email||''),
+    requested_at: new Date().toISOString().slice(0,16).replace('T',' ')
+  };
+  s.headline = ('가입 신청 · '+(s.region||'-')+' · '+(s.name||s.login_id)).slice(0,140);
+  s.warn = s.email ? '' : '⚠️ 이메일 미입력 — 승인 시 등록 필요 (미등록 계정은 진행 알림이 발송되지 않습니다)';
+  return n8nNotify({type:'signup', kind:'signup', login_id:s.login_id, summary:s})
+    .then(function(){}).catch(function(){});
 }
 function doLogin(){
   var id=(document.getElementById('li_id').value||'').trim();
