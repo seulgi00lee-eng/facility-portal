@@ -651,9 +651,10 @@ function submitVoice(){
   confirmSubmit('건의사항 제출 확인', rows, function(){saveVoiceRow('건의사항이 제출되었습니다. 총무기획팀이 확인 후 답변드립니다. <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
 var DOCS=[];
-var DOC_CATS=["전체","보험증권","교육청 양식","매뉴얼"];
-var DOC_UPCATS=["보험증권","교육청 양식","매뉴얼"];
+var DOC_CATS=["전체","보험증권","교육청 양식","이수증 및 수료증","매뉴얼"];
+var DOC_UPCATS=["보험증권","교육청 양식","이수증 및 수료증","매뉴얼"];
 var DOC_FILTER="전체";
+var DOC_FOLDER="전체";
 var DOC_BUCKET="fac-docs";
 var DOC_MAXMB=50;
 
@@ -662,30 +663,88 @@ function docExt(n){var m=/\.([A-Za-z0-9]{1,8})$/.exec(n||'');return m?m[1].toLow
 function docSize(b){b=Number(b||0);if(!b)return '';if(b<1024)return b+'B';if(b<1048576)return (b/1024).toFixed(0)+'KB';return (b/1048576).toFixed(1)+'MB';}
 function docById(id){for(var i=0;i<DOCS.length;i++){if(String(DOCS[i].id)===String(id))return DOCS[i];}return null;}
 function docIsAdmin(){return !!(CURRENT_USER&&CURRENT_USER.role==='admin');}
+// 폴더 정렬 — 최신 년도가 위로 (2026 > 2025), 폴더 없음은 맨 아래
+function docFolderSort(a,b){
+  if(a===''&&b!=='')return 1; if(b===''&&a!=='')return -1;
+  return String(b).localeCompare(String(a),'ko',{numeric:true});
+}
+// 특정 카테고리에 존재하는 폴더 목록
+function docFolders(cat){
+  var set={},out=[];
+  DOCS.forEach(function(d){
+    if(cat!=='전체'&&d.cat!==cat)return;
+    var f=d.folder||'';
+    if(!(f in set)){set[f]=1;out.push(f);}
+  });
+  out.sort(docFolderSort);
+  return out;
+}
+function docAllFolders(){
+  var set={},out=[];
+  DOCS.forEach(function(d){if(d.folder&&!set[d.folder]){set[d.folder]=1;out.push(d.folder);}});
+  out.sort(docFolderSort);
+  return out;
+}
 
 // ===== 현장 화면 =====
 function docsHTML(){
-  var tabs=DOC_CATS.map(function(c){return '<button class="flt'+(c===DOC_FILTER?' on':'')+'" data-c="'+c+'">'+c+'</button>';}).join('');
-  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:14px;line-height:1.55">총무기획팀이 올린 최신 자료를 다운로드하는 곳입니다. 보험증권은 매년 갱신되며, 항상 최신본만 여기에 표시됩니다. (파일 업로드는 총무기획팀 권한)</div>'
-    +'<div class="filt" style="margin-bottom:16px">'+tabs+'</div><div id="docs_list"></div>';
+  var tabs=DOC_CATS.map(function(c){return '<button class="flt'+(c===DOC_FILTER?' on':'')+'" data-c="'+docEsc(c)+'">'+docEsc(c)+'</button>';}).join('');
+  return '<div class="secttl">자료실</div><div class="hint" style="margin-bottom:14px;line-height:1.55">총무기획팀이 올린 최신 자료를 다운로드하는 곳입니다. 보험증권·이수증처럼 매년 갱신되는 자료는 <b>년도 폴더</b>로 구분되어 있습니다. (파일 업로드는 총무기획팀 권한)</div>'
+    +'<div class="filt" id="doc_cats" style="margin-bottom:9px">'+tabs+'</div>'
+    +'<div id="doc_folders" style="margin-bottom:16px"></div>'
+    +'<div id="docs_list"></div>';
+}
+function renderDocFolderBar(){
+  var bar=document.getElementById('doc_folders');if(!bar)return;
+  var fs=docFolders(DOC_FILTER);
+  var real=fs.filter(function(f){return f!=='';});
+  if(!real.length){bar.innerHTML='';DOC_FOLDER='전체';return;}
+  var list=['전체'].concat(fs);
+  bar.innerHTML='<div class="filt" style="padding-left:2px">'+list.map(function(f){
+    var lbl=(f==='전체')?'전체 폴더':(f===''?'폴더 없음':'📂 '+docEsc(f));
+    return '<button class="flt'+(f===DOC_FOLDER?' on':'')+'" data-fd="'+docEsc(f)+'">'+lbl+'</button>';
+  }).join('')+'</div>';
+  bar.querySelectorAll('.flt').forEach(function(b){
+    b.addEventListener('click',function(){DOC_FOLDER=b.dataset.fd;renderDocFolderBar();renderDocs();});
+  });
+}
+function docCardHTML(d){
+  var meta=[];
+  if(d.file)meta.push(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):''));
+  if(d.updated)meta.push('갱신 '+d.updated);
+  if(d.note)meta.push(docEsc(d.note));
+  var btn=d.path?'<button class="flt" onclick="docDownload(\''+d.id+'\')">다운로드</button>':'<span class="pill">파일 준비 중</span>';
+  return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid">'+(meta.join(' · ')||'-')+'</div></div>'+btn+'</div></div>';
+}
+function docGroupHead(f,n){
+  return '<div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px"><span style="font-size:14px;font-weight:600;letter-spacing:-.2px">'+(f===''?'📁 폴더 없음':'📂 '+docEsc(f))+'</span><span class="hint" style="font-size:11.5px">'+n+'건</span></div>';
 }
 function renderDocs(){
   var box=document.getElementById('docs_list');if(!box)return;
-  var rows=DOCS.filter(function(d){return DOC_FILTER==='전체'||d.cat===DOC_FILTER;});
+  var rows=DOCS.filter(function(d){
+    if(DOC_FILTER!=='전체'&&d.cat!==DOC_FILTER)return false;
+    if(DOC_FOLDER!=='전체'&&(d.folder||'')!==DOC_FOLDER)return false;
+    return true;
+  });
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">해당 자료가 없습니다.</div>';return;}
-  box.innerHTML=rows.map(function(d){
-    var meta=[];
-    if(d.file)meta.push(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):''));
-    if(d.updated)meta.push('갱신 '+d.updated);
-    if(d.note)meta.push(docEsc(d.note));
-    var btn=d.path
-      ? '<button class="flt" onclick="docDownload(\''+d.id+'\')">다운로드</button>'
-      : '<span class="pill">파일 준비 중</span>';
-    return '<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid">'+(meta.join(' · ')||'-')+'</div></div>'+btn+'</div></div>';
-  }).join('');
+  var real=docFolders(DOC_FILTER).filter(function(f){return f!=='';});
+  // 폴더가 없거나 특정 폴더를 고른 상태 → 그냥 목록
+  if(!real.length||DOC_FOLDER!=='전체'){box.innerHTML=rows.map(docCardHTML).join('');return;}
+  // 폴더별 섹션으로 묶어서 표시
+  var g={},order=[];
+  rows.forEach(function(d){var f=d.folder||'';if(!(f in g)){g[f]=[];order.push(f);}g[f].push(d);});
+  order.sort(docFolderSort);
+  box.innerHTML=order.map(function(f){return docGroupHead(f,g[f].length)+g[f].map(docCardHTML).join('');}).join('');
 }
 function bindDocs(){
-  document.querySelectorAll('.filt .flt').forEach(function(b){b.addEventListener('click',function(){DOC_FILTER=b.dataset.c;document.querySelectorAll('.filt .flt').forEach(function(x){x.classList.toggle('on',x.dataset.c===DOC_FILTER);});renderDocs();});});
+  var cats=document.getElementById('doc_cats');
+  if(cats)cats.querySelectorAll('.flt').forEach(function(b){
+    b.addEventListener('click',function(){
+      DOC_FILTER=b.dataset.c; DOC_FOLDER='전체';
+      cats.querySelectorAll('.flt').forEach(function(x){x.classList.toggle('on',x.dataset.c===DOC_FILTER);});
+      renderDocFolderBar(); renderDocs();
+    });
+  });
   loadDocs();
 }
 function loadDocs(){
@@ -699,8 +758,8 @@ function loadDocs(){
       if(box)box.innerHTML=m; if(ab)ab.innerHTML=m; return;
     }
     var rows=(res.data)||[];
-    DOCS=rows.map(function(r){return {id:r.id,cat:r.category,name:r.name,file:r.file_name||'',path:r.file_path||'',size:r.file_size||0,updated:(r.updated_at||'').slice(0,10),note:r.note||''};});
-    renderDocs(); renderDocAdmin();
+    DOCS=rows.map(function(r){return {id:r.id,cat:r.category,name:r.name,folder:r.folder||'',file:r.file_name||'',path:r.file_path||'',size:r.file_size||0,updated:(r.updated_at||'').slice(0,10),note:r.note||''};});
+    renderDocFolderBar(); renderDocs(); renderDocAdmin();
   });
 }
 
@@ -717,24 +776,43 @@ function docDownload(id){
 // ===== 총무기획팀 · 자료실 관리 =====
 function docAdminHTML(){
   return '<div class="secttl" style="margin:0 0 10px">자료실 관리 (업로드·교체)</div>'
-    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 보험증권처럼 매년 갱신되는 자료는 같은 항목에 <b>파일 교체</b>로 새 파일을 올리면 최신본만 배포되고 이전 파일은 자동 삭제됩니다. (파일당 최대 '+DOC_MAXMB+'MB)</div>'
+    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">여기서 파일을 올리면 캠퍼스 <b>자료실</b>에 즉시 반영됩니다. 매년 갱신되는 자료는 <b>폴더(년도)</b>로 나눠 관리하세요. 같은 항목에 <b>파일 교체</b>로 새 파일을 올리면 최신본만 배포되고 이전 파일은 자동 삭제됩니다. (파일당 최대 '+DOC_MAXMB+'MB)</div>'
     +'<div style="margin:6px 0 12px"><button class="flt" onclick="docAddOpen()">+ 새 자료 추가</button></div>'
     +'<div id="docadmin_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>';
 }
+function docAdminCard(d){
+  var cur=d.file?(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):'')+' · 갱신 '+d.updated):'파일 없음 — 업로드 필요';
+  return '<div class="card" id="dcard_'+d.id+'"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid" id="dstat_'+d.id+'">현재: '+cur+'</div></div>'
+    +'<label class="flt" style="cursor:pointer">'+(d.path?'파일 교체':'파일 업로드')+'<input type="file" style="display:none" onchange="docUpload(\''+d.id+'\',this)"></label></div>'
+    +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:10px;align-items:center">'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(d.cat==='보험증권'?'checked':'')+' style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
+    +'<button class="flt" style="padding:3px 10px" onclick="docMoveOpen(\''+d.id+'\')">폴더 이동</button>'
+    +'<button class="flt" style="border-color:var(--dngln);color:var(--dng);padding:3px 10px" onclick="docDelete(\''+d.id+'\')">항목 삭제</button>'
+    +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
+    +'</div></div>';
+}
 function renderDocAdmin(){
   var box=document.getElementById('docadmin_list');if(!box)return;
   if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
-  box.innerHTML=DOCS.map(function(d){
-    var cur=d.file?(docEsc(d.file)+(d.size?(' ('+docSize(d.size)+')'):'')+' · 갱신 '+d.updated):'파일 없음 — 업로드 필요';
-    return '<div class="card" id="dcard_'+d.id+'"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid" id="dstat_'+d.id+'">현재: '+cur+'</div></div>'
-      +'<label class="flt" style="cursor:pointer">'+(d.path?'파일 교체':'파일 업로드')+'<input type="file" style="display:none" onchange="docUpload(\''+d.id+'\',this)"></label></div>'
-      +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:14px;align-items:center">'
-      +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(d.cat==='보험증권'?'checked':'')+' style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
-      +(d.path?'<button class="flt" style="border-color:var(--dngln);color:var(--dng);padding:3px 10px" onclick="docDelete(\''+d.id+'\')">항목 삭제</button>':'')
-      +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
-      +'</div></div>';
-  }).join('');
+  var h='';
+  DOC_UPCATS.forEach(function(c){
+    var inCat=DOCS.filter(function(d){return d.cat===c;});
+    if(!inCat.length)return;
+    h+='<div style="display:flex;align-items:center;gap:8px;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)"><span style="font-size:14.5px;font-weight:700;letter-spacing:-.2px">'+docEsc(c)+'</span><span class="hint" style="font-size:11.5px">'+inCat.length+'건</span></div>';
+    var g={},order=[];
+    inCat.forEach(function(d){var f=d.folder||'';if(!(f in g)){g[f]=[];order.push(f);}g[f].push(d);});
+    order.sort(docFolderSort);
+    var multi=(order.length>1||(order.length===1&&order[0]!==''));
+    order.forEach(function(f){
+      if(multi)h+=docGroupHead(f,g[f].length);
+      h+=g[f].map(docAdminCard).join('');
+    });
+  });
+  // DOC_UPCATS에 없는 카테고리(과거 데이터) 방어
+  var others=DOCS.filter(function(d){return DOC_UPCATS.indexOf(d.cat)<0;});
+  if(others.length){h+='<div style="margin:18px 0 8px;font-size:14.5px;font-weight:700">기타 카테고리</div>'+others.map(docAdminCard).join('');}
+  box.innerHTML=h;
 }
 function docStat(id,html,color){var el=document.getElementById('dstat_'+id);if(el){el.innerHTML=html;el.style.color=color||'';}}
 
@@ -761,7 +839,7 @@ function docUpload(id,inp){
     d.file=f.name;d.path=newPath;d.size=f.size;d.updated=new Date().toISOString().slice(0,10);
     docStat(id,'<b style="color:var(--ok)">✓ 업로드 완료</b> · '+docEsc(f.name)+' ('+docSize(f.size)+')','');
     if(notify){
-      n8nNotify({type:'doc_update',doc_id:id,category:d.cat,name:d.name,file_name:f.name,
+      n8nNotify({type:'doc_update',doc_id:id,category:d.cat,folder:d.folder||'',name:d.name,file_name:f.name,
         updated_at:d.updated,by:(CURRENT_USER&&CURRENT_USER.name)||''}).then(function(){});
     }
     setTimeout(loadDocs,900);
@@ -771,18 +849,32 @@ function docUpload(id,inp){
   });
 }
 
+// 폴더 입력 UI (기존 폴더 클릭 + 직접 입력)
+function docFolderPicker(inputId,cur){
+  var fs=docAllFolders();
+  var y=new Date().getFullYear();
+  var sug=[String(y)+'년',String(y-1)+'년'].filter(function(v){return fs.indexOf(v)<0;});
+  var chips=fs.concat(sug);
+  return '<input type="text" id="'+inputId+'" value="'+docEsc(cur||'')+'" placeholder="예: 2026년  (비워두면 폴더 없음)" style="width:100%">'
+    +(chips.length?'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px">'+chips.map(function(f){
+      return '<button type="button" class="flt" style="padding:2px 9px;font-size:12px" onclick="document.getElementById(\''+inputId+'\').value=\''+docEsc(f)+'\'">'+docEsc(f)+'</button>';
+    }).join('')+'<button type="button" class="flt" style="padding:2px 9px;font-size:12px" onclick="document.getElementById(\''+inputId+'\').value=\'\'">폴더 없음</button></div>':'');
+}
+
 function docAddOpen(){
-  var opts=DOC_UPCATS.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+  var opts=DOC_UPCATS.map(function(c){return '<option value="'+docEsc(c)+'"'+(c===DOC_FILTER?' selected':'')+'>'+docEsc(c)+'</option>';}).join('');
   openModal('<div class="mh">새 자료 추가</div><div class="mb">'
     +'<div class="lbl">카테고리</div><select id="dnew_cat" style="width:100%">'+opts+'</select>'
-    +'<div class="lbl" style="margin-top:10px">자료명 (화면에 표시)</div><input type="text" id="dnew_name" placeholder="예: 2026년 통합 보험증권" style="width:100%">'
-    +'<div class="lbl" style="margin-top:10px">부가 설명 (선택)</div><input type="text" id="dnew_note" placeholder="예: 전 캠퍼스 공통 · 매년 갱신" style="width:100%">'
-    +'<div class="lbl" style="margin-top:10px">파일</div><input type="file" id="dnew_file" style="width:100%">'
-    +'<div class="hint" id="dnew_msg" style="margin-top:9px;line-height:1.5">파일은 나중에 올려도 됩니다. 항목만 먼저 만들 수 있습니다.</div>'
+    +'<div class="lbl" style="margin-top:11px">폴더 (선택 · 년도 구분용)</div>'+docFolderPicker('dnew_folder','')
+    +'<div class="lbl" style="margin-top:11px">자료명 (화면에 표시)</div><input type="text" id="dnew_name" placeholder="예: 2026년 통합 보험증권" style="width:100%">'
+    +'<div class="lbl" style="margin-top:11px">부가 설명 (선택)</div><input type="text" id="dnew_note" placeholder="예: 전 캠퍼스 공통 · 매년 갱신" style="width:100%">'
+    +'<div class="lbl" style="margin-top:11px">파일</div><input type="file" id="dnew_file" style="width:100%">'
+    +'<div class="hint" id="dnew_msg" style="margin-top:9px;line-height:1.5">폴더는 <b>기존 이름을 클릭</b>하거나 직접 입력하세요. 같은 이름이면 같은 폴더로 묶입니다. 파일은 나중에 올려도 됩니다.</div>'
     +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="dnew_ok" onclick="docAddSave()">추가</button></div>');
 }
 function docAddSave(){
   var cat=document.getElementById('dnew_cat').value;
+  var folder=(document.getElementById('dnew_folder').value||'').trim();
   var name=(document.getElementById('dnew_name').value||'').trim();
   var note=(document.getElementById('dnew_note').value||'').trim();
   var fi=document.getElementById('dnew_file');
@@ -794,11 +886,11 @@ function docAddSave(){
   ok.disabled=true;ok.textContent='저장 중...';
   msg.innerHTML='등록 중입니다...';
   var newId=null;
-  sb.from('fac_documents').insert({category:cat,name:name,note:note,
+  sb.from('fac_documents').insert({category:cat,folder:folder||null,name:name,note:note,
     created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null}).select('id').then(function(res){
     if(res.error)throw new Error('등록 실패: '+res.error.message);
     newId=res.data[0].id;
-    if(!f)return {error:null,skip:true};
+    if(!f)return {error:null};
     var path='docs/'+newId+'/'+Date.now()+'.'+docExt(f.name);
     return sb.storage.from(DOC_BUCKET).upload(path,f,{upsert:false,contentType:f.type||'application/octet-stream'}).then(function(up){
       if(up.error)throw new Error('항목은 만들어졌지만 파일 업로드에 실패했습니다: '+up.error.message);
@@ -813,9 +905,31 @@ function docAddSave(){
   });
 }
 
+// 카테고리·폴더 이동
+function docMoveOpen(id){
+  var d=docById(id);if(!d)return;
+  var opts=DOC_UPCATS.map(function(c){return '<option value="'+docEsc(c)+'"'+(c===d.cat?' selected':'')+'>'+docEsc(c)+'</option>';}).join('');
+  openModal('<div class="mh">폴더 이동</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">자료명</span><span class="mv">'+docEsc(d.name)+'</span></div>'
+    +'<div class="lbl" style="margin-top:11px">카테고리</div><select id="dmv_cat" style="width:100%">'+opts+'</select>'
+    +'<div class="lbl" style="margin-top:11px">폴더</div>'+docFolderPicker('dmv_folder',d.folder)
+    +'<div class="hint" id="dmv_msg" style="margin-top:9px;line-height:1.5">파일은 그대로 두고 분류만 바뀝니다. 다운로드 링크에는 영향이 없습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="dmv_ok" onclick="docMoveSave(\''+id+'\')">이동</button></div>');
+}
+function docMoveSave(id){
+  var cat=document.getElementById('dmv_cat').value;
+  var folder=(document.getElementById('dmv_folder').value||'').trim();
+  var ok=document.getElementById('dmv_ok'),msg=document.getElementById('dmv_msg');
+  ok.disabled=true;ok.textContent='저장 중...';
+  sb.from('fac_documents').update({category:cat,folder:folder||null}).eq('id',id).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='이동';msg.innerHTML='<b style="color:var(--dng)">이동 실패: '+docEsc(res.error.message)+'</b>';return;}
+    closeModal();loadDocs();
+  });
+}
+
 function docDelete(id){
   var d=docById(id);if(!d)return;
-  openModal('<div class="mh">자료 삭제</div><div class="mb"><div class="mrow"><span class="mk">카테고리</span><span class="mv">'+docEsc(d.cat)+'</span></div><div class="mrow"><span class="mk">자료명</span><span class="mv">'+docEsc(d.name)+'</span></div><div class="mrow"><span class="mk">파일</span><span class="mv">'+docEsc(d.file||'-')+'</span></div><div class="mq">이 항목과 파일을 삭제하시겠습니까? 되돌릴 수 없습니다.</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" style="background:var(--dng);border-color:var(--dng)" onclick="docDeleteGo(\''+id+'\')">삭제</button></div>');
+  openModal('<div class="mh">자료 삭제</div><div class="mb"><div class="mrow"><span class="mk">카테고리</span><span class="mv">'+docEsc(d.cat)+'</span></div><div class="mrow"><span class="mk">폴더</span><span class="mv">'+docEsc(d.folder||'폴더 없음')+'</span></div><div class="mrow"><span class="mk">자료명</span><span class="mv">'+docEsc(d.name)+'</span></div><div class="mrow"><span class="mk">파일</span><span class="mv">'+docEsc(d.file||'-')+'</span></div><div class="mq">이 항목과 파일을 삭제하시겠습니까? 되돌릴 수 없습니다.</div></div><div class="mf"><button class="mbtn no" onclick="closeModal()">아니오</button><button class="mbtn yes" style="background:var(--dng);border-color:var(--dng)" onclick="docDeleteGo(\''+id+'\')">삭제</button></div>');
 }
 function docDeleteGo(id){
   var d=docById(id);if(!d){closeModal();return;}
