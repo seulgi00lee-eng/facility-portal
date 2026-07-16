@@ -906,6 +906,7 @@ function renderDocAdmin(){
   var cnt=document.getElementById('docadm_cnt');
   var pool=DOCS.filter(docAdmMatch);
   if(cnt)cnt.innerHTML=DOC_AQ?('검색 <b>'+pool.length+'</b>/'+DOCS.length+'건'):('총 <b>'+DOCS.length+'</b>건');
+  var dbg=document.getElementById('admc_docs');if(dbg)dbg.textContent=DOCS.length?('('+DOCS.length+')'):'';
   if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
   if(!pool.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px"><b>"'+docEsc(DOC_AQ)+'"</b> 검색 결과가 없습니다.</div>';return;}
   var h='';
@@ -1495,13 +1496,47 @@ function submitBoard(){
 
 var ADMIN_OK=false;
 var ADMIN_PIN="0000"; // 임시 비번 (편의 구분용). 실제 잠금은 Supabase 로그인 단계에서.
+var ADM_TAB='work', ADM_Q='', ADM_ST='all';
+function admTab(t){
+  ADM_TAB=t;
+  document.querySelectorAll('#adm_tabs .flt').forEach(function(b){b.classList.toggle('on',b.dataset.t===t);});
+  document.querySelectorAll('.admsec').forEach(function(el){el.style.display=(el.dataset.t===t)?'':'none';});
+  window.scrollTo({top:0,behavior:'instant'});
+  if(t==='docs')renderDocAdmin();
+}
+function admSt(v){
+  ADM_ST=v;
+  document.querySelectorAll('.admsec[data-t="work"] .flt[data-s]').forEach(function(b){b.classList.toggle('on',b.dataset.s===v);});
+  filterAdmRows();
+}
+// 접수 처리 목록 검색·상태 필터
+function filterAdmRows(){
+  var box=document.getElementById('adm_rows');if(!box)return;
+  var cards=box.children, shown=0;
+  for(var i=0;i<cards.length;i++){
+    var c=cards[i], rec=SAMPLE[Number(c.dataset.i)]||{};
+    var ok=true;
+    if(ADM_ST!=='all'&&rec.st!==ADM_ST)ok=false;
+    if(ok&&ADM_Q){
+      var hay=[rec.rid,rec.campus,rec.building,rec.title,rec.applicant,rec.req,rec.tt].join(' ').toLowerCase();
+      var ts=ADM_Q.toLowerCase().split(/\s+/).filter(Boolean);
+      for(var j=0;j<ts.length;j++){if(hay.indexOf(ts[j])<0){ok=false;break;}}
+    }
+    c.style.display=ok?'':'none'; if(ok)shown++;
+  }
+  var e=document.getElementById('adm_empty');if(e)e.style.display=shown?'none':'';
+  var cnt=document.getElementById('adm_cnt');
+  if(cnt)cnt.innerHTML=(ADM_Q||ADM_ST!=='all')?('<b>'+shown+'</b>/'+cards.length+'건'):('총 <b>'+cards.length+'</b>건');
+  var w=document.getElementById('admc_work');
+  if(w){var n=SAMPLE.filter(function(r){return r.st!=='done';}).length;w.textContent=n?('('+n+')'):'';}
+}
 function adminHTML(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin'){
     return '<div style="max-width:400px;margin:40px auto 0;text-align:center"><div style="font-size:15px;font-weight:600;margin-bottom:8px">접근 권한이 없습니다</div><div class="hint">이 화면은 총무기획팀(관리자) 전용입니다.</div></div>';
   }
   var rows=SAMPLE.map(function(r,i){
     var bd=r.st==='done'?['b-done',r.type==='voice'?'답변 완료':'완료']:r.st==='prog'?['b-prog',r.type==='voice'?'확인 중':'진행중']:['b-wait','접수 대기'];
-    var head='<div class="card"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div>';
+    var head='<div class="card" data-i="'+i+'"><div class="ch"><div><div class="title"><span class="ttag">'+r.tt+'</span>'+r.title+'</div><div class="rid">'+r.rid+' · 접수 '+r.when+'</div></div><span class="badge '+bd[0]+'">'+bd[1]+'</span></div>';
     if(r.type==='voice'){
       var vtb=(r.vtype==='AI 해결 요청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#cdb4e6;background:#f6f1fb;color:#6b4ea0">AI 해결 요청</span></div>':(r.vtype==='아카 권한 신청')?'<div style="margin-bottom:9px"><span class="ttag" style="border-color:#a5c8e6;background:#eef4fb;color:#2b5c8a">아카 권한 신청</span></div>':'';
       return head+'<div style="padding:12px 15px">'+vtb+'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-bottom:11px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px">'+(r.content||'')+'</div><div class="lbl">총무기획팀 답변</div><textarea data-i="'+i+'" data-f="reply" rows="3" placeholder="답변을 입력 (등록 시 작성자에게 알림)">'+(r.reply&&r.reply!=='-'?r.reply:'')+'</textarea></div>'
@@ -1523,24 +1558,50 @@ function adminHTML(){
   }).join('');
   var docManage=docAdminHTML();
   return '<div style="margin-bottom:14px"><div class="secttl" style="margin:0">총무기획팀 관리</div></div>'
+    +'<div class="filt" id="adm_tabs" style="margin-bottom:18px;position:sticky;top:0;z-index:6;background:var(--bg);padding:6px 0">'
+      +'<button class="flt'+(ADM_TAB==='work'?' on':'')+'" data-t="work">접수 처리 <span id="admc_work" class="hint" style="font-size:11px"></span></button>'
+      +'<button class="flt'+(ADM_TAB==='docs'?' on':'')+'" data-t="docs">자료실 <span id="admc_docs" class="hint" style="font-size:11px"></span></button>'
+      +'<button class="flt'+(ADM_TAB==='acct'?' on':'')+'" data-t="acct">계정 관리 <span id="admc_acct" class="hint" style="font-size:11px"></span></button>'
+    +'</div>'
+
+    // ── 접수 처리
+    +'<div class="admsec" data-t="work"'+(ADM_TAB==='work'?'':' style="display:none"')+'>'
+    +'<div class="hint" style="margin-bottom:12px;line-height:1.5">처리예정일·진행사항·완료여부를 입력하고 저장하면, 접수자에게 메일·슬랙 알림이 발송됩니다.</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'
+      +'<input type="text" id="adm_q" placeholder="접수번호·캠퍼스·제목·신청자 검색" oninput="ADM_Q=this.value.trim();filterAdmRows()" style="flex:1;max-width:320px;margin:0">'
+      +'<button class="flt'+(ADM_ST==='all'?' on':'')+'" data-s="all" onclick="admSt(\'all\')">전체</button>'
+      +'<button class="flt'+(ADM_ST==='wait'?' on':'')+'" data-s="wait" onclick="admSt(\'wait\')">접수 대기</button>'
+      +'<button class="flt'+(ADM_ST==='prog'?' on':'')+'" data-s="prog" onclick="admSt(\'prog\')">진행중</button>'
+      +'<button class="flt'+(ADM_ST==='done'?' on':'')+'" data-s="done" onclick="admSt(\'done\')">완료</button>'
+      +'<span class="hint" id="adm_cnt" style="margin-left:auto"></span>'
+    +'</div>'
+    +'<div id="adm_rows">'+rows+'</div>'
+    +'<div id="adm_empty" class="hint" style="display:none;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">조건에 맞는 접수건이 없습니다.</div>'
+    +'</div>'
+
+    // ── 자료실
+    +'<div class="admsec" data-t="docs"'+(ADM_TAB==='docs'?'':' style="display:none"')+'>'+docManage+'</div>'
+
+    // ── 계정 관리
+    +'<div class="admsec" data-t="acct"'+(ADM_TAB==='acct'?'':' style="display:none"')+'>'
     +'<div class="secttl" style="margin:0 0 10px">가입 승인 대기</div>'
-    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">현장이 가입 신청한 계정입니다. 승인하려면 ① 비밀번호를 정하고 ② Supabase에서 계정을 만든 뒤 ③ 활성화하세요. (자동 승인은 추후 Edge Function으로 고도화)</div>'
+    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">현장이 가입 신청한 계정입니다. 승인하려면 ① 비밀번호를 정하고 ② Supabase에서 계정을 만든 뒤 ③ 활성화하세요.</div>'
     +'<div id="approve_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>'
     +'<div class="secttl" style="margin:0 0 10px">승인된 계정 <span id="acc_count" style="font-size:12px;color:var(--mute);font-weight:400"></span></div>'
-    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">활성화된 계정과 알림 이메일 현황입니다. 이메일은 진행상황 자동 알림에 사용됩니다.</div>'
+    +'<div class="hint" style="margin-bottom:10px;line-height:1.5">활성화된 계정과 알림 이메일 현황입니다. <b>이메일이 비어 있으면 진행상황 알림이 발송되지 않습니다.</b></div>'
     +'<div id="acclist_wrap" style="margin-bottom:8px"><input type="text" id="acc_search" placeholder="아이디·이름·지역 검색" style="width:100%;max-width:320px" oninput="filterAccounts()"></div>'
     +'<div id="account_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>'
-    +docManage
-    +'<div class="secttl" style="margin:0 0 10px">접수 처리</div>'
-    +'<div class="hint" style="margin-bottom:14px;line-height:1.5">처리예정일·진행사항·완료여부를 입력하고 저장하면, 접수자에게 알림이 갑니다. (저장·알림은 Supabase + n8n 연결 후 실제 작동)</div>'+rows;
+    +'</div>';
 }
 function loadPending(){
   var box=document.getElementById('approve_list');if(!box)return;
   if(!SB_READY){box.innerHTML='<div class="hint" style="padding:14px">서버 연결 없음</div>';return;}
   sb.from('fac_accounts').select('*').eq('status','pending').order('requested_at',{ascending:true}).then(function(res){
     var rows=(res.data)||[];
+    var ab=document.getElementById('admc_acct');
+    if(ab){ab.textContent=rows.length?('· 승인대기 '+rows.length):''; ab.style.color=rows.length?'var(--dng)':'';}
     if(!rows.length){box.innerHTML='<div class="hint" style="padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center">대기 중인 가입 신청이 없습니다.</div>';return;}
     box.innerHTML=rows.map(function(a){
       return '<div class="card"><div style="padding:14px 16px">'
@@ -1634,6 +1695,9 @@ function filterAccounts(){
 }
 function bindAdmin(){
   if(!CURRENT_USER||CURRENT_USER.role!=='admin')return;
+  var tb=document.getElementById('adm_tabs');
+  if(tb)tb.querySelectorAll('.flt').forEach(function(b){b.addEventListener('click',function(){admTab(b.dataset.t);});});
+  filterAdmRows();
   loadPending();
   loadAccounts();
   loadDocs();
