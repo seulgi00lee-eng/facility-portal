@@ -948,6 +948,12 @@ function docAdminHTML(){
     +'<button class="flt" style="padding:3px 10px;font-size:12px" onclick="docOpenAll(true)">전체 펼치기</button>'
     +'<button class="flt" style="padding:3px 10px;font-size:12px" onclick="docOpenAll(false)">전체 접기</button>'
     +'</span></div>'
+    +'<div style="display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;flex-wrap:wrap">'
+    +'<span style="font-size:12.5px;color:var(--ink2);font-weight:600">📧 교체 안내 발송 일괄 설정</span>'
+    +'<button class="flt" style="padding:3px 12px;font-size:12px" onclick="docNotiAll(true)">전체 체크</button>'
+    +'<button class="flt" style="padding:3px 12px;font-size:12px" onclick="docNotiAll(false)">전체 해제</button>'
+    +'<span class="hint" id="doc_noti_cnt" style="font-size:11.5px;margin-left:auto"></span>'
+    +'</div>'
     +'<div id="docadmin_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>';
 }
@@ -956,7 +962,7 @@ function docAdminCard(d){
   return '<div class="card" id="dcard_'+d.id+'"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid" id="dstat_'+d.id+'">현재: '+cur+'</div></div>'
     +'<label class="flt" style="cursor:pointer">'+(d.path?'파일 교체':'파일 업로드')+'<input type="file" style="display:none" onchange="docUpload(\''+d.id+'\',this)"></label></div>'
     +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:10px;align-items:center">'
-    +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(d.cat==='보험증권'?'checked':'')+' style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(docNotiState(d)?'checked':'')+' onchange="DOC_NOTI[\''+d.id+'\']=this.checked;docNotiCount()" style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
     +'<button class="flt" style="padding:3px 10px" onclick="docMoveOpen(\''+d.id+'\')">폴더 이동</button>'
     +'<button class="flt" style="border-color:var(--dngln);color:var(--dng);padding:3px 10px" onclick="docDelete(\''+d.id+'\')">항목 삭제</button>'
     +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
@@ -964,6 +970,15 @@ function docAdminCard(d){
 }
 var DOC_AQ="";
 var DOC_OPEN={};   // 접기/펼치기 상태 (카테고리·폴더별)
+var DOC_NOTI={};   // 교체 안내 발송 개별 선택 상태 (id → true/false). 미설정 시 카테고리 기본값 사용
+function docNotiState(d){ return (d.id in DOC_NOTI) ? DOC_NOTI[d.id] : (d.cat==='보험증권'); }
+function docNotiAll(on){ DOCS.filter(docAdmMatch).forEach(function(d){ DOC_NOTI[d.id]=on; }); renderDocAdmin(); }
+function docNotiCount(){
+  var el=document.getElementById('doc_noti_cnt'); if(!el)return;
+  var pool=DOCS.filter(docAdmMatch);
+  var on=pool.filter(function(d){return docNotiState(d);}).length;
+  el.innerHTML='안내 발송 선택 <b style="color:var(--ink)">'+on+'</b> / '+pool.length+'건'+(DOC_AQ?' (검색 결과 기준)':'');
+}
 function docAdmMatch(d){
   if(!DOC_AQ)return true;
   var hay=[d.name,d.file,d.note,d.folder,d.cat].join(' ').toLowerCase();
@@ -980,22 +995,38 @@ function docOpenAll(on){
   }
   renderDocAdmin();
 }
-function docAccRow(key,label,count,depth,forced){
+function docAccRow(key,label,count,depth,forced,noti){
   var open=forced||!!DOC_OPEN[key];
   var pad=depth?'padding-left:16px;':'';
+  var right='';
+  if(noti){
+    var expandHint=open?'':'<span class="hint" style="font-size:11px;color:var(--mute);margin-right:6px">펼치기</span>';
+    right='<span style="margin-left:auto;display:flex;gap:5px;align-items:center">'
+      +expandHint
+      +'<span class="hint" style="font-size:10.5px;color:var(--mute)">안내발송</span>'
+      +'<span onclick="event.stopPropagation()" style="display:flex;gap:4px">'
+      +'<button class="flt" style="padding:1px 9px;font-size:11px" onclick="'+noti.on+'">전체</button>'
+      +'<button class="flt" style="padding:1px 9px;font-size:11px" onclick="'+noti.off+'">해제</button>'
+      +'</span></span>';
+  }else{
+    right=(open?'':'<span class="hint" style="font-size:11px;margin-left:auto;color:var(--mute)">펼치기</span>');
+  }
   return '<div onclick="docToggle(\''+key.replace(/'/g,"\\'")+'\')" style="'+pad+'display:flex;align-items:center;gap:8px;margin:'+(depth?'8px 0 6px':'14px 0 6px')+';padding-top:6px;padding-bottom:6px;'
     +(depth?'':'border-bottom:1px solid var(--line);')+'cursor:pointer;user-select:none">'
     +'<span style="font-size:11px;color:var(--mute);width:10px;display:inline-block;transform:rotate('+(open?'90':'0')+'deg);transition:transform .12s">▶</span>'
     +'<span style="font-size:'+(depth?'13px':'14.5px')+';font-weight:'+(depth?'600':'700')+';letter-spacing:-.2px">'+label+'</span>'
     +'<span class="hint" style="font-size:11.5px">'+count+'건</span>'
-    +(open?'':'<span class="hint" style="font-size:11px;margin-left:auto;color:var(--mute)">펼치기</span>')
+    +right
     +'</div>';
 }
+function docNotiScopeCat(cat,on){ DOCS.filter(docAdmMatch).forEach(function(d){ if(d.cat===cat) DOC_NOTI[d.id]=on; }); renderDocAdmin(); }
+function docNotiScopeFolder(cat,folder,on){ DOCS.filter(docAdmMatch).forEach(function(d){ if(d.cat===cat&&(d.folder||'')===folder) DOC_NOTI[d.id]=on; }); renderDocAdmin(); }
 function renderDocAdmin(){
   var box=document.getElementById('docadmin_list');if(!box)return;
   var cnt=document.getElementById('docadm_cnt');
   var pool=DOCS.filter(docAdmMatch);
   if(cnt)cnt.innerHTML=DOC_AQ?('검색 <b>'+pool.length+'</b>/'+DOCS.length+'건'):('총 <b>'+DOCS.length+'</b>건');
+  docNotiCount();
   var dbg=document.getElementById('admc_docs');if(dbg)dbg.textContent=DOCS.length?('('+DOCS.length+')'):'';
   if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
   if(!pool.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px"><b>"'+docEsc(DOC_AQ)+'"</b> 검색 결과가 없습니다.</div>';return;}
@@ -1007,7 +1038,8 @@ function renderDocAdmin(){
     var inCat=pool.filter(function(d){return d.cat===c;});
     if(!inCat.length)return;
     var ck='c:'+c;
-    h+=docAccRow(ck,docEsc(c),inCat.length,0,searching);
+    var cesc=c.replace(/'/g,"\\'");
+    h+=docAccRow(ck,docEsc(c),inCat.length,0,searching,{on:"docNotiScopeCat('"+cesc+"',true)",off:"docNotiScopeCat('"+cesc+"',false)"});
     if(!(searching||DOC_OPEN[ck]))return;
     var g={},order=[];
     inCat.forEach(function(d){var f=d.folder||'';if(!(f in g)){g[f]=[];order.push(f);}g[f].push(d);});
@@ -1016,7 +1048,8 @@ function renderDocAdmin(){
     order.forEach(function(f){
       if(!multi){h+=g[f].map(docAdminCard).join('');return;}
       var fk='f:'+c+'|'+f;
-      h+=docAccRow(fk,(f===''?'📁 폴더 없음':'📂 '+docEsc(f)),g[f].length,1,searching);
+      var cesc2=c.replace(/'/g,"\\'"),fesc=f.replace(/'/g,"\\'");
+      h+=docAccRow(fk,(f===''?'📁 폴더 없음':'📂 '+docEsc(f)),g[f].length,1,searching,{on:"docNotiScopeFolder('"+cesc2+"','"+fesc+"',true)",off:"docNotiScopeFolder('"+cesc2+"','"+fesc+"',false)"});
       if(searching||DOC_OPEN[fk])h+='<div style="padding-left:16px">'+g[f].map(docAdminCard).join('')+'</div>';
     });
   });
@@ -1031,7 +1064,7 @@ function docUpload(id,inp){
   var d=docById(id);if(!d){inp.value='';return;}
   var oldPath=d.path;
   var newPath='docs/'+id+'/'+Date.now()+'.'+docExt(f.name);
-  var notify=(document.getElementById('dnoti_'+id)||{}).checked;
+  var notify=document.getElementById('dnoti_'+id)?document.getElementById('dnoti_'+id).checked:docNotiState(d);
   inp.disabled=true;
   docStat(id,'업로드 중... ('+docSize(f.size)+')','var(--warn)');
   sb.storage.from(DOC_BUCKET).upload(newPath,f,{upsert:false,contentType:f.type||'application/octet-stream'}).then(function(up){
