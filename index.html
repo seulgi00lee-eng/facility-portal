@@ -463,13 +463,23 @@ function cardHTML(){var req=['사번','이름','템플릿 → <b>기본명함</b
 +'<button class="submit" style="width:100%" onclick="submitCard()">접수완료 (총무기획팀에 알림)</button>'
 +'</div></div></div>';}
 function bindCard(){Object.keys(META).forEach(buildDD);
-  // 명함은 본사 인원도 신청 가능 → 캠퍼스 목록 끝에 '본사' 추가 (명함 폼에만 적용)
-  var cbox=document.querySelector('.dd[data-k="campus"]');
-  if(cbox && !cbox.querySelector('.optb[data-v="본사"]')){
-    var body=cbox.querySelector('.ddbody');
-    if(body){var hq=document.createElement('button');hq.type='button';hq.className='optb';hq.setAttribute('data-v','본사');hq.textContent='본사';body.appendChild(hq);
-      hq.addEventListener('click',function(){cbox.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});hq.classList.add('on');STATE.campus='본사';cbox.classList.remove('open');lsSet('fac_campus','본사');paint('campus');});}
+  // 명함 전용: 사업부·브랜드·캠퍼스에 '본사' 추가. 사업부에서 '본사' 선택 시 브랜드·캠퍼스 자동 '본사'.
+  function addHQ(k,multi,onPick){
+    var box=document.querySelector('.dd[data-k="'+k+'"]');if(!box||box.querySelector('.optb[data-v="본사"]'))return;
+    var body=box.querySelector('.ddbody');if(!body)return;
+    var b=document.createElement('button');b.type='button';b.className='optb';b.setAttribute('data-v','본사');b.textContent='본사';body.appendChild(b);
+    b.addEventListener('click',function(){
+      if(multi){b.classList.toggle('on');STATE[k]=[].slice.call(box.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});}
+      else{box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');STATE[k]=b.dataset.v;box.classList.remove('open');lsSet('fac_'+k,'본사');}
+      paint(k);if(onPick)onPick(b.classList.contains('on'));
+    });
   }
+  function setHQ(k){var box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;var hq=box.querySelector('.optb[data-v="본사"]');if(!hq)return;
+    box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});hq.classList.add('on');
+    if(META[k]&&META[k].multi)STATE[k]=['본사'];else{STATE[k]='본사';lsSet('fac_'+k,'본사');}paint(k);}
+  addHQ('brand',true,null);
+  addHQ('campus',false,null);
+  addHQ('biz',true,function(on){if(on){setHQ('biz');setHQ('brand');setHQ('campus');}});
   var ce=document.getElementById('capemail');if(ce&&CURRENT_USER&&CURRENT_USER.email)ce.value=CURRENT_USER.email;
   var ca=document.getElementById('capplicant');if(ca&&CURRENT_USER)ca.value=CURRENT_USER.name||CURRENT_USER.login_id||'';
   ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);}}}});}
