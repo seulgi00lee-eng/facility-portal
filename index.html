@@ -274,15 +274,14 @@ function homeHTML(){
   +'</div>'
   +'<div class="secttl">신청·소통</div><div class="home-grid" style="margin-bottom:22px">'
     +hcard("pen","04","설명회용 볼펜 신청","설명회용 볼펜을 신청합니다")
-    +hcard("card","05","명함 신청","외부 업체 사이트에서 명함 발주 신청")
-    +hcard("voice","06","건의사항 (신문고)","불편·개선·AI 해결 요청")
-    +hcard("lms","07","LMS 1차 검증","발송 전 광고 문자 법규·문구 점검")
-    +hcard("aka","08","아카 권한 신청","학원관리시스템 계정·권한 신청")
-    +hcard("mylist","09","내 접수내역 조회","구매·렌탈·유지보수 한곳에서")
+    +hcard("voice","05","건의사항 (신문고)","불편·개선·AI 해결 요청")
+    +hcard("lms","06","LMS 1차 검증","발송 전 광고 문자 법규·문구 점검")
+    +hcard("aka","07","아카 권한 신청","학원관리시스템 계정·권한 신청")
+    +hcard("mylist","08","내 접수내역 조회","구매·렌탈·유지보수 한곳에서")
   +'</div>'
   +'<div class="secttl">자료·안내</div><div class="home-grid">'
-    +hcard("docs","10","자료실","보험증권·교육청 양식·매뉴얼")
-    +hcard("info","11","안내","비용 기준·자금집행·기안")
+    +hcard("docs","09","자료실","보험증권·교육청 양식·매뉴얼")
+    +hcard("info","10","안내","비용 기준·자금집행·기안")
   +'</div>';
 }
 
@@ -429,60 +428,6 @@ function hydrateCampus(){
 function bindPen(){Object.keys(META).forEach(buildDD);document.getElementById('pdate').value=new Date().toISOString().slice(0,10);
   ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);if(k==='building')refreshFloor();}}}});
   var pq=document.querySelector('.dd[data-k="penqty"]');if(pq){pq.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.dataset.v)||0;var note=document.getElementById('penqtynote');if(note)note.textContent=n?('= '+(n*200).toLocaleString()+'자루'):'봉지 단위로 신청';});});}}
-// ===== 명함 신청 (외부 업체 사이트 발주 안내 + 접수완료 알림) =====
-var CARD_VENDOR_URL="http://admin.petaad.com/flowmaster/";
-var CARD_VENDOR_ID="adminflowmaster";
-var CARD_VENDOR_PW="1234";
-function copyCred(txt,btn){try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt);}}catch(e){}if(btn){var o=btn.textContent;btn.textContent='복사됨';setTimeout(function(){btn.textContent=o;},1200);}}
-function cardHTML(){var req=['사번','이름','템플릿 → <b>기본명함</b> 체크','그룹','직급','전화1 (캠퍼스 번호)','모바일','주소1','주소2','이메일','사업부 체크'];return ''
-+'<div style="max-width:660px">'
-+'<div class="secttl">명함 신청</div>'
-+'<div class="hint" style="margin-bottom:16px;line-height:1.6">명함은 <b>외부 제작 사이트</b>에서 직접 등록합니다. 아래 <b>STEP 1~3</b>을 사이트에서 완료한 뒤, <b>STEP 4에서 접수완료</b>를 누르면 총무기획팀에 알림이 가고 <b>내 접수내역</b>에 기록됩니다.</div>'
-+'<div class="panel" style="margin-bottom:14px"><div class="ph">STEP 1 · 명함 제작 사이트 접속</div><div style="padding:12px 16px 16px">'
-+'<a href="'+CARD_VENDOR_URL+'" target="_blank" rel="noopener" class="submit" style="display:inline-block;text-decoration:none;width:auto;padding:10px 18px">명함 제작 사이트 열기 →</a>'
-+'<div style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap">'
-+'<div class="fld" style="margin:0"><div class="lbl">아이디</div><div style="display:flex;gap:6px;align-items:center"><code style="background:var(--bg);padding:5px 10px;border-radius:6px;border:1px solid var(--line);font-size:13px">'+CARD_VENDOR_ID+'</code><button class="flt" style="padding:3px 10px;font-size:12px" onclick="copyCred(\''+CARD_VENDOR_ID+'\',this)">복사</button></div></div>'
-+'<div class="fld" style="margin:0"><div class="lbl">비밀번호</div><div style="display:flex;gap:6px;align-items:center"><code style="background:var(--bg);padding:5px 10px;border-radius:6px;border:1px solid var(--line);font-size:13px">'+CARD_VENDOR_PW+'</code><button class="flt" style="padding:3px 10px;font-size:12px" onclick="copyCred(\''+CARD_VENDOR_PW+'\',this)">복사</button></div></div>'
-+'</div></div></div>'
-+'<div class="panel" style="margin-bottom:14px"><div class="ph">STEP 2 · 기본정보관리 → [등록] → 개인정보 작성</div><div style="padding:12px 16px 16px">'
-+'<div class="hint" style="margin-bottom:10px;line-height:1.6">왼쪽 <b>기본정보관리</b>에서 <b>등록</b>을 눌러 개인정보를 작성합니다. 아래 항목은 <b>모두 필수</b>입니다 — 빠짐없이 입력하세요.</div>'
-+'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px 14px">'
-+req.map(function(x){return '<div style="display:flex;align-items:center;gap:7px;font-size:13px"><span style="background:var(--dng);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px">필수</span> '+x+'</div>';}).join('')
-+'</div><div class="hint" style="margin-top:10px">작성 후 <b>[등록]</b>을 누릅니다.</div>'
-+'</div></div>'
-+'<div class="panel" style="margin-bottom:14px"><div class="ph">STEP 3 · 명함 발주 신청</div><div style="padding:12px 16px 16px"><div class="hint" style="line-height:1.8">① 발주 대상자 <b>이름 검색</b> → <b>신청</b><br>② <b>미리보기</b>에서 내용 확인 및 편집<br>③ <b>편집완료</b>를 눌러 신청</div></div></div>'
-+'<div class="panel" style="border-color:var(--blue)"><div class="ph" style="color:var(--blue)">STEP 4 · 접수완료 (총무기획팀 알림)</div><div style="padding:12px 16px 16px">'
-+'<div class="hint" style="margin-bottom:12px;line-height:1.6">위 사이트 등록을 마쳤으면 아래를 작성하고 <b>접수완료</b>를 눌러주세요. 총무기획팀에 Slack 알림이 가고, 접수자에게 확인 메일이 발송됩니다.</div>'
-+'<div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div>'
-+'<div class="row2"><div class="fld"><div class="lbl">대상자 이름 <span style="color:var(--dng);font-size:11px;font-weight:700">필수</span></div><input type="text" id="cardname" placeholder="명함 주인 이름"></div>'
-+'<div class="fld"><div class="lbl">사번 <span style="color:var(--dng);font-size:11px;font-weight:700">필수</span></div><input type="text" id="cardno" placeholder="대상자 사번"></div></div>'
-+'<div class="row2"><div class="fld"><div class="lbl">직급 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="cardrank" placeholder="예: 팀장"></div>'
-+'<div class="fld"><div class="lbl">신청자 <span style="color:var(--dng);font-size:11px;font-weight:700">필수</span></div><input type="text" id="capplicant" placeholder="이름"></div></div>'
-+'<div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">접수 확인 메일이 이 주소로 갑니다</span></div><input type="email" id="capemail" placeholder="본인 이메일"></div>'
-+'<div class="fld"><div class="lbl">비고 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="cardnote" placeholder="수량·디자인 요청 등"></div>'
-+'<button class="submit" style="width:100%" onclick="submitCard()">접수완료 (총무기획팀에 알림)</button>'
-+'</div></div></div>';}
-function bindCard(){Object.keys(META).forEach(buildDD);
-  // 명함 전용: 사업부·브랜드·캠퍼스에 '본사' 추가. 사업부에서 '본사' 선택 시 브랜드·캠퍼스 자동 '본사'.
-  function addHQ(k,multi,onPick){
-    var box=document.querySelector('.dd[data-k="'+k+'"]');if(!box||box.querySelector('.optb[data-v="본사"]'))return;
-    var body=box.querySelector('.ddbody');if(!body)return;
-    var b=document.createElement('button');b.type='button';b.className='optb';b.setAttribute('data-v','본사');b.textContent='본사';body.appendChild(b);
-    b.addEventListener('click',function(){
-      if(multi){b.classList.toggle('on');STATE[k]=[].slice.call(box.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});}
-      else{box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');STATE[k]=b.dataset.v;box.classList.remove('open');lsSet('fac_'+k,'본사');}
-      paint(k);if(onPick)onPick(b.classList.contains('on'));
-    });
-  }
-  function setHQ(k){var box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;var hq=box.querySelector('.optb[data-v="본사"]');if(!hq)return;
-    box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});hq.classList.add('on');
-    if(META[k]&&META[k].multi)STATE[k]=['본사'];else{STATE[k]='본사';lsSet('fac_'+k,'본사');}paint(k);}
-  addHQ('brand',true,null);
-  addHQ('campus',false,null);
-  addHQ('biz',true,function(on){if(on){setHQ('biz');setHQ('brand');setHQ('campus');}});
-  var ce=document.getElementById('capemail');if(ce&&CURRENT_USER&&CURRENT_USER.email)ce.value=CURRENT_USER.email;
-  var ca=document.getElementById('capplicant');if(ca&&CURRENT_USER)ca.value=CURRENT_USER.name||CURRENT_USER.login_id||'';
-  ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);}}}});}
 function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
   +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
 function bindReport(){Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
@@ -525,7 +470,7 @@ function mylistHTML(){
   var campusOpts='<option value="">캠퍼스 전체</option>';
   var bldOpts='<option value="">건물 전체</option>';
   var reqOpts='<option value="">요청구분 전체</option>'+META.reqtype.o.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');
-  return '<div class="filt"><button class="flt on" data-f="all">전체</button><button class="flt" data-f="fix">유지보수</button><button class="flt" data-f="buy">구매</button><button class="flt" data-f="rent">렌탈</button><button class="flt" data-f="pen">볼펜</button><button class="flt" data-f="card">명함</button><button class="flt" data-f="voice">건의</button></div>'
+  return '<div class="filt"><button class="flt on" data-f="all">전체</button><button class="flt" data-f="fix">유지보수</button><button class="flt" data-f="buy">구매</button><button class="flt" data-f="rent">렌탈</button><button class="flt" data-f="pen">볼펜</button><button class="flt" data-f="voice">건의</button></div>'
   +'<div style="border:1px solid var(--line);border-radius:8px;padding:14px 15px;margin-bottom:14px;max-width:680px"><div class="lbl" style="margin-bottom:9px">접수 정보로 조회 <span class="hint" style="font-weight:400">— 이름을 몰라도 캠퍼스·건물·요청구분으로 이미 접수된 건을 확인해 이중 접수를 막을 수 있습니다.</span></div>'
   +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px"><select id="q_campus" onchange="applyQuery()">'+campusOpts+'</select><select id="q_building" onchange="applyQuery()">'+bldOpts+'</select><select id="q_req" onchange="applyQuery()">'+reqOpts+'</select></div>'
   +'<div style="display:flex;gap:9px"><input type="text" id="q_name" placeholder="신청자 이름 (선택)" style="flex:1" oninput="applyQuery()"><button class="flt" onclick="resetQuery()">초기화</button></div></div>'
@@ -679,7 +624,7 @@ function plogHTML(r,opt){
   }).join('');
 }
 function mapReq(r){
-  var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜',card:'명함'}[r.type]||r.type;
+  var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜'}[r.type]||r.type;
   var when=(r.created_at||'').slice(5,10).replace('-','.');
   return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):'')),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
@@ -1003,12 +948,6 @@ function docAdminHTML(){
     +'<button class="flt" style="padding:3px 10px;font-size:12px" onclick="docOpenAll(true)">전체 펼치기</button>'
     +'<button class="flt" style="padding:3px 10px;font-size:12px" onclick="docOpenAll(false)">전체 접기</button>'
     +'</span></div>'
-    +'<div style="display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;flex-wrap:wrap">'
-    +'<span style="font-size:12.5px;color:var(--ink2);font-weight:600">📧 교체 안내 발송 일괄 설정</span>'
-    +'<button class="flt" style="padding:3px 12px;font-size:12px" onclick="docNotiAll(true)">전체 체크</button>'
-    +'<button class="flt" style="padding:3px 12px;font-size:12px" onclick="docNotiAll(false)">전체 해제</button>'
-    +'<span class="hint" id="doc_noti_cnt" style="font-size:11.5px;margin-left:auto"></span>'
-    +'</div>'
     +'<div id="docadmin_list"><div class="hint" style="padding:14px">불러오는 중...</div></div>'
     +'<div style="height:26px"></div>';
 }
@@ -1017,7 +956,7 @@ function docAdminCard(d){
   return '<div class="card" id="dcard_'+d.id+'"><div class="ch"><div><div class="title"><span class="ttag">'+docEsc(d.cat)+'</span>'+docEsc(d.name)+'</div><div class="rid" id="dstat_'+d.id+'">현재: '+cur+'</div></div>'
     +'<label class="flt" style="cursor:pointer">'+(d.path?'파일 교체':'파일 업로드')+'<input type="file" style="display:none" onchange="docUpload(\''+d.id+'\',this)"></label></div>'
     +'<div style="padding:10px 15px;border-top:1px solid var(--line2);display:flex;flex-wrap:wrap;gap:10px;align-items:center">'
-    +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(docNotiState(d)?'checked':'')+' onchange="DOC_NOTI[\''+d.id+'\']=this.checked;docNotiCount()" style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2);cursor:pointer"><input type="checkbox" id="dnoti_'+d.id+'" '+(d.cat==='보험증권'?'checked':'')+' style="width:auto;margin:0"> 교체 시 담당자에게 안내 발송</label>'
     +'<button class="flt" style="padding:3px 10px" onclick="docMoveOpen(\''+d.id+'\')">폴더 이동</button>'
     +'<button class="flt" style="border-color:var(--dngln);color:var(--dng);padding:3px 10px" onclick="docDelete(\''+d.id+'\')">항목 삭제</button>'
     +'<span class="hint" style="margin-left:auto">대상: 전 캠퍼스 담당자'+(d.cat==='보험증권'?' (필수 안내)':'')+'</span>'
@@ -1025,15 +964,6 @@ function docAdminCard(d){
 }
 var DOC_AQ="";
 var DOC_OPEN={};   // 접기/펼치기 상태 (카테고리·폴더별)
-var DOC_NOTI={};   // 교체 안내 발송 개별 선택 상태 (id → true/false). 미설정 시 카테고리 기본값 사용
-function docNotiState(d){ return (d.id in DOC_NOTI) ? DOC_NOTI[d.id] : (d.cat==='보험증권'); }
-function docNotiAll(on){ DOCS.filter(docAdmMatch).forEach(function(d){ DOC_NOTI[d.id]=on; }); renderDocAdmin(); }
-function docNotiCount(){
-  var el=document.getElementById('doc_noti_cnt'); if(!el)return;
-  var pool=DOCS.filter(docAdmMatch);
-  var on=pool.filter(function(d){return docNotiState(d);}).length;
-  el.innerHTML='안내 발송 선택 <b style="color:var(--ink)">'+on+'</b> / '+pool.length+'건'+(DOC_AQ?' (검색 결과 기준)':'');
-}
 function docAdmMatch(d){
   if(!DOC_AQ)return true;
   var hay=[d.name,d.file,d.note,d.folder,d.cat].join(' ').toLowerCase();
@@ -1050,38 +980,25 @@ function docOpenAll(on){
   }
   renderDocAdmin();
 }
-function docAccRow(key,label,count,depth,forced,noti){
+function docAccRow(key,label,count,depth,forced,actions){
   var open=forced||!!DOC_OPEN[key];
   var pad=depth?'padding-left:16px;':'';
-  var right='';
-  if(noti){
-    var expandHint=open?'':'<span class="hint" style="font-size:11px;color:var(--mute);margin-right:6px">펼치기</span>';
-    right='<span style="margin-left:auto;display:flex;gap:5px;align-items:center">'
-      +expandHint
-      +'<span class="hint" style="font-size:10.5px;color:var(--mute)">안내발송</span>'
-      +'<span onclick="event.stopPropagation()" style="display:flex;gap:4px">'
-      +'<button class="flt" style="padding:1px 9px;font-size:11px" onclick="'+noti.on+'">전체</button>'
-      +'<button class="flt" style="padding:1px 9px;font-size:11px" onclick="'+noti.off+'">해제</button>'
-      +'</span></span>';
-  }else{
-    right=(open?'':'<span class="hint" style="font-size:11px;margin-left:auto;color:var(--mute)">펼치기</span>');
-  }
-  return '<div onclick="docToggle(\''+key.replace(/'/g,"\\'")+'\')" style="'+pad+'display:flex;align-items:center;gap:8px;margin:'+(depth?'8px 0 6px':'14px 0 6px')+';padding-top:6px;padding-bottom:6px;'
-    +(depth?'':'border-bottom:1px solid var(--line);')+'cursor:pointer;user-select:none">'
+  return '<div style="'+pad+'display:flex;align-items:center;gap:8px;margin:'+(depth?'8px 0 6px':'14px 0 6px')+';padding-top:6px;padding-bottom:6px;'
+    +(depth?'':'border-bottom:1px solid var(--line);')+'">'
+    +'<div onclick="docToggle(\''+key.replace(/'/g,"\\'")+'\')" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">'
     +'<span style="font-size:11px;color:var(--mute);width:10px;display:inline-block;transform:rotate('+(open?'90':'0')+'deg);transition:transform .12s">▶</span>'
     +'<span style="font-size:'+(depth?'13px':'14.5px')+';font-weight:'+(depth?'600':'700')+';letter-spacing:-.2px">'+label+'</span>'
     +'<span class="hint" style="font-size:11.5px">'+count+'건</span>'
-    +right
+    +(open?'':'<span class="hint" style="font-size:11px;color:var(--mute)">펼치기</span>')
+    +'</div>'
+    +(actions||'')
     +'</div>';
 }
-function docNotiScopeCat(cat,on){ DOCS.filter(docAdmMatch).forEach(function(d){ if(d.cat===cat) DOC_NOTI[d.id]=on; }); renderDocAdmin(); }
-function docNotiScopeFolder(cat,folder,on){ DOCS.filter(docAdmMatch).forEach(function(d){ if(d.cat===cat&&(d.folder||'')===folder) DOC_NOTI[d.id]=on; }); renderDocAdmin(); }
 function renderDocAdmin(){
   var box=document.getElementById('docadmin_list');if(!box)return;
   var cnt=document.getElementById('docadm_cnt');
   var pool=DOCS.filter(docAdmMatch);
   if(cnt)cnt.innerHTML=DOC_AQ?('검색 <b>'+pool.length+'</b>/'+DOCS.length+'건'):('총 <b>'+DOCS.length+'</b>건');
-  docNotiCount();
   var dbg=document.getElementById('admc_docs');if(dbg)dbg.textContent=DOCS.length?('('+DOCS.length+')'):'';
   if(!DOCS.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px">등록된 자료가 없습니다. <b>+ 새 자료 추가</b>로 시작하세요.</div>';return;}
   if(!pool.length){box.innerHTML='<div class="hint" style="padding:18px;text-align:center;border:1px dashed var(--line);border-radius:8px"><b>"'+docEsc(DOC_AQ)+'"</b> 검색 결과가 없습니다.</div>';return;}
@@ -1093,20 +1010,27 @@ function renderDocAdmin(){
     var inCat=pool.filter(function(d){return d.cat===c;});
     if(!inCat.length)return;
     var ck='c:'+c;
-    var cesc=c.replace(/'/g,"\\'");
-    h+=docAccRow(ck,docEsc(c),inCat.length,0,searching,{on:"docNotiScopeCat('"+cesc+"',true)",off:"docNotiScopeCat('"+cesc+"',false)"});
+    var catBtn='<button class="flt" style="padding:3px 11px;font-size:12px;white-space:nowrap" onclick="event.stopPropagation();docAddOpen(\''+docEsc(c).replace(/'/g,"\\'")+'\')">+ 이 분류에 추가</button>';
+    h+=docAccRow(ck,docEsc(c),inCat.length,0,searching,catBtn);
     if(!(searching||DOC_OPEN[ck]))return;
     var g={},order=[];
     inCat.forEach(function(d){var f=d.folder||'';if(!(f in g)){g[f]=[];order.push(f);}g[f].push(d);});
     order.sort(docFolderSort);
     var multi=(order.length>1||(order.length===1&&order[0]!==''));
     order.forEach(function(f){
-      if(!multi){h+=g[f].map(docAdminCard).join('');return;}
+      if(!multi){
+        h+='<div style="margin:2px 0 8px"><button class="flt" style="padding:3px 11px;font-size:12px" onclick="docAddOpen(\''+docEsc(c).replace(/'/g,"\\'")+'\',\''+docEsc(f).replace(/'/g,"\\'")+'\')">+ 여기에 자료 추가</button></div>';
+        h+=g[f].map(docAdminCard).join('');return;
+      }
       var fk='f:'+c+'|'+f;
-      var cesc2=c.replace(/'/g,"\\'"),fesc=f.replace(/'/g,"\\'");
-      h+=docAccRow(fk,(f===''?'📁 폴더 없음':'📂 '+docEsc(f)),g[f].length,1,searching,{on:"docNotiScopeFolder('"+cesc2+"','"+fesc+"',true)",off:"docNotiScopeFolder('"+cesc2+"','"+fesc+"',false)"});
+      var fBtn='<button class="flt" style="padding:3px 11px;font-size:12px;white-space:nowrap" onclick="event.stopPropagation();docAddOpen(\''+docEsc(c).replace(/'/g,"\\'")+'\',\''+docEsc(f).replace(/'/g,"\\'")+'\')">+ 이 폴더에 추가</button>';
+      h+=docAccRow(fk,(f===''?'📁 폴더 없음':'📂 '+docEsc(f)),g[f].length,1,searching,fBtn);
       if(searching||DOC_OPEN[fk])h+='<div style="padding-left:16px">'+g[f].map(docAdminCard).join('')+'</div>';
     });
+    // 카테고리 안에 '새 폴더 만들기' — 폴더 없이 열리면 폴더 입력만 채워 추가 모달
+    if(multi||order[0]===''){
+      h+='<div style="padding-left:16px;margin:4px 0 2px"><button class="flt" style="padding:3px 11px;font-size:12px;border-style:dashed" onclick="docAddOpen(\''+docEsc(c).replace(/'/g,"\\'")+'\',\'\',true)">+ 새 폴더 만들어 추가</button></div>';
+    }
   });
   box.innerHTML=h;
 }
@@ -1119,7 +1043,7 @@ function docUpload(id,inp){
   var d=docById(id);if(!d){inp.value='';return;}
   var oldPath=d.path;
   var newPath='docs/'+id+'/'+Date.now()+'.'+docExt(f.name);
-  var notify=document.getElementById('dnoti_'+id)?document.getElementById('dnoti_'+id).checked:docNotiState(d);
+  var notify=(document.getElementById('dnoti_'+id)||{}).checked;
   inp.disabled=true;
   docStat(id,'업로드 중... ('+docSize(f.size)+')','var(--warn)');
   sb.storage.from(DOC_BUCKET).upload(newPath,f,{upsert:false,contentType:f.type||'application/octet-stream'}).then(function(up){
@@ -1174,13 +1098,14 @@ function docRule(){return DOC_RULE[(document.getElementById('dnew_cat')||{}).val
 
 var DNEW_FILES=[];
 function docBaseName(n){return String(n||'').replace(/\.[A-Za-z0-9]{1,8}$/,'');}
-function docAddOpen(){
+function docAddOpen(prefillCat, prefillFolder, focusFolder){
   DNEW_FILES=[];
-  var opts=DOC_UPCATS.map(function(c){return '<option value="'+docEsc(c)+'"'+(c===DOC_FILTER?' selected':'')+'>'+docEsc(c)+'</option>';}).join('');
-  openModal('<div class="mh">새 자료 추가</div><div class="mb" style="max-height:62vh;overflow:auto">'
+  var pc=prefillCat||DOC_FILTER;
+  var opts=DOC_UPCATS.map(function(c){return '<option value="'+docEsc(c)+'"'+(c===pc?' selected':'')+'>'+docEsc(c)+'</option>';}).join('');
+  openModal('<div class="mh">새 자료 추가'+(prefillCat?(' <span class="hint" style="font-weight:400;font-size:12px">· '+docEsc(prefillCat)+(prefillFolder?(' / '+docEsc(prefillFolder)):'')+'</span>'):'')+'</div><div class="mb" style="max-height:62vh;overflow:auto">'
     +'<div class="lbl">카테고리</div><select id="dnew_cat" style="width:100%" onchange="docNewRender()">'+opts+'</select>'
     +'<div id="dnew_rule"></div>'
-    +'<div class="lbl" style="margin-top:11px">폴더 (선택 · 년도 구분용)</div>'+docFolderPicker('dnew_folder','')
+    +'<div class="lbl" style="margin-top:11px">폴더 <span class="hint" style="font-weight:400;font-size:11px">(선택 · 년도/구분용 · 직접 입력하면 새 폴더가 생성됩니다)</span></div>'+docFolderPicker('dnew_folder',prefillFolder||'')
     +'<div class="lbl" style="margin-top:11px">부가 설명 (선택 · 전체 공통)</div><input type="text" id="dnew_note" placeholder="예: 전 캠퍼스 공통 · 매년 갱신" style="width:100%">'
     +'<div class="lbl" style="margin-top:13px">파일 <span style="font-weight:400;color:var(--mute)">— 여러 개 한 번에 선택할 수 있습니다</span></div>'
     +'<label class="flt" style="cursor:pointer;display:inline-block">+ 파일 선택 (여러 개 가능)<input type="file" id="dnew_file" multiple style="display:none" onchange="docNewFiles(this)"></label>'
@@ -1189,6 +1114,7 @@ function docAddOpen(){
     +'<div class="hint" id="dnew_msg" style="margin-top:10px;line-height:1.5">파일을 여러 개 고르면 <b>파일 1개당 자료 1건</b>으로 등록되고, 자료명은 파일명이 자동으로 들어갑니다. 아래에서 개별 수정할 수 있습니다.</div>'
     +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="dnew_ok" onclick="docAddSave()">추가</button></div>');
   docNewRender();
+  if(focusFolder){var fe=document.getElementById('dnew_folder');if(fe){fe.focus();fe.placeholder='새 폴더 이름 (예: 2027년)';}}
 }
 function docNewFiles(inp){
   var fs=inp.files?Array.prototype.slice.call(inp.files):[];
@@ -1578,7 +1504,7 @@ function fireReceipt(kind,id,baseMsg,no){
 }
 // 접수 요약: 메일 본문에 넣을 핵심 필드 수집
 // 접수 유형 라벨 (진행 알림의 typelabel 과 동일 규격)
-var RECV_TYPE_LABEL={fix:'유지보수', buy:'구매', rent:'렌탈', pen:'볼펜', voice:'건의', card:'명함'};
+var RECV_TYPE_LABEL={fix:'유지보수', buy:'구매', rent:'렌탈', pen:'볼펜', voice:'건의'};
 function collectSummary(kind, no){
   var s={};
   // ── 기존 필드 (n8n '접수 메일 구성'이 사용 중 — 절대 제거 금지)
@@ -1588,7 +1514,6 @@ function collectSummary(kind, no){
   s.reqtype=STATE.reqtype||'';
   if(kind==='fix'){s.detail=fieldVal('detail')||'';s.location=fieldVal('loc')||'';s.applicant=fieldVal('applicant')||'';s.phone=fieldVal('phone')||'';}
   else if(kind==='pen'){s.qty=STATE.penqty?(STATE.penqty+'봉지'):'';s.visit=fieldVal('pvisit')||'';s.applicant=fieldVal('papplicant')||'';}
-  else if(kind==='card'){s.applicant=fieldVal('capplicant')||'';s.detail='명함 발주 · 대상자 '+(fieldVal('cardname')||'')+' ('+(fieldVal('cardno')||'')+')'+(fieldVal('cardrank')?(' · '+fieldVal('cardrank')):'')+(fieldVal('cardnote')?(' · '+fieldVal('cardnote')):'');}
   else if(kind==='voice'){s.vtype=VOICE_TYPE;s.title=fieldVal('vtitle')||'';s.content=fieldVal('vcontent')||'';s.applicant=fieldVal('vapplicant')||'';}
   else {s.applicant=fieldVal('applicant')||'현장';}
 
@@ -1656,20 +1581,6 @@ function submitPen(){
     applicant:fieldVal('papplicant'), apply_date:fieldVal('pdate')||null,
     payload:{qty_bag:STATE.penqty?Number(STATE.penqty):null, visit_date:fieldVal('pvisit')||null}
   },'신청되었습니다. 처리 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
-}
-// 명함 신청 제출 (외부 발주 후 접수완료 → 총무팀 Slack + 접수자 메일)
-function submitCard(){
-  var name=fieldVal('cardname'),sabun=fieldVal('cardno'),rank=fieldVal('cardrank'),
-      applicant=fieldVal('capplicant'),email=fieldVal('capemail'),note=fieldVal('cardnote');
-  if(!STATE.campus){submitDone('캠퍼스(지역)를 선택해 주세요.');return;}
-  if(!applicant){submitDone('신청자 이름을 입력해 주세요.');return;}
-  if(!name){submitDone('명함 대상자 이름을 입력해 주세요.');return;}
-  if(!sabun){submitDone('대상자 사번을 입력해 주세요.');return;}
-  var rows=[['캠퍼스',selVal('campus')],['대상자 이름',name],['사번',sabun],['직급',rank||'-'],['신청자',applicant]];
-  confirmSubmit('명함 신청 접수 확인', rows, function(){saveRequest('card',{
-    applicant:applicant, apply_date:new Date().toISOString().slice(0,10), notify_email:email||null,
-    payload:{card_name:name, card_no:sabun, card_rank:rank||null, note:note||null, vendor:'petaad/flowmaster'}
-  },'명함 신청이 접수되었습니다. 총무기획팀이 확인 후 발주를 진행합니다. <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
 // 구매/렌탈 신청 제출
 function submitItem(kind, name, opts){
@@ -1815,45 +1726,26 @@ function loadPending(){
         +'<div class="title" style="margin-bottom:3px">'+a.login_id+'</div>'
         +'<div class="rid" style="margin-bottom:7px">'+(a.region||'')+' · 관코드 '+(a.gwan_code||'')+' · '+(a.name||'')+' · 신청 '+((a.requested_at||'').slice(0,10))+'</div>'
         +'<div style="margin-bottom:11px;font-size:12.5px"><span style="color:var(--mute)">알림 이메일 · </span>'+(a.email?('<b style="color:var(--ink)">'+a.email+'</b>'):'<span style="color:var(--dng)">미입력</span>')+'</div>'
-        +'<div class="fld" style="margin-bottom:9px"><div class="lbl">안내메일 받을 주소 <span class="hint" style="font-size:11px;font-weight:400">승인 안내와 최초 비밀번호를 이 주소로 발송합니다</span></div><input type="email" data-ap="em" data-id="'+a.login_id+'" data-nm="'+esc(a.name)+'" data-rg="'+esc(a.region)+'" value="'+esc(a.email)+'" placeholder="예: name@flowedu.co.kr"></div>'
         +'<div style="display:flex;gap:9px;align-items:flex-end">'
         +'<div style="flex:1"><div class="lbl">비밀번호 지정</div><input type="text" data-ap="pw" data-id="'+a.login_id+'" placeholder="6자 이상 (현장에 전달할 비번)"></div>'
         +'<button class="submit" onclick="approveAcct(\''+a.login_id+'\')">승인</button>'
         +'<button class="flt" onclick="rejectAcct(\''+a.login_id+'\')">거절</button>'
         +'</div>'
-        +'<div class="hint" style="margin-top:8px">승인하면 즉시 로그인 가능하며, 위 주소로 아이디·최초 비밀번호 안내메일이 자동 발송됩니다.</div>'
+        +'<div class="hint" style="margin-top:8px">승인하면 즉시 로그인 가능합니다. 지정한 비밀번호를 현장에 전달하세요.</div>'
         +'</div></div>';
     }).join('');
   });
 }
 function approveAcct(loginId){
-  var pwEl=document.querySelector('input[data-ap="pw"][data-id="'+loginId+'"]');
-  var pw=(pwEl&&pwEl.value||'').trim();
+  var pw=(document.querySelector('input[data-ap="pw"][data-id="'+loginId+'"]').value||'').trim();
   if(pw.length<6){alert('비밀번호를 6자 이상 입력하세요.');return;}
-  var emEl=document.querySelector('input[data-ap="em"][data-id="'+loginId+'"]');
-  var email=(emEl&&emEl.value||'').trim();
-  var nm=(emEl&&emEl.dataset.nm)||'', rg=(emEl&&emEl.dataset.rg)||'';
   if(!SB_READY)return;
+  var btnMsg='승인 처리 중...';
   sb.functions.invoke('approve-account',{body:{login_id:loginId,password:pw,approved_by:(CURRENT_USER&&CURRENT_USER.login_id)||'admin'}}).then(function(res){
     if(res.error){alert('오류: '+(res.error.message||res.error));return;}
     var d=res.data;
-    if(!(d&&d.ok)){alert((d&&d.error)||'승인 실패');return;}
-    var base=loginId+' 계정이 승인되었습니다. 지정한 비밀번호로 즉시 로그인할 수 있습니다.<br><br>현장 전달 정보:<br>아이디 <b>'+loginId+'</b> / 비번 <b>'+pw+'</b>';
-    if(!email){submitDone(base+'<br><br><span style="color:var(--warn)">이메일 미입력이라 자동 안내메일을 못 보냈습니다. 아이디·비번을 직접 전달하세요.</span>');loadPending();return;}
-    // 신청자 이메일 저장(누락 방지) 후 승인 안내메일 발송
-    sb.from('fac_accounts').update({email:email}).eq('login_id',loginId).then(function(){
-      n8nNotify({type:'signup_approved', login_id:loginId, applicant_email:email, summary:{
-        login_id:loginId, password:pw, email:email, name:nm, region:rg,
-        portal_url:location.origin+location.pathname,
-        approved_by:(CURRENT_USER&&CURRENT_USER.name)||'',
-        approved_at:new Date().toISOString().slice(0,16).replace('T',' ')
-      }}).then(function(r){
-        submitDone(base+((r&&r.ok)
-          ?'<br><br><span style="color:var(--ok)">✔ 승인 안내메일을 '+email+' 로 발송했습니다.</span>'
-          :'<br><br><span style="color:var(--warn)">안내메일 발송 실패(알림 채널 미연결). 아이디·비번을 직접 전달하세요.</span>'));
-        loadPending();
-      });
-    });
+    if(d&&d.ok){submitDone(loginId+' 계정이 승인되었습니다. 지정한 비밀번호로 즉시 로그인할 수 있습니다.<br><br>현장에 전달할 정보:<br>아이디 <b>'+loginId+'</b> / 비번 <b>'+pw+'</b>');loadPending();}
+    else{alert((d&&d.error)||'승인 실패');}
   });
 }
 function rejectAcct(loginId){
@@ -2066,7 +1958,6 @@ function render(v){var el=document.getElementById('view');
   else if(v==='quote'){el.innerHTML=quoteHTML();bindQuote();}
   else if(v==='report'){el.innerHTML=reportHTML();bindReport();}
   else if(v==='pen'){el.innerHTML=penHTML();bindPen();}
-  else if(v==='card'){el.innerHTML=cardHTML();bindCard();}
   else if(v==='voice'){el.innerHTML=voiceHTML();bindVoice();}
   else if(v==='lms'){el.innerHTML=lmsHTML();bindLms();}
   else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
