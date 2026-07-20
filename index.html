@@ -463,6 +463,13 @@ function cardHTML(){var req=['사번','이름','템플릿 → <b>기본명함</b
 +'<button class="submit" style="width:100%" onclick="submitCard()">접수완료 (총무기획팀에 알림)</button>'
 +'</div></div></div>';}
 function bindCard(){Object.keys(META).forEach(buildDD);
+  // 명함은 본사 인원도 신청 가능 → 캠퍼스 목록 끝에 '본사' 추가 (명함 폼에만 적용)
+  var cbox=document.querySelector('.dd[data-k="campus"]');
+  if(cbox && !cbox.querySelector('.optb[data-v="본사"]')){
+    var body=cbox.querySelector('.ddbody');
+    if(body){var hq=document.createElement('button');hq.type='button';hq.className='optb';hq.setAttribute('data-v','본사');hq.textContent='본사';body.appendChild(hq);
+      hq.addEventListener('click',function(){cbox.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});hq.classList.add('on');STATE.campus='본사';cbox.classList.remove('open');lsSet('fac_campus','본사');paint('campus');});}
+  }
   var ce=document.getElementById('capemail');if(ce&&CURRENT_USER&&CURRENT_USER.email)ce.value=CURRENT_USER.email;
   var ca=document.getElementById('capplicant');if(ca&&CURRENT_USER)ca.value=CURRENT_USER.name||CURRENT_USER.login_id||'';
   ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);}}}});}
@@ -1798,26 +1805,45 @@ function loadPending(){
         +'<div class="title" style="margin-bottom:3px">'+a.login_id+'</div>'
         +'<div class="rid" style="margin-bottom:7px">'+(a.region||'')+' · 관코드 '+(a.gwan_code||'')+' · '+(a.name||'')+' · 신청 '+((a.requested_at||'').slice(0,10))+'</div>'
         +'<div style="margin-bottom:11px;font-size:12.5px"><span style="color:var(--mute)">알림 이메일 · </span>'+(a.email?('<b style="color:var(--ink)">'+a.email+'</b>'):'<span style="color:var(--dng)">미입력</span>')+'</div>'
+        +'<div class="fld" style="margin-bottom:9px"><div class="lbl">안내메일 받을 주소 <span class="hint" style="font-size:11px;font-weight:400">승인 안내와 최초 비밀번호를 이 주소로 발송합니다</span></div><input type="email" data-ap="em" data-id="'+a.login_id+'" data-nm="'+esc(a.name)+'" data-rg="'+esc(a.region)+'" value="'+esc(a.email)+'" placeholder="예: name@flowedu.co.kr"></div>'
         +'<div style="display:flex;gap:9px;align-items:flex-end">'
         +'<div style="flex:1"><div class="lbl">비밀번호 지정</div><input type="text" data-ap="pw" data-id="'+a.login_id+'" placeholder="6자 이상 (현장에 전달할 비번)"></div>'
         +'<button class="submit" onclick="approveAcct(\''+a.login_id+'\')">승인</button>'
         +'<button class="flt" onclick="rejectAcct(\''+a.login_id+'\')">거절</button>'
         +'</div>'
-        +'<div class="hint" style="margin-top:8px">승인하면 즉시 로그인 가능합니다. 지정한 비밀번호를 현장에 전달하세요.</div>'
+        +'<div class="hint" style="margin-top:8px">승인하면 즉시 로그인 가능하며, 위 주소로 아이디·최초 비밀번호 안내메일이 자동 발송됩니다.</div>'
         +'</div></div>';
     }).join('');
   });
 }
 function approveAcct(loginId){
-  var pw=(document.querySelector('input[data-ap="pw"][data-id="'+loginId+'"]').value||'').trim();
+  var pwEl=document.querySelector('input[data-ap="pw"][data-id="'+loginId+'"]');
+  var pw=(pwEl&&pwEl.value||'').trim();
   if(pw.length<6){alert('비밀번호를 6자 이상 입력하세요.');return;}
+  var emEl=document.querySelector('input[data-ap="em"][data-id="'+loginId+'"]');
+  var email=(emEl&&emEl.value||'').trim();
+  var nm=(emEl&&emEl.dataset.nm)||'', rg=(emEl&&emEl.dataset.rg)||'';
   if(!SB_READY)return;
-  var btnMsg='승인 처리 중...';
   sb.functions.invoke('approve-account',{body:{login_id:loginId,password:pw,approved_by:(CURRENT_USER&&CURRENT_USER.login_id)||'admin'}}).then(function(res){
     if(res.error){alert('오류: '+(res.error.message||res.error));return;}
     var d=res.data;
-    if(d&&d.ok){submitDone(loginId+' 계정이 승인되었습니다. 지정한 비밀번호로 즉시 로그인할 수 있습니다.<br><br>현장에 전달할 정보:<br>아이디 <b>'+loginId+'</b> / 비번 <b>'+pw+'</b>');loadPending();}
-    else{alert((d&&d.error)||'승인 실패');}
+    if(!(d&&d.ok)){alert((d&&d.error)||'승인 실패');return;}
+    var base=loginId+' 계정이 승인되었습니다. 지정한 비밀번호로 즉시 로그인할 수 있습니다.<br><br>현장 전달 정보:<br>아이디 <b>'+loginId+'</b> / 비번 <b>'+pw+'</b>';
+    if(!email){submitDone(base+'<br><br><span style="color:var(--warn)">이메일 미입력이라 자동 안내메일을 못 보냈습니다. 아이디·비번을 직접 전달하세요.</span>');loadPending();return;}
+    // 신청자 이메일 저장(누락 방지) 후 승인 안내메일 발송
+    sb.from('fac_accounts').update({email:email}).eq('login_id',loginId).then(function(){
+      n8nNotify({type:'signup_approved', login_id:loginId, applicant_email:email, summary:{
+        login_id:loginId, password:pw, email:email, name:nm, region:rg,
+        portal_url:location.origin+location.pathname,
+        approved_by:(CURRENT_USER&&CURRENT_USER.name)||'',
+        approved_at:new Date().toISOString().slice(0,16).replace('T',' ')
+      }}).then(function(r){
+        submitDone(base+((r&&r.ok)
+          ?'<br><br><span style="color:var(--ok)">✔ 승인 안내메일을 '+email+' 로 발송했습니다.</span>'
+          :'<br><br><span style="color:var(--warn)">안내메일 발송 실패(알림 채널 미연결). 아이디·비번을 직접 전달하세요.</span>'));
+        loadPending();
+      });
+    });
   });
 }
 function rejectAcct(loginId){
