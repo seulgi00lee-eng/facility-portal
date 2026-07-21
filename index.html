@@ -274,14 +274,15 @@ function homeHTML(){
   +'</div>'
   +'<div class="secttl">신청·소통</div><div class="home-grid" style="margin-bottom:22px">'
     +hcard("pen","04","설명회용 볼펜 신청","설명회용 볼펜을 신청합니다")
-    +hcard("voice","05","건의사항 (신문고)","불편·개선·AI 해결 요청")
-    +hcard("lms","06","LMS 1차 검증","발송 전 광고 문자 법규·문구 점검")
-    +hcard("aka","07","아카 권한 신청","학원관리시스템 계정·권한 신청")
-    +hcard("mylist","08","내 접수내역 조회","구매·렌탈·유지보수 한곳에서")
+    +hcard("card","05","명함 신청","제작 사이트 안내 + 접수·알림")
+    +hcard("voice","06","건의사항 (신문고)","불편·개선·AI 해결 요청")
+    +hcard("lms","07","LMS 1차 검증","발송 전 광고 문자 법규·문구 점검")
+    +hcard("aka","08","아카 권한 신청","학원관리시스템 계정·권한 신청")
+    +hcard("mylist","09","내 접수내역 조회","구매·렌탈·유지보수 한곳에서")
   +'</div>'
   +'<div class="secttl">자료·안내</div><div class="home-grid">'
-    +hcard("docs","09","자료실","보험증권·교육청 양식·매뉴얼")
-    +hcard("info","10","안내","비용 기준·자금집행·기안")
+    +hcard("docs","10","자료실","보험증권·교육청 양식·매뉴얼")
+    +hcard("info","11","안내","비용 기준·자금집행·기안")
   +'</div>';
 }
 
@@ -428,6 +429,52 @@ function hydrateCampus(){
 function bindPen(){Object.keys(META).forEach(buildDD);document.getElementById('pdate').value=new Date().toISOString().slice(0,10);
   ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);if(k==='building')refreshFloor();}}}});
   var pq=document.querySelector('.dd[data-k="penqty"]');if(pq){pq.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.dataset.v)||0;var note=document.getElementById('penqtynote');if(note)note.textContent=n?('= '+(n*200).toLocaleString()+'자루'):'봉지 단위로 신청';});});}}
+// ===== 명함 신청 =====
+var CARD_SITE_URL='https://admin.petaad.com/flowmaster';
+var CARD_ID='adminflowmaster', CARD_PW='1234';
+function copyText(t,btn){
+  var done=function(){if(btn){var o=btn.textContent;btn.textContent='복사됨';setTimeout(function(){btn.textContent=o;},1200);}};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){window.prompt('복사할 값',t);});}
+  else{window.prompt('복사할 값',t);}
+}
+function cardReq(x){return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13.5px;color:var(--ink)"><span style="font-size:10px;font-weight:600;color:#fff;background:var(--dng,#e5484d);padding:1px 7px;border-radius:10px">필수</span>'+x+'</div>';}
+function cardHTML(){
+  var req=['사번','이름','템플릿 (기본명함)','그룹','직급','전화1 (캠퍼스 번호)','모바일','주소1','주소2','이메일','사업부'];
+  var reqList=req.map(cardReq).join('');
+  var b='<span style="font-size:10px;font-weight:600;color:#fff;background:var(--dng,#e5484d);padding:1px 7px;border-radius:10px">필수</span>';
+  return '<div style="max-width:620px"><div class="secttl">명함 신청</div>'
+    +'<div class="hint" style="margin-bottom:16px;line-height:1.6">명함은 외부 제작 사이트에서 직접 등록합니다. 아래 순서대로 진행한 뒤 마지막 <b>STEP 4 접수완료</b>를 누르면 총무기획팀에 접수 알림이 전달되고 <b>내 접수내역</b>에 기록됩니다.</div>'
+    +'<div class="card" style="padding:16px 18px;margin-bottom:12px"><div class="lbl" style="margin-bottom:10px"><span class="num">1</span>제작 사이트 접속</div>'
+    +'<a href="'+CARD_SITE_URL+'" target="_blank" rel="noopener"><button class="submit" style="width:100%;margin-bottom:10px">명함 제작 사이트 열기 ↗</button></a>'
+    +'<div style="display:grid;grid-template-columns:70px 1fr auto;gap:8px 10px;align-items:center;font-size:13.5px">'
+    +'<span class="hint">아이디</span><b>'+CARD_ID+'</b><button class="flt" onclick="copyText(\''+CARD_ID+'\',this)">복사</button>'
+    +'<span class="hint">비밀번호</span><b>'+CARD_PW+'</b><button class="flt" onclick="copyText(\''+CARD_PW+'\',this)">복사</button>'
+    +'</div></div>'
+    +'<div class="card" style="padding:16px 18px;margin-bottom:12px"><div class="lbl" style="margin-bottom:6px"><span class="num">2</span>필수 입력 항목 (사이트에서)</div>'
+    +'<div class="hint" style="margin-bottom:8px">아래 11개 항목을 빠짐없이 입력해야 정상 제작됩니다.</div>'+reqList+'</div>'
+    +'<div class="card" style="padding:16px 18px;margin-bottom:12px"><div class="lbl" style="margin-bottom:8px"><span class="num">3</span>대상자 등록 → 미리보기 → 편집완료</div>'
+    +'<div class="hint" style="line-height:1.6">대상자를 검색해 신청하고, <b>미리보기</b>로 오탈자·직급·전화번호를 확인한 뒤 <b>편집완료</b>를 누릅니다. 여러 명이면 대상자별로 반복합니다.</div></div>'
+    +'<div class="card" style="padding:16px 18px"><div class="lbl" style="margin-bottom:10px"><span class="num">4</span>접수완료 <span class="hint" style="font-weight:400">— 총무기획팀 알림 + 내 접수내역 기록</span></div>'
+    +'<div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div>'
+    +'<div class="hint" style="margin:-4px 0 10px">캠퍼스를 선택하지 않으면 <b>본사</b>로 접수됩니다.</div>'
+    +'<div class="row2"><div class="fld"><div class="lbl">신청일자</div><input type="date" id="cdate"></div><div class="fld"><div class="lbl">신청자</div><input type="text" id="capplicant" placeholder="이름"></div></div>'
+    +'<div class="row2"><div class="fld"><div class="lbl">대상자 이름 '+b+'</div><input type="text" id="ctarget" placeholder="명함 대상자 이름"></div><div class="fld"><div class="lbl">대상자 사번 '+b+'</div><input type="text" id="cempno" placeholder="사번"></div></div>'
+    +'<button class="submit" style="width:100%" onclick="submitCard()">접수완료 (알림 발송)</button>'
+    +'<div class="hint" style="margin-top:9px;line-height:1.55">외부 사이트에서 등록을 마친 뒤 이 버튼을 눌러야 총무팀 알림과 기록이 남습니다.</div></div>'
+    +'</div>';
+}
+function bindCard(){Object.keys(META).forEach(buildDD);var d=document.getElementById('cdate');if(d)d.value=new Date().toISOString().slice(0,10);
+  var u=CURRENT_USER;if(u&&u.name){var ca=document.getElementById('capplicant');if(ca&&!ca.value)ca.value=u.name;}}
+function submitCard(){
+  if(!fieldVal('ctarget')){submitDone('대상자 이름을 입력해 주세요.');return;}
+  if(!fieldVal('cempno')){submitDone('대상자 사번을 입력해 주세요.');return;}
+  if(!STATE.campus)STATE.campus='본사';
+  var rows=[['사업부',selVal('biz')||'-'],['캠퍼스',selVal('campus')],['신청일자',fieldVal('cdate')],['신청자',fieldVal('capplicant')||'현장'],['대상자 이름',fieldVal('ctarget')],['대상자 사번',fieldVal('cempno')]];
+  confirmSubmit('명함 신청 접수 확인', rows, function(){saveRequest('card',{
+    applicant:fieldVal('capplicant')||'현장', apply_date:fieldVal('cdate')||null,
+    payload:{target_name:fieldVal('ctarget'), emp_no:fieldVal('cempno')}
+  },'명함 신청이 접수되었습니다. 제작은 외부 사이트에서 진행되며, 처리 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
+}
 function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
   +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
 function bindReport(){Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
@@ -470,7 +517,7 @@ function mylistHTML(){
   var campusOpts='<option value="">캠퍼스 전체</option>';
   var bldOpts='<option value="">건물 전체</option>';
   var reqOpts='<option value="">요청구분 전체</option>'+META.reqtype.o.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');
-  return '<div class="filt"><button class="flt on" data-f="all">전체</button><button class="flt" data-f="fix">유지보수</button><button class="flt" data-f="buy">구매</button><button class="flt" data-f="rent">렌탈</button><button class="flt" data-f="pen">볼펜</button><button class="flt" data-f="voice">건의</button></div>'
+  return '<div class="filt"><button class="flt on" data-f="all">전체</button><button class="flt" data-f="fix">유지보수</button><button class="flt" data-f="buy">구매</button><button class="flt" data-f="rent">렌탈</button><button class="flt" data-f="pen">볼펜</button><button class="flt" data-f="card">명함</button><button class="flt" data-f="voice">건의</button></div>'
   +'<div style="border:1px solid var(--line);border-radius:8px;padding:14px 15px;margin-bottom:14px;max-width:680px"><div class="lbl" style="margin-bottom:9px">접수 정보로 조회 <span class="hint" style="font-weight:400">— 이름을 몰라도 캠퍼스·건물·요청구분으로 이미 접수된 건을 확인해 이중 접수를 막을 수 있습니다.</span></div>'
   +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px"><select id="q_campus" onchange="applyQuery()">'+campusOpts+'</select><select id="q_building" onchange="applyQuery()">'+bldOpts+'</select><select id="q_req" onchange="applyQuery()">'+reqOpts+'</select></div>'
   +'<div style="display:flex;gap:9px"><input type="text" id="q_name" placeholder="신청자 이름 (선택)" style="flex:1" oninput="applyQuery()"><button class="flt" onclick="resetQuery()">초기화</button></div></div>'
@@ -624,9 +671,10 @@ function plogHTML(r,opt){
   }).join('');
 }
 function mapReq(r){
-  var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜'}[r.type]||r.type;
+  var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜',card:'명함'}[r.type]||r.type;
+  var cardSub=(r.type==='card'&&r.payload)?('명함 · '+(r.payload.target_name||'')+(r.payload.emp_no?(' (사번 '+r.payload.emp_no+')'):'')):'';
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):'')),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
+  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
@@ -1504,7 +1552,7 @@ function fireReceipt(kind,id,baseMsg,no){
 }
 // 접수 요약: 메일 본문에 넣을 핵심 필드 수집
 // 접수 유형 라벨 (진행 알림의 typelabel 과 동일 규격)
-var RECV_TYPE_LABEL={fix:'유지보수', buy:'구매', rent:'렌탈', pen:'볼펜', voice:'건의'};
+var RECV_TYPE_LABEL={fix:'유지보수', buy:'구매', rent:'렌탈', pen:'볼펜', voice:'건의', card:'명함'};
 function collectSummary(kind, no){
   var s={};
   // ── 기존 필드 (n8n '접수 메일 구성'이 사용 중 — 절대 제거 금지)
@@ -1515,6 +1563,7 @@ function collectSummary(kind, no){
   if(kind==='fix'){s.detail=fieldVal('detail')||'';s.location=fieldVal('loc')||'';s.applicant=fieldVal('applicant')||'';s.phone=fieldVal('phone')||'';}
   else if(kind==='pen'){s.qty=STATE.penqty?(STATE.penqty+'봉지'):'';s.visit=fieldVal('pvisit')||'';s.applicant=fieldVal('papplicant')||'';}
   else if(kind==='voice'){s.vtype=VOICE_TYPE;s.title=fieldVal('vtitle')||'';s.content=fieldVal('vcontent')||'';s.applicant=fieldVal('vapplicant')||'';}
+  else if(kind==='card'){s.applicant=fieldVal('capplicant')||'현장';s.target=fieldVal('ctarget')||'';s.empno=fieldVal('cempno')||'';s.title='명함 대상: '+s.target+(s.empno?(' (사번 '+s.empno+')'):'');s.detail='대상자 '+s.target+' · 사번 '+s.empno;}
   else {s.applicant=fieldVal('applicant')||'현장';}
 
   // ── 추가 필드 (진행 알림 progressSummary 와 동일한 이름 규격)
@@ -1958,6 +2007,7 @@ function render(v){var el=document.getElementById('view');
   else if(v==='quote'){el.innerHTML=quoteHTML();bindQuote();}
   else if(v==='report'){el.innerHTML=reportHTML();bindReport();}
   else if(v==='pen'){el.innerHTML=penHTML();bindPen();}
+  else if(v==='card'){el.innerHTML=cardHTML();bindCard();}
   else if(v==='voice'){el.innerHTML=voiceHTML();bindVoice();}
   else if(v==='lms'){el.innerHTML=lmsHTML();bindLms();}
   else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
