@@ -660,6 +660,16 @@ function nextStage(r){
 }
 function plogRows(r){return Array.isArray(r.plog)?r.plog:[];}
 // 진행 이력 타임라인 (줄바꿈 보존)
+// 작성자 표기 — 총무기획팀 담당자는 '총무기획팀 이슬기' 형태로 이름까지 노출
+// (캠퍼스가 담당자를 몰라 전화하는 일을 줄이기 위함)
+function staffLabel(){
+  var u=CURRENT_USER||{};
+  var nm=String(u.name||'').trim();
+  var isAdmin=(u.role==='admin');
+  if(!nm)return isAdmin?'총무기획팀':'';
+  if(nm.indexOf('총무기획팀')>=0)return nm;      // 이미 팀명이 들어간 경우 중복 방지
+  return isAdmin?('총무기획팀 '+nm):nm;
+}
 function plogHTML(r,opt){
   var log=plogRows(r).slice().reverse();
   if(!log.length)return '<div class="hint" style="padding:9px 0;font-size:12.5px">아직 등록된 진행 이력이 없습니다.</div>';
@@ -671,7 +681,9 @@ function plogHTML(r,opt){
       +'<div style="width:8px;flex:0 0 8px;padding-top:5px"><div style="width:8px;height:8px;border-radius:50%;background:'+dot+'"></div></div>'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:12.5px;font-weight:'+(last?'700':'600')+';color:'+(last?'var(--ink)':'var(--ink2)')+'">'+esc(e.stage||'')
-      +' <span class="hint" style="font-weight:400;font-size:11px">'+esc(e.at||'')+(e.by?(' · '+esc(e.by)):'')+'</span></div>'
+      +' <span class="hint" style="font-weight:400;font-size:11px">'+esc(e.at||'')+'</span>'
+      +(e.by?('<span style="margin-left:6px;font-size:11px;font-weight:600;color:var(--blue);border:1px solid var(--blue);border-radius:4px;padding:1px 6px;white-space:nowrap">'+esc(e.by)+'</span>'):'')
+      +'</div>'
       +'<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;margin-top:2px;white-space:pre-wrap;word-break:break-word">'+esc(e.note||'')+'</div>'
       +'</div></div>';
   }).join('');
@@ -1117,7 +1129,7 @@ function docUpload(id,inp){
     docStat(id,'<b style="color:var(--ok)">✓ 업로드 완료</b> · '+docEsc(f.name)+' ('+docSize(f.size)+')','');
     if(notify){
       n8nNotify({type:'doc_update',doc_id:id,category:d.cat,folder:d.folder||'',name:d.name,file_name:f.name,
-        updated_at:d.updated,by:(CURRENT_USER&&CURRENT_USER.name)||''}).then(function(){});
+        updated_at:d.updated,by:staffLabel()}).then(function(){});
     }
     setTimeout(loadDocs,900);
   }).catch(function(e){
@@ -1612,7 +1624,7 @@ function collectSummary(kind, no){
   s.status    = '접수 대기';
   s.received  = new Date().toISOString().slice(0,10);
   s.applicant_login = (CURRENT_USER&&CURRENT_USER.login_id)||'';
-  s.updated_by = (CURRENT_USER&&CURRENT_USER.name)||'';
+  s.updated_by = staffLabel();
   s.updated_at = new Date().toISOString().slice(0,16).replace('T',' ');
   s.portal_url = location.origin+location.pathname;
   if(!s.title) s.title = [s.campus, s.building].filter(Boolean).join(' ') + (s.subtype?(' · '+s.subtype):'');
@@ -2001,7 +2013,7 @@ function progressSummary(rec){
     history    : (function(){var l=plogRows(rec);return l.map(function(e){return (e.stage||'')+' ('+(e.at||'')+'): '+(e.note||'').replace(/\n/g,' ');}).join('\n');})(),
     plan_date  : isVoice?'':clean(rec.plan),
     reply      : isVoice?clean(rec.reply):'',
-    updated_by : clean(CURRENT_USER&&CURRENT_USER.name),
+    updated_by : clean(staffLabel()),
     updated_at : new Date().toISOString().slice(0,16).replace('T',' '),
     portal_url : location.origin+location.pathname
   };
@@ -2048,7 +2060,7 @@ function saveAdmin(i){
   if(!note){submitDone('진행 내용을 입력해 주세요. 무엇이 진행됐는지 한 줄이라도 남겨야 접수자가 알 수 있습니다.');return;}
   var log=plogRows(rec).concat([{
     n:plogRows(rec).length+1, stage:stage, note:note,
-    by:(CURRENT_USER&&CURRENT_USER.name)||'', at:new Date().toISOString().slice(0,10)
+    by:staffLabel(), at:new Date().toISOString().slice(0,10)
   }]);
   var st=stageStatus(rec.type,stage);
   var progText=stage+' · '+note.split('\n')[0].slice(0,80);
