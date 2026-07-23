@@ -1859,19 +1859,20 @@ function renderAccounts(rows){
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center">승인된 계정이 없습니다.</div>';return;}
   var missing=rows.filter(function(a){return !a.email;}).length;
   var warn=missing?('<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:9px;color:var(--warn)">이메일 미입력 <b>'+missing+'명</b> — 미입력 계정은 접수·진행 알림을 받지 못합니다. 이메일을 등록해 주세요.</div>'):'';
-  var head='<div style="display:grid;grid-template-columns:1.3fr 1fr 0.7fr 2fr 0.9fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>승인일</div></div>';
+  var head='<div style="display:grid;grid-template-columns:1.3fr 0.85fr 0.6fr 1.8fr 0.8fr 0.7fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>승인일</div><div>비밀번호</div></div>';
   var body=rows.map(function(a){
     var role=a.role==='admin'?' <span style="font-size:10px;color:var(--blue);border:1px solid var(--blue);border-radius:4px;padding:0 4px">관리자</span>':'';
     var id=a.login_id;
     var emCell='<div style="display:flex;align-items:center;gap:6px">'
       +'<input type="email" data-em-id="'+id+'" value="'+(a.email||'')+'" placeholder="이메일 미입력 — 등록" style="flex:1;padding:6px 9px;font-size:12px;border:1px solid '+(a.email?'var(--line)':'var(--warnln)')+';border-radius:8px;background:'+(a.email?'#fff':'var(--warnbg)')+'">'
       +'<button class="flt" data-em-save="'+id+'" style="padding:6px 11px;white-space:nowrap">'+(a.email?'수정':'등록')+'</button></div>';
-    return '<div style="display:grid;grid-template-columns:1.3fr 1fr 0.7fr 2fr 0.9fr;gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
+    return '<div style="display:grid;grid-template-columns:1.3fr 0.85fr 0.6fr 1.8fr 0.8fr 0.7fr;gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
       +'<div style="font-weight:600">'+a.login_id+role+'</div>'
       +'<div>'+(a.name||'')+'</div>'
       +'<div>'+(a.region||'')+'</div>'
       +emCell
       +'<div style="color:var(--mute)">'+((a.approved_at||'').slice(0,10))+'</div>'
+      +'<div><button class="flt" style="padding:6px 10px;white-space:nowrap" onclick="pwResetOpen(\''+String(id).replace(/'/g,"\\'")+'\')">초기화</button></div>'
       +'</div>';
   }).join('');
   box.innerHTML=warn+'<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+head+body+'</div>';
@@ -1891,6 +1892,59 @@ function saveEmail(loginId){
     if(btn){btn.textContent=email?'수정':'등록';btn.disabled=false;}
   });
 }
+// ===== 비밀번호 초기화 (총무기획팀) =====
+// 임시 비밀번호 생성 — 혼동 문자(0/O, 1/l/I) 제외
+function pwGen(){
+  var s='abcdefghjkmnpqrstuvwxyz', n='23456789', A='ABCDEFGHJKMNPQRSTUVWXYZ';
+  var pool=s+n+A, out='';
+  out+=A[Math.floor(Math.random()*A.length)];
+  out+=n[Math.floor(Math.random()*n.length)];
+  for(var i=0;i<6;i++)out+=pool[Math.floor(Math.random()*pool.length)];
+  return out;
+}
+function pwGenFill(){var el=document.getElementById('pwr_new');if(el){el.value=pwGen();el.focus();el.select();}}
+function pwResetOpen(loginId){
+  if(!(CURRENT_USER&&CURRENT_USER.role==='admin')){alert('총무기획팀 계정만 초기화할 수 있습니다.');return;}
+  if(!SB_READY){submitDone('서버에 연결되어 있지 않습니다.');return;}
+  var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0]||{};
+  var self=(CURRENT_USER&&CURRENT_USER.login_id===loginId);
+  openModal('<div class="mh">비밀번호 초기화</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">아이디</span><span class="mv">'+docEsc(loginId)+'</span></div>'
+    +'<div class="mrow"><span class="mk">이름</span><span class="mv">'+docEsc(a.name||'-')+'</span></div>'
+    +'<div class="mrow"><span class="mk">지역</span><span class="mv">'+docEsc(a.region||'-')+'</span></div>'
+    +(self?'<div class="hint" style="margin-top:9px;color:var(--dng)"><b>본인 계정입니다.</b> 초기화하면 다음 로그인부터 임시 비밀번호를 써야 합니다.</div>':'')
+    +'<div class="lbl" style="margin-top:12px">임시 비밀번호</div>'
+    +'<div style="display:flex;gap:8px;align-items:center">'
+    +'<input type="text" id="pwr_new" placeholder="6자 이상" style="flex:1">'
+    +'<button class="flt" style="white-space:nowrap" onclick="pwGenFill()">자동 생성</button></div>'
+    +'<div class="hint" id="pwr_msg" style="margin-top:9px;line-height:1.55">초기화 후 본인이 <b>첫 로그인 시 새 비밀번호를 반드시 설정</b>하게 됩니다. 임시 비밀번호는 본인에게 직접 전달하세요.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="pwr_ok" onclick="pwResetGo(\''+String(loginId).replace(/'/g,"\\'")+'\')">초기화</button></div>');
+  pwGenFill();
+  var inp=document.getElementById('pwr_new');
+  if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('pwr_ok').click();});
+}
+function pwResetGo(loginId){
+  var el=document.getElementById('pwr_new'); if(!el)return;
+  var pw=(el.value||'').trim();
+  var ok=document.getElementById('pwr_ok'), msg=document.getElementById('pwr_msg');
+  if(pw.length<6){msg.innerHTML='<b style="color:var(--dng)">비밀번호는 6자 이상이어야 합니다.</b>';el.focus();return;}
+  ok.disabled=true;ok.textContent='처리 중...';
+  sb.functions.invoke('reset-password',{body:{login_id:loginId,password:pw,reset_by:(CURRENT_USER&&CURRENT_USER.login_id)||'admin'}}).then(function(res){
+    var d=res&&res.data;
+    if(d&&d.ok){
+      closeModal();
+      submitDone('<b>'+docEsc(loginId)+'</b> 계정의 비밀번호가 초기화되었습니다.<br><br>본인에게 전달할 정보<br>아이디 <b>'+docEsc(loginId)+'</b><br>임시 비밀번호 <b style="font-size:16px">'+docEsc(pw)+'</b><br><br><span class="hint">첫 로그인 시 본인이 새 비밀번호를 설정하게 됩니다.</span>');
+      return;
+    }
+    ok.disabled=false;ok.textContent='초기화';
+    var em=(d&&d.error)||(res&&res.error&&res.error.message)||'알 수 없는 오류';
+    msg.innerHTML='<b style="color:var(--dng)">초기화 실패: '+docEsc(String(em))+'</b><br><span class="hint">Edge Function <b>reset-password</b>가 배포되어 있는지 확인하세요.</span>';
+  }).catch(function(e){
+    ok.disabled=false;ok.textContent='초기화';
+    msg.innerHTML='<b style="color:var(--dng)">초기화 실패: '+docEsc(String(e&&e.message||e))+'</b>';
+  });
+}
+
 function filterAccounts(){
   var q=(document.getElementById('acc_search').value||'').trim().toLowerCase();
   if(!q){renderAccounts(ACCOUNTS_CACHE);return;}
