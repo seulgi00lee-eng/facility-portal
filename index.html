@@ -1077,7 +1077,10 @@ function renderDocAdmin(){
         h+=g[f].map(docAdminCard).join('');return;
       }
       var fk='f:'+c+'|'+f;
-      var fBtn='<button class="flt" style="padding:3px 11px;font-size:12px;white-space:nowrap" onclick="event.stopPropagation();docAddOpen(\''+docEsc(c).replace(/'/g,"\\'")+'\',\''+docEsc(f).replace(/'/g,"\\'")+'\')">+ 이 폴더에 추가</button>';
+      var cEsc=docEsc(c).replace(/'/g,"\\'"), fEsc=docEsc(f).replace(/'/g,"\\'");
+      var fBtn='';
+      if(f!=='')fBtn+='<button class="flt" style="padding:3px 11px;font-size:12px;white-space:nowrap" onclick="event.stopPropagation();docFolderRenameOpen(\''+cEsc+'\',\''+fEsc+'\')">이름 수정</button>';
+      fBtn+='<button class="flt" style="padding:3px 11px;font-size:12px;white-space:nowrap" onclick="event.stopPropagation();docAddOpen(\''+cEsc+'\',\''+fEsc+'\')">+ 이 폴더에 추가</button>';
       h+=docAccRow(fk,(f===''?'📁 폴더 없음':'📂 '+docEsc(f)),g[f].length,1,searching,fBtn);
       if(searching||DOC_OPEN[fk])h+='<div style="padding-left:16px">'+g[f].map(docAdminCard).join('')+'</div>';
     });
@@ -1295,6 +1298,36 @@ function docAddSave(){
     });
     msg.innerHTML='<b style="color:var(--dng)">'+fail+'건 실패</b> · 성공 '+done+'건은 등록되었습니다. 실패한 항목만 남겨두었으니 <b>실패분 재시도</b>를 누르거나 창을 닫으세요.';
     loadDocs();
+  });
+}
+
+// 폴더명 수정 — 해당 분류·폴더에 속한 자료 전체를 일괄 변경
+function docFolderRenameOpen(cat,folder){
+  if(!docIsAdmin()){alert('총무기획팀 계정만 수정할 수 있습니다.');return;}
+  var n=DOCS.filter(function(d){return d.cat===cat&&(d.folder||'')===folder;}).length;
+  openModal('<div class="mh">폴더명 수정</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">분류</span><span class="mv">'+docEsc(cat)+'</span></div>'
+    +'<div class="mrow"><span class="mk">현재 폴더명</span><span class="mv">'+docEsc(folder)+'</span></div>'
+    +'<div class="mrow"><span class="mk">포함 자료</span><span class="mv">'+n+'건</span></div>'
+    +'<div class="lbl" style="margin-top:11px">새 폴더명</div>'
+    +'<input type="text" id="dfr_name" value="'+docEsc(folder)+'" style="width:100%" placeholder="예: 2027년">'
+    +'<div class="hint" id="dfr_msg" style="margin-top:9px;line-height:1.5">이 폴더의 자료 <b>'+n+'건</b>이 새 이름으로 함께 이동합니다. 파일과 다운로드 링크에는 영향이 없습니다.<br>이미 있는 폴더명을 입력하면 <b>두 폴더가 합쳐집니다.</b></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="dfr_ok" onclick="docFolderRenameSave(\''+docEsc(cat).replace(/'/g,"\\'")+'\',\''+docEsc(folder).replace(/'/g,"\\'")+'\')">수정</button></div>');
+  var inp=document.getElementById('dfr_name');
+  if(inp){inp.focus();inp.select();inp.addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('dfr_ok').click();});}
+}
+function docFolderRenameSave(cat,folder){
+  var el=document.getElementById('dfr_name'); if(!el)return;
+  var nv=(el.value||'').trim();
+  var ok=document.getElementById('dfr_ok'), msg=document.getElementById('dfr_msg');
+  if(!nv){msg.innerHTML='<b style="color:var(--dng)">새 폴더명을 입력해 주세요.</b>';return;}
+  if(nv===folder){closeModal();return;}
+  ok.disabled=true;ok.textContent='저장 중...';
+  sb.from('fac_documents').update({folder:nv}).eq('category',cat).eq('folder',folder).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='수정';msg.innerHTML='<b style="color:var(--dng)">수정 실패: '+docEsc(res.error.message)+'</b>';return;}
+    // 펼침 상태를 새 폴더 키로 이어받기
+    if(DOC_OPEN['f:'+cat+'|'+folder]){DOC_OPEN['f:'+cat+'|'+nv]=true;delete DOC_OPEN['f:'+cat+'|'+folder];}
+    closeModal();loadDocs();
   });
 }
 
