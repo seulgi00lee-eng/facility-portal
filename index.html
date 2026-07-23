@@ -437,9 +437,10 @@ function copyText(t,btn){
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){window.prompt('복사할 값',t);});}
   else{window.prompt('복사할 값',t);}
 }
-function cardReq(x){return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13.5px;color:var(--ink)"><span style="font-size:10px;font-weight:600;color:#fff;background:var(--dng,#e5484d);padding:1px 7px;border-radius:10px">필수</span>'+x+'</div>';}
+function cardReq(x){return '<div style="display:flex;align-items:baseline;gap:9px;padding:6px 0;font-size:14px;color:var(--ink);border-bottom:1px solid var(--line)"><span style="flex:none;font-size:10px;font-weight:600;color:#fff;background:var(--dng,#e5484d);padding:2px 7px;border-radius:10px">필수</span><b style="flex:none;min-width:72px">'+x[0]+'</b><span class="hint" style="font-size:13px">예: '+x[1]+'</span></div>';}
+function cardStep(n,t){return '<div style="display:flex;gap:10px;padding:7px 0;font-size:14.5px;line-height:1.65;color:var(--ink)"><b style="flex:none;color:var(--blue)">'+n+'.</b><div>'+t+'</div></div>';}
 function cardHTML(){
-  var req=['사번','이름','템플릿 (기본명함)','그룹','직급','전화1 (캠퍼스 번호)','모바일','주소1','주소2','이메일','사업부'];
+  var req=[['사번','이름'],['이름','이름'],['그룹','수학의아침 수내 초등관'],['직급','원장'],['전화1','캠퍼스 전화번호'],['모바일','핸드폰 번호'],['주소1','캠퍼스 주소'],['템플릿','템플릿 클릭 후 <b>기본명함</b> 선택'],['이메일','메일주소'],['홈페이지','https://flowedu.net/']];
   var reqList=req.map(cardReq).join('');
   var b='<span style="font-size:10px;font-weight:600;color:#fff;background:var(--dng,#e5484d);padding:1px 7px;border-radius:10px">필수</span>';
   return '<div style="max-width:620px"><div class="secttl">명함 신청</div>'
@@ -451,9 +452,14 @@ function cardHTML(){
     +'<span class="hint">비밀번호</span><b>'+CARD_PW+'</b><button class="flt" onclick="copyText(\''+CARD_PW+'\',this)">복사</button>'
     +'</div></div>'
     +'<div class="card" style="padding:16px 18px;margin-bottom:12px"><div class="lbl" style="margin-bottom:6px"><span class="num">2</span>필수 입력 항목 (사이트에서)</div>'
-    +'<div class="hint" style="margin-bottom:8px">아래 11개 항목을 빠짐없이 입력해야 정상 제작됩니다.</div>'+reqList+'</div>'
-    +'<div class="card" style="padding:16px 18px;margin-bottom:12px"><div class="lbl" style="margin-bottom:8px"><span class="num">3</span>대상자 등록 → 미리보기 → 편집완료</div>'
-    +'<div class="hint" style="line-height:1.6">대상자를 검색해 신청하고, <b>미리보기</b>로 오탈자·직급·전화번호를 확인한 뒤 <b>편집완료</b>를 누릅니다. 여러 명이면 대상자별로 반복합니다.</div></div>'
+    +'<div class="hint" style="margin-bottom:8px">아래 10개 항목을 빠짐없이 입력해야 정상 제작됩니다.</div>'+reqList+'</div>'
+    +'<div class="card" style="padding:18px 18px;margin-bottom:12px">'
+    +'<div style="margin-bottom:12px"><span style="font-size:19px;font-weight:700;color:var(--ink);background:linear-gradient(transparent 52%, #ffe94d 52%);padding:0 4px;line-height:1.45">[3] 명함 발주 프로세스</span></div>'
+    +cardStep(1,'외부 제작 사이트 접속 후 <b>로그인</b> → <b>기본정보관리</b> → <b>등록</b> → 등록정보 팝업에 정보 입력 → 하단 <b>등록</b> 클릭 → 상단 검색창에 <b>사번(예: 이름)</b> 검색 → <b>신청</b> → 명함 구조 및 내용 최종확인 → <b>편집완료</b> → 수령받을 <b>배송지 기재 및 핸드폰 번호</b> 입력 → <b>주문완료</b>')
+    +'<div style="margin-top:10px;padding:13px 15px;border-radius:8px;background:#fff4f4;border:1px solid var(--dng,#e5484d)">'
+    +'<div style="font-size:14.5px;font-weight:700;color:var(--dng,#e5484d);margin-bottom:5px">[중요] 2. 접수완료 처리 필수</div>'
+    +'<div style="font-size:14px;line-height:1.65;color:var(--ink)">외부 제작 사이트 <b>주문완료</b> 후, <b>캠퍼스 시설지원포털</b>로 돌아와 아래 <b>[4] 접수완료</b> 처리가 <b>꼭</b> 필요합니다.<br><b style="color:var(--dng,#e5484d)">접수완료 미처리 시 발주가 누락됩니다.</b></div>'
+    +'</div></div>'
     +'<div class="card" style="padding:16px 18px"><div class="lbl" style="margin-bottom:10px"><span class="num">4</span>접수완료 <span class="hint" style="font-weight:400">— 총무기획팀 알림 + 내 접수내역 기록</span></div>'
     +'<div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div>'
     +'<div class="hint" style="margin:-4px 0 10px">캠퍼스를 선택하지 않으면 <b>본사</b>로 접수됩니다.</div>'
