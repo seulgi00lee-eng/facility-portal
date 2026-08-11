@@ -240,9 +240,9 @@ function costHTML(c){
   return '';
 }
 var META={
-  biz:{n:1,t:"사업부",multi:true,o:["초등사업부","중등사업부","고등사업부","사스사업부","테디"]},
-  brand:{n:2,t:"브랜드",multi:true,o:["수아","더블랙","초등사스","중등사스","고등사스","테디"]},
-  campus:{n:3,t:"캠퍼스",multi:false,o:["수내","이매","정자","수지","광교","영통","잠실"]},
+  biz:{n:1,t:"사업부",multi:true,o:["초등사업부","중등사업부","고등사업부","사스사업부","테디","본사"]},
+  brand:{n:2,t:"브랜드",multi:true,o:["수아","더블랙","초등사스","중등사스","고등사스","테디","본사"]},
+  campus:{n:3,t:"캠퍼스",multi:false,o:["수내","이매","정자","수지","광교","영통","잠실","본사"]},
   building:{n:4,t:"건물명",multi:false,o:["수내동빌딩","다운타운빌딩","정민빌딩","한화빌딩","금강프라자","백궁프라자","정자역프라자","시그마타워","비즈마루빌딩","영일빌딩","성보빌딩","미래빌딩","화강빌딩","광교SK뷰레이크타워","광교효성해링턴타워","국제프라자","보보스프라자","규영빌딩"]},
   floor:{n:5,t:"층수",multi:true,o:[],dep:"건물 선택 후 표시 (추후 연동)"},
   reqtype:{n:"",t:"요청구분",multi:false,o:["전등 및 조명","프로젝트빔","냉난방기","CCTV","소방 및 전기","이외 유지보수","구매요청","렌탈자산"]},
@@ -392,6 +392,33 @@ function fillDDOptions(k,list){
   paint(k);
 }
 // 캠퍼스(지역) 선택 시: 건물 로드
+// 명함 폼 전용 플래그 — '본사' 사업부 선택 시 브랜드·캠퍼스 자동 본사 처리
+var CARD_MODE=false;
+function forceDD(k,val){
+  var box=document.querySelector('.dd[data-k="'+k+'"]'); if(!box)return;
+  STATE[k]=val;
+  var arr=Array.isArray(val)?val:(val==null?[]:[val]);
+  box.querySelectorAll('.optb').forEach(function(x){x.classList.toggle('on', arr.indexOf(x.dataset.v)>=0);});
+  paint(k);
+}
+function onBizPicked(clicked){
+  if(!CARD_MODE) return;                 // 명함 폼에서만 작동
+  var v=clicked.dataset.v;
+  if(v==='본사'){
+    if(clicked.classList.contains('on')){ // 본사 켜짐 → 단독 선택 + 브랜드·캠퍼스 자동 본사
+      forceDD('biz',['본사']); forceDD('brand',['본사']); forceDD('campus','본사');
+    } else {                              // 본사 꺼짐 → 자동값 해제
+      forceDD('brand',[]); forceDD('campus',null);
+    }
+  } else {                                // 다른 사업부 클릭 → 본사 해제 + 자동값 초기화
+    if((STATE.biz||[]).indexOf('본사')>=0){
+      STATE.biz=(STATE.biz||[]).filter(function(x){return x!=='본사';});
+      var box=document.querySelector('.dd[data-k="biz"]');
+      if(box){var hq=[].slice.call(box.querySelectorAll('.optb')).filter(function(x){return x.dataset.v==='본사';})[0]; if(hq)hq.classList.remove('on');}
+      forceDD('brand',[]); forceDD('campus',null); paint('biz');
+    }
+  }
+}
 function onCampusPicked(region){
   var bb=document.querySelector('.dd[data-k="building"]');if(bb)fillDDOptions('building',[]);
   var fb=document.querySelector('.dd[data-k="floor"]');if(fb)fillDDOptions('floor',[]);
@@ -404,7 +431,7 @@ function onBuildingPicked(building){
   loadFloors(region,building,function(list){fillDDOptions('floor',list);});
 }
 
-function buildDD(k){var m=META[k],box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;STATE[k]=m.multi?[]:null;var opts=m.o.length?m.o.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join(''):'<div class="hint" style="padding:4px 2px">'+(m.dep||'')+'</div>';box.innerHTML='<div class="ddh"><span class="left">'+(m.n?'<span class="num">'+m.n+'</span>':'')+m.t+(m.multi?' <span class="hint" style="font-size:11px">다중</span>':'')+' <span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts+'</div>';box.querySelector('.ddh').addEventListener('click',function(){box.classList.toggle('open');});box.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){if(m.multi){b.classList.toggle('on');STATE[k]=[].slice.call(box.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});}else{box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');STATE[k]=b.dataset.v;box.classList.remove('open');if(k==='campus'){lsSet('fac_campus',b.dataset.v);onCampusPicked(b.dataset.v);}if(k==='building'){lsSet('fac_building',b.dataset.v);onBuildingPicked(b.dataset.v);}}paint(k);});});}
+function buildDD(k){var m=META[k],box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;STATE[k]=m.multi?[]:null;var opts=m.o.length?m.o.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join(''):'<div class="hint" style="padding:4px 2px">'+(m.dep||'')+'</div>';box.innerHTML='<div class="ddh"><span class="left">'+(m.n?'<span class="num">'+m.n+'</span>':'')+m.t+(m.multi?' <span class="hint" style="font-size:11px">다중</span>':'')+' <span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts+'</div>';box.querySelector('.ddh').addEventListener('click',function(){box.classList.toggle('open');});box.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){if(m.multi){b.classList.toggle('on');STATE[k]=[].slice.call(box.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});if(k==='biz'){onBizPicked(b);}}else{box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');STATE[k]=b.dataset.v;box.classList.remove('open');if(k==='campus'){lsSet('fac_campus',b.dataset.v);onCampusPicked(b.dataset.v);}if(k==='building'){lsSet('fac_building',b.dataset.v);onBuildingPicked(b.dataset.v);}}paint(k);});});}
 function paint(k){var box=document.querySelector('.dd[data-k="'+k+'"]');if(!box)return;var cur=box.querySelector('.cur'),head=box.querySelector('.ddh'),v=STATE[k],has=META[k].multi?(v&&v.length):!!v;head.classList.toggle('has',!!has);if(!has){cur.className='cur ph';cur.textContent='선택';}else{cur.className='cur sel';cur.textContent=META[k].multi?(v.length<=2?v.join(', '):v[0]+' 외 '+(v.length-1)):v;}}
 function refreshFloor(){var box=document.querySelector('.dd[data-k="floor"]');if(!box)return;var body=box.querySelector('.ddbody'),b=STATE.building,list=FLOORS[b];STATE.floor=[];body.innerHTML=(list&&list.length)?list.map(function(f){return '<button type="button" class="optb" data-v="'+f+'">'+f+'</button>';}).join(''):'<div class="hint" style="padding:4px 2px">'+(b||'건물')+' 층 정보는 추후 연동됩니다</div>';body.querySelectorAll('.optb').forEach(function(bt){bt.addEventListener('click',function(){bt.classList.toggle('on');STATE.floor=[].slice.call(body.querySelectorAll('.optb.on')).map(function(x){return x.dataset.v;});paint('floor');});});paint('floor');}
 
@@ -427,7 +454,7 @@ function hydrateCampus(){
     }
   });
 }
-function bindPen(){Object.keys(META).forEach(buildDD);document.getElementById('pdate').value=new Date().toISOString().slice(0,10);
+function bindPen(){CARD_MODE=false;Object.keys(META).forEach(buildDD);document.getElementById('pdate').value=new Date().toISOString().slice(0,10);
   ['campus','building'].forEach(function(k){var saved=lsGet('fac_'+k);if(saved){var box=document.querySelector('.dd[data-k="'+k+'"]');if(box){var btn=[].slice.call(box.querySelectorAll('.optb')).find(function(x){return x.dataset.v===saved;});if(btn){btn.classList.add('on');STATE[k]=saved;paint(k);if(k==='building')refreshFloor();}}}});
   var pq=document.querySelector('.dd[data-k="penqty"]');if(pq){pq.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.dataset.v)||0;var note=document.getElementById('penqtynote');if(note)note.textContent=n?('= '+(n*200).toLocaleString()+'자루'):'봉지 단위로 신청';});});}}
 // ===== 명함 신청 =====
@@ -470,7 +497,7 @@ function cardHTML(){
     +'<div class="hint" style="margin-top:9px;line-height:1.55">외부 사이트에서 등록을 마친 뒤 이 버튼을 눌러야 총무팀 알림과 기록이 남습니다.</div></div>'
     +'</div>';
 }
-function bindCard(){Object.keys(META).forEach(buildDD);var d=document.getElementById('cdate');if(d)d.value=new Date().toISOString().slice(0,10);
+function bindCard(){CARD_MODE=true;Object.keys(META).forEach(buildDD);var d=document.getElementById('cdate');if(d)d.value=new Date().toISOString().slice(0,10);
   var u=CURRENT_USER;if(u&&u.name){var ca=document.getElementById('capplicant');if(ca&&!ca.value)ca.value=u.name;}}
 function submitCard(){
   if(!fieldVal('ctarget')){submitDone('대상자 이름을 입력해 주세요.');return;}
@@ -484,7 +511,7 @@ function submitCard(){
 }
 function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
   +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
-function bindReport(){Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
+function bindReport(){CARD_MODE=false;Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
   // 캠퍼스/건물/층: Supabase 실시간 조회 + 방문기억 복원
   hydrateCampus();
   // 알림 이메일 자동 채우기
@@ -731,7 +758,7 @@ function voiceHTML(){return '<div style="max-width:560px"><div class="secttl">�
   +'<div class="fld" id="vtitle-fld"><div class="lbl">제목</div><input type="text" id="vtitle" placeholder="건의 제목을 한 줄로"></div>'
   +'<div class="fld"><div class="lbl" id="vcontent-lbl">건의 내용</div><textarea id="vcontent" rows="5" placeholder="불편한 점·개선 아이디어·요청 내용을 자유롭게 적어주세요"></textarea></div>'
   +'<button class="submit" id="voiceSubmitBtn" style="width:100%" onclick="submitVoice()">건의사항 제출</button></div>';}
-function bindVoice(){['campus','building'].forEach(buildDD);document.getElementById('vdate').value=new Date().toISOString().slice(0,10);
+function bindVoice(){CARD_MODE=false;['campus','building'].forEach(buildDD);document.getElementById('vdate').value=new Date().toISOString().slice(0,10);
   hydrateCampus();
   VOICE_TYPE='일반 건의';
   if(PREFILL_AKA){var akaBtn=document.querySelector('#vtype .fb[data-v="아카 권한 신청"]');if(akaBtn){setTimeout(function(){akaBtn.click();},0);}PREFILL_AKA=false;}
