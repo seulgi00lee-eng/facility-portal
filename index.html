@@ -509,9 +509,9 @@ function submitCard(){
     payload:{target_name:fieldVal('ctarget'), emp_no:fieldVal('cempno')}
   },'명함 신청이 접수되었습니다. 제작은 외부 사이트에서 진행되며, 처리 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
-function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진 첨부는 저장 연결 시 활성화됩니다</div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
+function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진을 첨부하면 총무기획팀이 상태를 바로 확인할 수 있어 처리가 빨라집니다. (최대 3장)</div><div id="fixPhotoWrap" style="margin-top:8px"><input type="file" id="fixPhoto" accept="image/*" multiple style="display:none" onchange="fixPhotoPick(this)"><button type="button" class="flt" style="padding:8px 14px" onclick="document.getElementById(\'fixPhoto\').click()">📷 사진 첨부</button><div id="fixPhotoList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
   +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
-function bindReport(){CARD_MODE=false;Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
+function bindReport(){CARD_MODE=false;FIX_PHOTOS=[];setTimeout(fixPhotoRender,0);Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
   // 캠퍼스/건물/층: Supabase 실시간 조회 + 방문기억 복원
   hydrateCampus();
   // 알림 이메일 자동 채우기
@@ -620,6 +620,7 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     var infoRows='';
     if(r.detail)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">현상·요청</span><div style="color:var(--ink2);font-size:14px;line-height:1.6;margin-top:3px">'+esc(r.detail)+'</div></div>';
     if(r.location)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">발생 위치</span> <span style="color:var(--ink2);font-size:14px">'+esc(r.location)+'</span></div>';
+    infoRows+=photoBoxHTML(r,false);
     var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
     if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:12.5px">신청자</span> <span style="color:var(--ink2);font-size:14px">'+contact.join(' · ')+'</span></div>';
     var infoBlock=infoRows?('<div style="padding:13px 17px;border-top:1px solid var(--line);background:var(--bg)">'+infoRows+'</div>'):'';
@@ -698,6 +699,28 @@ function staffLabel(){
   if(nm.indexOf('총무기획팀')>=0)return nm;      // 이미 팀명이 들어간 경우 중복 방지
   return isAdmin?('총무기획팀 '+nm):nm;
 }
+// 접수 상세의 사진 표시 (비공개 버킷 → 서명 URL 필요)
+function photoBoxHTML(r,small){
+  var ps=Array.isArray(r.photos)?r.photos:[];
+  if(!ps.length)return '';
+  var sz=small?64:88;
+  var id='ph_'+(r.id||Math.random().toString(36).slice(2));
+  setTimeout(function(){photoBoxFill(id,ps,sz);},0);
+  return '<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:'+(small?'11.5px':'12.5px')+'">첨부 사진</span>'
+        +'<div id="'+id+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div></div>';
+}
+function photoBoxFill(id,paths,sz){
+  var box=document.getElementById(id); if(!box)return;
+  paths.forEach(function(pth){
+    sb.storage.from(DOC_BUCKET).createSignedUrl(pth,3600).then(function(r){
+      var u=r&&r.data&&r.data.signedUrl; if(!u)return;
+      var a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener';
+      a.style.cssText='display:block;width:'+sz+'px;height:'+sz+'px;border-radius:8px;overflow:hidden;border:1px solid var(--line)';
+      var im=document.createElement('img'); im.src=u; im.style.cssText='width:100%;height:100%;object-fit:cover';
+      a.appendChild(im); box.appendChild(a);
+    });
+  });
+}
 function plogHTML(r,opt){
   var log=plogRows(r).slice().reverse();
   if(!log.length)return '<div class="hint" style="padding:9px 0;font-size:12.5px">아직 등록된 진행 이력이 없습니다.</div>';
@@ -720,7 +743,7 @@ function mapReq(r){
   var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜',card:'명함'}[r.type]||r.type;
   var cardSub=(r.type==='card'&&r.payload)?('명함 · '+(r.payload.target_name||'')+(r.payload.emp_no?(' (사번 '+r.payload.emp_no+')'):'')):'';
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
+  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),photos:(Array.isArray(r.photos)?r.photos:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
@@ -1630,6 +1653,16 @@ function saveRequest(type, extra, okMsg){
   sb.from('fac_requests').insert(row).select('id,record_no').then(function(res){
     if(res.error){submitDone('저장 중 오류가 발생했습니다: '+res.error.message);return;}
     var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
+    if(type==='fix'&&FIX_PHOTOS.length){
+      var n=FIX_PHOTOS.length;
+      fixPhotoUpload(rec.id).then(function(ok){
+        FIX_PHOTOS=[];fixPhotoRender();
+        var pmsg=(ok&&ok.length)?('<br><span class="hint">사진 '+ok.length+'장이 함께 접수되었습니다.</span>')
+                                :('<br><span style="color:var(--warn)">사진 '+n+'장 업로드에 실패했습니다. 접수는 정상 저장되었습니다.</span>');
+        fireReceipt(type,rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):'')+pmsg,no);
+      });
+      return;
+    }
     fireReceipt(type,rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''),no);
   });
 }
@@ -1707,6 +1740,74 @@ function saveVoiceRow(okMsg){
     if(res.error){submitDone('저장 중 오류: '+res.error.message);return;}
     var rec=(res.data&&res.data[0])||{};var no=rec.record_no||'';
     fireReceipt('voice',rec.id,okMsg+(no?('<br><br>접수번호: <b>'+no+'</b>'):''),no);
+  });
+}
+// ===== 유지보수 사진 첨부 =====
+var FIX_PHOTOS=[];               // 선택된 사진 목록
+var FIX_MAX=3;
+function fixPhotoPick(el){
+  var fs=[].slice.call(el.files||[]);
+  el.value='';                   // 같은 파일 재선택 가능하게
+  fs.forEach(function(f){
+    if(FIX_PHOTOS.length>=FIX_MAX){return;}
+    if(!/^image\//.test(f.type||'')){return;}
+    FIX_PHOTOS.push(f);
+  });
+  if(fs.length && FIX_PHOTOS.length>=FIX_MAX) alert('사진은 최대 '+FIX_MAX+'장까지 첨부할 수 있습니다.');
+  fixPhotoRender();
+}
+function fixPhotoDel(i){FIX_PHOTOS.splice(i,1);fixPhotoRender();}
+function fixPhotoRender(){
+  var box=document.getElementById('fixPhotoList'); if(!box)return;
+  box.innerHTML='';
+  FIX_PHOTOS.forEach(function(f,i){
+    var d=document.createElement('div');
+    d.style.cssText='position:relative;width:76px;height:76px;border-radius:8px;overflow:hidden;border:1px solid var(--line)';
+    var img=document.createElement('img');
+    img.style.cssText='width:100%;height:100%;object-fit:cover';
+    img.src=URL.createObjectURL(f);
+    var b=document.createElement('button');
+    b.type='button'; b.textContent='×';
+    b.style.cssText='position:absolute;top:2px;right:2px;width:20px;height:20px;line-height:18px;padding:0;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;cursor:pointer';
+    b.onclick=function(){fixPhotoDel(i);};
+    d.appendChild(img); d.appendChild(b); box.appendChild(d);
+  });
+}
+// 휴대폰 사진은 용량이 커서 긴 변 1600px로 축소 후 업로드
+function fixPhotoShrink(file){
+  return new Promise(function(resolve){
+    try{
+      var img=new Image();
+      img.onload=function(){
+        var max=1600, w=img.width, h=img.height;
+        if(w<=max&&h<=max){resolve(file);return;}
+        if(w>h){h=Math.round(h*max/w);w=max;} else {w=Math.round(w*max/h);h=max;}
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        cv.toBlob(function(b){resolve(b||file);},'image/jpeg',0.82);
+      };
+      img.onerror=function(){resolve(file);};
+      img.src=URL.createObjectURL(file);
+    }catch(e){resolve(file);}
+  });
+}
+// 접수 저장 후 사진 업로드 → fac_requests.photos 에 경로 기록
+function fixPhotoUpload(reqId){
+  if(!FIX_PHOTOS.length||!reqId)return Promise.resolve([]);
+  var y=new Date().getFullYear();
+  var jobs=FIX_PHOTOS.map(function(f,i){
+    return fixPhotoShrink(f).then(function(blob){
+      var ext=((f.name||'').split('.').pop()||'jpg').toLowerCase();
+      if(ext.length>5)ext='jpg';
+      var path='fix/'+y+'/'+reqId+'_'+(i+1)+'_'+Date.now()+'.'+ext;
+      return sb.storage.from(DOC_BUCKET).upload(path,blob,{upsert:false,contentType:blob.type||'image/jpeg'})
+        .then(function(up){return up&&up.error?null:path;});
+    }).catch(function(){return null;});
+  });
+  return Promise.all(jobs).then(function(paths){
+    var ok=paths.filter(Boolean);
+    if(!ok.length)return [];
+    return sb.from('fac_requests').update({photos:ok}).eq('id',reqId).then(function(){return ok;});
   });
 }
 function submitReport(){
@@ -1799,6 +1900,7 @@ function adminHTML(){
     var aInfo='';
     if(r.detail)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink);font-size:13px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
     if(r.location)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">발생 위치</span> <span style="color:var(--ink);font-size:13px">'+esc(r.location)+'</span></div>';
+    aInfo+=photoBoxHTML(r,true);
     var aContact=[];if(r.applicant)aContact.push(esc(r.applicant));if(r.phone)aContact.push(esc(r.phone));if(r.ext)aContact.push('내선 '+esc(r.ext));
     if(aContact.length)aInfo+='<div><span style="color:var(--mute);font-size:11.5px">신청자·연락처</span> <span style="color:var(--ink);font-size:13px">'+aContact.join(' · ')+'</span></div>';
     var aInfoBlock=aInfo?('<div style="padding:12px 15px;background:var(--bg);border-bottom:1px solid var(--line)">'+aInfo+'</div>'):'';
