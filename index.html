@@ -2917,11 +2917,13 @@ function gadmEventBar(){
   var sel='<select id="gadm_ev" onchange="gadmEvChange(this.value)" style="padding:6px 9px;font-size:12px;border:1px solid var(--line);border-radius:8px">'
     +GIFT.evs.map(function(e){return '<option value="'+e.id+'"'+(e.id===GIFT.ev.id?' selected':'')+'>'+docEsc(e.title)+'</option>';}).join('')+'</select>';
   var st=GIFT.ev.status;
+  var B=function(to,txt,hi){
+    return '<button class="'+(hi?'mbtn yes':'flt')+'" onclick="gadmEvStatus(\''+to+'\')" style="padding:6px '+(hi?'15':'12')+'px;font-size:12px">'+txt+'</button>';
+  };
   var btn='';
-  if(st==='open')      btn='<button class="flt" onclick="gadmEvStatus(\'closed\')" style="padding:6px 12px;font-size:12px">접수 마감</button>';
-  else if(st==='draft')btn='<button class="mbtn yes" onclick="gadmEvStatus(\'open\')" style="padding:6px 15px;font-size:12px">접수 시작</button>';
-  else                 btn='<button class="flt" onclick="gadmEvStatus(\'open\')" style="padding:6px 12px;font-size:12px">접수 재개</button>'
-                          +' <button class="flt" onclick="gadmEvStatus(\'draft\')" style="padding:6px 12px;font-size:12px">준비중으로</button>';
+  if(st==='open')       btn=B('draft','준비중으로')+' '+B('closed','접수 마감');
+  else if(st==='draft') btn=B('closed','마감 처리')+' '+B('open','접수 시작',1);
+  else                  btn=B('draft','준비중으로')+' '+B('open','접수 재개');
   return '<div style="border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
     +sel
     +'<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:'+(st==='open'?'var(--okbg,#eaf7f0)':'var(--warnbg)')+';color:'+(st==='open'?'var(--ok,#0a7)':'var(--warn)')+'">'
