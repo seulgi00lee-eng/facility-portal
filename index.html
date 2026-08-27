@@ -2462,10 +2462,13 @@ function bindGift(){
     GIFT.evs=((r[0]&&r[0].data)||[]);
     var mine=((r[1]&&r[1].data)||[]);
     var team=(r[2]&&r[2].data)||'';
+    if(!giftIsAdmin())GIFT.evs=GIFT.evs.filter(function(e){return e.status!=='draft';});
     var open=GIFT.evs.filter(function(e){return e.status==='open';})[0]
-           ||GIFT.evs.filter(function(e){return e.status==='draft';})[0]||GIFT.evs[0]||null;
+           ||GIFT.evs.filter(function(e){return e.status==='closed';})[0]
+           ||GIFT.evs[0]||null;
     GIFT.ev=open;
     GIFT.meta={campus:mine[0]||'',all:mine,hq_team:team,team_required:false};
+    if(!giftIsAdmin()&&(!GIFT.ev||GIFT.ev.status==='draft')){giftNotReady();return;}
     if(!GIFT.meta.campus){
       if(CURRENT_USER&&CURRENT_USER.role==='admin'){GIFT.mode='admin';GIFT.meta.noCampus=true;gadmLoad();return;}
       giftNoCampus();return;}
@@ -2481,6 +2484,19 @@ function bindGift(){
   }).catch(function(e){
     document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:14px;color:var(--dng)">불러오기 오류: '+docEsc(String(e&&e.message||e))+'</div>';
   });
+}
+function giftNotReady(){
+  var h=document.getElementById('gift_head'), b=document.getElementById('gift_body');
+  if(h)h.innerHTML='';
+  if(!b)return;
+  var ev=GIFT.ev;
+  b.innerHTML='<div style="border:1px solid var(--line);border-radius:14px;padding:38px 24px;text-align:center">'
+    +'<div style="font-size:32px;margin-bottom:10px">🎁</div>'
+    +'<div style="font-size:16px;font-weight:600;margin-bottom:7px">명절선물 명단 접수 준비 중입니다</div>'
+    +'<div class="hint" style="line-height:1.75;font-size:12.5px">'
+    +(ev?('<b>'+docEsc(ev.title)+'</b><br>'):'')
+    +'상품 구성이 확정되면 접수를 시작합니다.<br>접수가 열리면 별도로 안내드립니다.</div>'
+    +'</div>';
 }
 function giftNoCampus(){
   document.getElementById('gift_head').innerHTML='';
@@ -2901,19 +2917,47 @@ function gadmEventBar(){
   var sel='<select id="gadm_ev" onchange="gadmEvChange(this.value)" style="padding:6px 9px;font-size:12px;border:1px solid var(--line);border-radius:8px">'
     +GIFT.evs.map(function(e){return '<option value="'+e.id+'"'+(e.id===GIFT.ev.id?' selected':'')+'>'+docEsc(e.title)+'</option>';}).join('')+'</select>';
   var st=GIFT.ev.status;
-  var btn=st==='open'
-    ? '<button class="flt" onclick="gadmEvStatus(\'closed\')" style="padding:6px 12px;font-size:12px">접수 마감</button>'
-    : '<button class="flt" onclick="gadmEvStatus(\'open\')" style="padding:6px 12px;font-size:12px">접수 시작</button>';
+  var btn='';
+  if(st==='open')      btn='<button class="flt" onclick="gadmEvStatus(\'closed\')" style="padding:6px 12px;font-size:12px">접수 마감</button>';
+  else if(st==='draft')btn='<button class="mbtn yes" onclick="gadmEvStatus(\'open\')" style="padding:6px 15px;font-size:12px">접수 시작</button>';
+  else                 btn='<button class="flt" onclick="gadmEvStatus(\'open\')" style="padding:6px 12px;font-size:12px">접수 재개</button>'
+                          +' <button class="flt" onclick="gadmEvStatus(\'draft\')" style="padding:6px 12px;font-size:12px">준비중으로</button>';
   return '<div style="border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
     +sel
     +'<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:'+(st==='open'?'var(--okbg,#eaf7f0)':'var(--warnbg)')+';color:'+(st==='open'?'var(--ok,#0a7)':'var(--warn)')+'">'
-    +(st==='open'?'접수중':(st==='closed'?'마감':'작성중'))+'</span>'
+    +(st==='open'?'접수중':(st==='closed'?'마감':'준비중'))+'</span>'
     +'<span style="font-size:12px;color:var(--mute)">마감 '+String(GIFT.ev.deadline).slice(0,10)+' · '+giftDday()+'</span>'
-    +'<div style="flex:1"></div>'+btn+'</div>';
+    +(st==='draft'?'<span style="font-size:11.5px;color:var(--warn)">캠퍼스에는 준비중 안내만 표시됩니다</span>':'')
+    +'<div style="flex:1"></div>'
+    +'<button class="flt" onclick="gadmEvDeadline()" style="padding:6px 12px;font-size:12px">마감일 변경</button> '
+    +btn+'</div>';
 }
 function gadmEvChange(id){GIFT.ev=GIFT.evs.filter(function(e){return e.id===id;})[0];gadmLoad();}
+function gadmEvDeadline(){
+  var cur=String(GIFT.ev.deadline||'').slice(0,10);
+  openModal('<div class="mh">마감일 변경</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">회차</span><span class="mv">'+docEsc(GIFT.ev.title)+'</span></div>'
+    +'<div class="lbl" style="margin-top:10px">제출 마감일</div>'
+    +'<input type="date" id="gd_date" value="'+cur+'" style="width:100%">'
+    +'<div class="hint" style="margin-top:9px">해당 일자 <b>23:59</b>까지 제출·수정할 수 있습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button>'
+    +'<button class="mbtn yes" id="gd_ok" onclick="gadmEvDeadlineGo()">저장</button></div>');
+}
+function gadmEvDeadlineGo(){
+  var d=document.getElementById('gd_date');if(!d||!d.value)return;
+  var ok=document.getElementById('gd_ok');ok.disabled=true;ok.textContent='저장 중...';
+  sb.from('fac_gift_events').update({deadline:d.value+'T23:59:00+09:00'}).eq('id',GIFT.ev.id).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='저장';submitDone('저장 오류: '+res.error.message);return;}
+    GIFT.ev.deadline=d.value+'T23:59:00+09:00';
+    var i=GIFT.evs.map(function(e){return e.id;}).indexOf(GIFT.ev.id);
+    if(i>=0)GIFT.evs[i].deadline=GIFT.ev.deadline;
+    closeModal();gadmLoad();
+  });
+}
 function gadmEvStatus(st){
-  var msg=st==='open'?'접수를 시작할까요? 캠퍼스에서 명단 입력이 가능해집니다.':'접수를 마감할까요? 캠퍼스에서 더 이상 수정할 수 없습니다.';
+  var msg=st==='open'?'접수를 시작할까요?\n전 캠퍼스에서 명절선물 탭이 열리고 명단 입력이 가능해집니다.'
+    :(st==='draft'?'준비중으로 되돌릴까요?\n캠퍼스에는 준비중 안내만 표시됩니다.'
+    :'접수를 마감할까요?\n캠퍼스에서 더 이상 수정할 수 없습니다.');
   if(!confirm(msg))return;
   sb.from('fac_gift_events').update({status:st}).eq('id',GIFT.ev.id).then(function(res){
     if(res.error){submitDone('변경 오류: '+res.error.message);return;}
