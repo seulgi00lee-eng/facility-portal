@@ -2040,7 +2040,7 @@ function rejectAcct(loginId){
 }
 var ACCOUNTS_CACHE=[];
 // ===== 명절선물 조직 캐시 (본사 팀 / 겸임 관코드 / 운영 관) =====
-var HQ_TEAMS=[], GRANTS_CACHE=[], CAMPUS_CACHE=[];
+var HQ_TEAMS=[], GRANTS_CACHE=[], ORG_CAMPUS=[];
 
 function loadOrgMeta(){
   if(!SB_READY)return Promise.resolve();
@@ -2051,7 +2051,7 @@ function loadOrgMeta(){
   ]).then(function(r){
     HQ_TEAMS=((r[0]&&r[0].data)||[]).map(function(x){return x.team_name;});
     GRANTS_CACHE=(r[1]&&r[1].data)||[];
-    CAMPUS_CACHE=(r[2]&&r[2].data)||[];
+    ORG_CAMPUS=(r[2]&&r[2].data)||[];
   }).catch(function(){});
 }
 function grantsOf(authUid){
@@ -2065,7 +2065,7 @@ function unassignedCampuses(){
     String(a.gwan_code||'').split(',').forEach(function(c){c=c.trim();if(c)owned[c]=1;});
   });
   (GRANTS_CACHE||[]).forEach(function(g){owned[g.campus_code]=1;});
-  return CAMPUS_CACHE.filter(function(c){return !owned[c.campus_code]&&c.campus_code!=='100';});
+  return ORG_CAMPUS.filter(function(c){return !owned[c.campus_code]&&c.campus_code!=='100';});
 }
 
 function loadAccounts(){
@@ -2156,7 +2156,7 @@ function grantAddOpen(loginId){
   var own=String(a.gwan_code||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
   var has=grantsOf(a.auth_uid);
   var unas={};unassignedCampuses().forEach(function(c){unas[c.campus_code]=1;});
-  var pool=CAMPUS_CACHE.filter(function(c){return own.indexOf(c.campus_code)<0&&has.indexOf(c.campus_code)<0;});
+  var pool=ORG_CAMPUS.filter(function(c){return own.indexOf(c.campus_code)<0&&has.indexOf(c.campus_code)<0;});
   pool.sort(function(x,y){
     var a1=unas[x.campus_code]?0:1,b1=unas[y.campus_code]?0:1;
     if(a1!==b1)return a1-b1;
@@ -2412,6 +2412,391 @@ function doDelete(){
   });
 }
 
+/* ===================== 명절선물 명단 취합 ===================== */
+var GIFT={ev:null,evs:[],opts:[],rows:[],teams:[],meta:null,q:'',flt:'',busy:false,loaded:false};
+
+function giftMyCampus(){ return (GIFT.meta&&GIFT.meta.campus)||''; }
+function giftIsHQ(){ return !!(GIFT.meta&&GIFT.meta.team_required); }
+function giftMyTeam(){ return (GIFT.meta&&GIFT.meta.hq_team)||''; }
+function giftLocked(){
+  if(!GIFT.ev)return true;
+  if(CURRENT_USER&&CURRENT_USER.role==='admin')return false;
+  if(GIFT.ev.status!=='open')return true;
+  return new Date(GIFT.ev.deadline).getTime() < Date.now();
+}
+function giftDday(){
+  if(!GIFT.ev)return '';
+  var d=Math.ceil((new Date(GIFT.ev.deadline).getTime()-Date.now())/86400000);
+  return d>0?('D-'+d):(d===0?'오늘 마감':'마감됨');
+}
+function giftPhoneFmt(v){
+  var n=String(v||'').replace(/\D/g,'').slice(0,11);
+  if(n.length<4)return n;
+  if(n.length<8)return n.slice(0,3)+'-'+n.slice(3);
+  return n.slice(0,3)+'-'+n.slice(3,n.length-4)+'-'+n.slice(n.length-4);
+}
+function giftOptName(c){
+  var o=GIFT.opts.filter(function(x){return x.code===c;})[0];
+  return o?(o.code+' · '+o.name):(c||'');
+}
+function giftRowIncomplete(r){
+  if(r.dup_of)return !r.building_name||!r.floor_no||!r.person_name||!r.address||!/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/.test(r.phone||'');
+  return !r.building_name||!r.floor_no||!r.person_name||!r.address||!r.option_code
+      || !/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/.test(r.phone||'');
+}
+
+function giftHTML(){
+  return '<div class="secttl">명절선물 명단</div>'
+    +'<div id="gift_head"></div>'
+    +'<div id="gift_body"><div class="hint" style="padding:30px;text-align:center">불러오는 중...</div></div>';
+}
+
+function bindGift(){
+  if(!SB_READY){document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:14px">서버 연결 없음</div>';return;}
+  GIFT.loaded=false;
+  Promise.all([
+    sb.from('fac_gift_events').select('*').order('year',{ascending:false}).order('season',{ascending:false}),
+    sb.rpc('fac_my_campuses'),
+    sb.rpc('fac_my_hq_team')
+  ]).then(function(r){
+    GIFT.evs=((r[0]&&r[0].data)||[]);
+    var mine=((r[1]&&r[1].data)||[]);
+    var team=(r[2]&&r[2].data)||'';
+    var open=GIFT.evs.filter(function(e){return e.status==='open';})[0]
+           ||GIFT.evs.filter(function(e){return e.status==='draft';})[0]||GIFT.evs[0]||null;
+    GIFT.ev=open;
+    GIFT.meta={campus:mine[0]||'',all:mine,hq_team:team,team_required:false};
+    if(!GIFT.meta.campus){giftNoCampus();return;}
+    return sb.from('fac_org_view').select('*').eq('campus_code',GIFT.meta.campus).limit(1).then(function(o){
+      var u=((o.data)||[])[0]||{};
+      GIFT.meta.team_required=!!u.team_required;
+      GIFT.meta.region=u.region;GIFT.meta.label=u.campus_label;GIFT.meta.division=u.division;
+      if(giftIsHQ()&&!team){giftNoTeam();return;}
+      return giftLoadRows();
+    });
+  }).catch(function(e){
+    document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:14px;color:var(--dng)">불러오기 오류: '+docEsc(String(e&&e.message||e))+'</div>';
+  });
+}
+function giftNoCampus(){
+  document.getElementById('gift_head').innerHTML='';
+  document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:18px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:10px;color:var(--warn)">'
+    +'<b>담당 관이 지정되지 않았습니다.</b><br>계정에 관코드가 없어 명단을 입력할 수 없습니다. 총무기획팀에 문의해 주세요.</div>';
+}
+function giftNoTeam(){
+  document.getElementById('gift_head').innerHTML='';
+  document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:18px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:10px;color:var(--warn)">'
+    +'<b>소속팀이 지정되지 않았습니다.</b><br>본사 계정은 소속팀이 지정되어야 명단을 입력할 수 있습니다. 총무기획팀에 문의해 주세요.</div>';
+}
+
+function giftLoadRows(){
+  if(!GIFT.ev){document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:18px">진행 중인 회차가 없습니다.</div>';return;}
+  var q=sb.from('fac_gift_entries').select('*').eq('event_id',GIFT.ev.id).eq('campus_code',giftMyCampus());
+  if(giftIsHQ())q=q.eq('team_name',giftMyTeam());
+  return Promise.all([
+    q.order('created_at',{ascending:true}),
+    sb.from('fac_gift_options').select('*').eq('event_id',GIFT.ev.id).eq('sold_out',false).order('sort_no',{ascending:true}),
+    sb.from('fac_campus_buildings').select('building').eq('gwan_code',giftMyCampus()),
+    sb.from('fac_campus_floors').select('building,floor').eq('gwan_code',giftMyCampus())
+  ]).then(function(r){
+    GIFT.rows=((r[0]&&r[0].data)||[]);
+    GIFT.opts=((r[1]&&r[1].data)||[]);
+    GIFT.blds=((r[2]&&r[2].data)||[]).map(function(x){return x.building;});
+    GIFT.flrs=((r[3]&&r[3].data)||[]);
+    GIFT.loaded=true;
+    giftRender();
+  });
+}
+
+function giftRender(){
+  giftRenderHead();
+  var box=document.getElementById('gift_body');if(!box)return;
+  if(!GIFT.rows.length){
+    box.innerHTML=giftToolbar()+'<div class="hint" style="padding:26px;border:1px dashed var(--line);border-radius:10px;text-align:center;margin-top:10px">'
+      +'아직 등록된 명단이 없습니다.<br><span style="font-size:12px">위 <b>전년도 명단 불러오기</b> 또는 <b>행 추가</b>로 시작하세요.</span></div>';
+    giftBind();return;
+  }
+  var rows=giftFiltered();
+  var dup=GIFT.rows.filter(function(r){return r.dup_of;}).length;
+  var inc=GIFT.rows.filter(giftRowIncomplete).length;
+  var sub=GIFT.rows.filter(function(r){return r.submit_status==='submitted';}).length;
+  var stat='<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0">'
+    +giftStat('전체',GIFT.rows.length,'')
+    +giftStat('제출완료',sub,'ok')
+    +giftStat('중복',dup,dup?'warn':'')
+    +giftStat('미완성',inc,inc?'dng':'')
+    +'</div>';
+  var note=(rows.length!==GIFT.rows.length)
+    ?'<div class="hint" style="margin-bottom:8px">'+GIFT.rows.length+'명 중 <b>'+rows.length+'명</b> 표시 중'
+      +' <button class="flt" style="padding:2px 8px;font-size:11px" onclick="giftClearFilter()">전체 보기</button></div>':'';
+  var empty=(!rows.length)?giftEmptyResult():'';
+  box.innerHTML=giftToolbar()+stat+note+(empty||('<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'
+    +giftHead()+rows.map(giftRowHTML).join('')+'</div>'))
+    +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
+    +'<button class="flt" onclick="giftAddRow()"'+(giftLocked()?' disabled':'')+'>+ 행 추가</button>'
+    +'<div style="flex:1"></div>'
+    +'<button class="mbtn yes" onclick="giftSubmitAll()"'+(giftLocked()?' disabled':'')+' style="padding:9px 20px">명단 제출</button></div>';
+  giftBind();
+}
+function giftStat(t,n,tone){
+  var c=tone==='ok'?'var(--ok,#0a7)':tone==='warn'?'var(--warn)':tone==='dng'?'var(--dng)':'var(--ink,#111)';
+  return '<div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">'
+    +'<div style="font-size:11px;color:var(--mute)">'+t+'</div>'
+    +'<div style="font-size:19px;font-weight:600;color:'+c+'">'+n+'</div></div>';
+}
+function giftRenderHead(){
+  var h=document.getElementById('gift_head');if(!h)return;
+  if(!GIFT.ev){h.innerHTML='';return;}
+  var lock=giftLocked();
+  var sel=GIFT.evs.length>1?('<select id="gift_ev" style="padding:6px 9px;font-size:12px;border:1px solid var(--line);border-radius:8px">'
+    +GIFT.evs.map(function(e){return '<option value="'+e.id+'"'+(e.id===GIFT.ev.id?' selected':'')+'>'+docEsc(e.title)+'</option>';}).join('')+'</select>'):('<b>'+docEsc(GIFT.ev.title)+'</b>');
+  h.innerHTML='<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+sel
+    +'<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:'+(lock?'var(--warnbg)':'var(--okbg,#eaf7f0)')+';color:'+(lock?'var(--warn)':'var(--ok,#0a7)')+'">'+(lock?'마감':'접수중')+'</span>'
+    +'<span style="font-size:12px;color:var(--mute)">마감 '+String(GIFT.ev.deadline).slice(0,10)+' · '+giftDday()+'</span></div>'
+    +'<div style="font-size:12.5px;color:var(--mute);margin-top:6px">'
+    +docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():(GIFT.meta.label||''))
+    +(GIFT.ev.notice?(' · '+docEsc(GIFT.ev.notice)):'')+'</div>'
+    +(lock?'<div class="hint" style="margin-top:8px;color:var(--warn)">마감되어 수정할 수 없습니다.</div>':'')
+    +'</div>';
+}
+function giftToolbar(){
+  var lock=giftLocked();
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    +'<input id="gift_q" value="'+docEsc(GIFT.q)+'" placeholder="이름 또는 연락처 뒷자리 검색" style="flex:1;min-width:200px;padding:7px 11px;font-size:12.5px;border:1px solid var(--line);border-radius:9px">'
+    +'<button class="flt'+(GIFT.flt==='dup'?' on':'')+'" onclick="giftSetFilter(\'dup\')" style="padding:6px 11px;font-size:12px">중복만</button>'
+    +'<button class="flt'+(GIFT.flt==='inc'?' on':'')+'" onclick="giftSetFilter(\'inc\')" style="padding:6px 11px;font-size:12px">미완성만</button>'
+    +'<button class="flt" onclick="giftPrefill()" style="padding:6px 11px;font-size:12px"'+(lock?' disabled':'')+'>전년도 불러오기</button>'
+    +'<button class="flt" onclick="giftUploadOpen()" style="padding:6px 11px;font-size:12px"'+(lock?' disabled':'')+'>엑셀 업로드</button>'
+    +'</div>';
+}
+function giftHead(){
+  return '<div style="display:grid;grid-template-columns:0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
+    +'<div>건물명</div><div>층수</div><div>성함</div><div>직책</div><div>배송주소</div><div>연락처</div><div>옵션</div><div>수령</div><div></div></div>';
+}
+function giftRowHTML(r){
+  var lock=giftLocked(), i=r.id;
+  var dup=!!r.dup_of, bad=giftRowIncomplete(r);
+  var bg=dup?'var(--warnbg)':(bad?'#fff7f7':'#fff');
+  var d=function(f,v,ph,w){
+    return '<input data-g="'+f+'" data-id="'+i+'" value="'+docEsc(v||'')+'" placeholder="'+ph+'"'+(lock?' disabled':'')
+      +' style="width:100%;padding:5px 7px;font-size:12px;border:1px solid var(--line);border-radius:7px;background:transparent">';
+  };
+  var bldOpts='<option value="">선택</option>'+(GIFT.blds||[]).map(function(b){
+    return '<option value="'+docEsc(b)+'"'+(b===r.building_name?' selected':'')+'>'+docEsc(b)+'</option>';}).join('');
+  var flOpts='<option value="">선택</option>'+(GIFT.flrs||[]).filter(function(f){return f.building===r.building_name;}).map(function(f){
+    return '<option value="'+docEsc(f.floor)+'"'+(f.floor===r.floor_no?' selected':'')+'>'+docEsc(f.floor)+'</option>';}).join('');
+  var optSel=dup
+    ? '<div style="font-size:11px;color:var(--mute);padding:5px 2px">중복 · 수량 0</div>'
+    : '<select data-g="option_code" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px"><option value="">선택</option>'
+      +GIFT.opts.map(function(o){return '<option value="'+docEsc(o.code)+'"'+(o.code===r.option_code?' selected':'')+'>'+docEsc(o.code+' · '+o.name)+'</option>';}).join('')+'</select>';
+  var pick='<select data-g="pickup_type" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'
+    +'<option value="home"'+(r.pickup_type==='home'?' selected':'')+'>자택</option>'
+    +'<option value="campus"'+(r.pickup_type==='campus'?' selected':'')+'>학원</option></select>';
+  var badge=dup?'<span style="font-size:10px;padding:1px 5px;border-radius:5px;background:var(--warn);color:#fff;margin-left:4px">중복</span>':'';
+  var act=dup?'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="giftDupOpen(\''+i+'\')">상세</button>'
+             :'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="giftDelRow(\''+i+'\')"'+(lock?' disabled':'')+'>삭제</button>';
+  return '<div data-grow="'+i+'" style="display:grid;grid-template-columns:0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center;background:'+bg+'">'
+    +'<div><select data-g="building_name" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'+bldOpts+'</select></div>'
+    +'<div><select data-g="floor_no" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'+flOpts+'</select></div>'
+    +'<div style="display:flex;align-items:center">'+d('person_name',r.person_name,'성함')+badge+'</div>'
+    +'<div>'+d('job_title',r.job_title,'직책')+'</div>'
+    +'<div>'+d('address',r.address,'배송주소')+'</div>'
+    +'<div>'+d('phone',r.phone,'010-0000-0000')+'</div>'
+    +'<div>'+optSel+'</div>'
+    +'<div>'+pick+'</div>'
+    +'<div>'+act+'</div></div>';
+}
+function giftEmptyResult(){
+  var q=(GIFT.q||'').trim();
+  if(!q)return '<div class="hint" style="padding:22px;border:1px dashed var(--line);border-radius:10px;text-align:center">해당하는 행이 없습니다.</div>';
+  var isName=!/\d/.test(q);
+  return '<div class="hint" style="padding:22px;border:1px dashed var(--line);border-radius:10px;text-align:center;line-height:1.7">'
+    +'<b>'+docEsc(q)+'</b> 검색 결과가 없습니다.<br>'
+    +(isName&&!giftLocked()?'<button class="flt" style="margin-top:8px" onclick="giftAddRow(\''+docEsc(q).replace(/'/g,"")+'\')">이 이름으로 행 추가</button>':'')
+    +'</div>';
+}
+function giftFiltered(){
+  var q=(GIFT.q||'').trim();
+  var nk=q.replace(/\s/g,'').toLowerCase(), pk=q.replace(/\D/g,'');
+  return GIFT.rows.filter(function(r){
+    if(GIFT.flt==='dup'&&!r.dup_of)return false;
+    if(GIFT.flt==='inc'&&!giftRowIncomplete(r))return false;
+    if(!q)return true;
+    if(pk&&String(r.phone||'').replace(/\D/g,'').indexOf(pk)>=0)return true;
+    if(nk&&String(r.person_name||'').replace(/\s/g,'').toLowerCase().indexOf(nk)>=0)return true;
+    return false;
+  });
+}
+function giftSetFilter(f){GIFT.flt=(GIFT.flt===f)?'':f;giftRender();}
+function giftClearFilter(){GIFT.q='';GIFT.flt='';giftRender();}
+
+function giftBind(){
+  var q=document.getElementById('gift_q');
+  if(q){
+    q.addEventListener('input',function(){
+      clearTimeout(GIFT._t);GIFT._t=setTimeout(function(){GIFT.q=q.value;giftRender();
+        var n=document.getElementById('gift_q');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},260);
+    });
+  }
+  var ev=document.getElementById('gift_ev');
+  if(ev)ev.addEventListener('change',function(){
+    GIFT.ev=GIFT.evs.filter(function(e){return e.id===ev.value;})[0];GIFT.q='';GIFT.flt='';giftLoadRows();});
+  document.querySelectorAll('[data-g]').forEach(function(el){
+    var ev2=(el.tagName==='SELECT')?'change':'blur';
+    el.addEventListener(ev2,function(){giftSave(el.dataset.id,el.dataset.g,el.value,el);});
+    if(el.dataset.g==='phone')el.addEventListener('input',function(){el.value=giftPhoneFmt(el.value);});
+  });
+}
+function giftSave(id,field,val,el){
+  var r=GIFT.rows.filter(function(x){return x.id===id;})[0];if(!r)return;
+  if(field==='phone')val=giftPhoneFmt(val);
+  if(String(r[field]||'')===String(val||''))return;
+  var patch={};patch[field]=val||null;
+  if(field==='building_name')patch.floor_no=null;
+  if(el){el.style.borderColor='var(--blue)';}
+  sb.from('fac_gift_entries').update(patch).eq('id',id).select().then(function(res){
+    if(res.error){if(el){el.style.borderColor='var(--dng)';}submitDone('저장 오류: '+res.error.message);return;}
+    var nr=(res.data||[])[0];
+    if(nr){var idx=GIFT.rows.map(function(x){return x.id;}).indexOf(id);if(idx>=0)GIFT.rows[idx]=nr;}
+    var wasDup=r.dup_of, isDup=nr&&nr.dup_of;
+    if(el&&!(field==='building_name')){el.style.borderColor='var(--okln)';}
+    if((!wasDup&&isDup)||(wasDup&&!isDup)||field==='building_name'){giftRender();if(isDup&&!wasDup)giftDupOpen(id);}
+  });
+}
+function giftAddRow(name){
+  if(giftLocked())return;
+  var body={event_id:GIFT.ev.id,campus_code:giftMyCampus(),person_name:name||'',
+    pickup_type:'home',qty:1,submit_status:'draft',
+    created_by_label:staffLabel?staffLabel():((CURRENT_USER&&CURRENT_USER.name)||'')};
+  if(giftIsHQ())body.team_name=giftMyTeam();
+  if(GIFT.blds&&GIFT.blds.length===1){body.building_name=GIFT.blds[0];
+    var f=(GIFT.flrs||[]).filter(function(x){return x.building===GIFT.blds[0];});
+    if(f.length===1)body.floor_no=f[0].floor;}
+  sb.from('fac_gift_entries').insert(body).select().then(function(res){
+    if(res.error){submitDone('추가 오류: '+res.error.message);return;}
+    GIFT.rows.push((res.data||[])[0]);GIFT.q='';GIFT.flt='';giftRender();
+    var els=document.querySelectorAll('[data-g="person_name"]');if(els.length)els[els.length-1].focus();
+  });
+}
+function giftDelRow(id){
+  var r=GIFT.rows.filter(function(x){return x.id===id;})[0];if(!r)return;
+  if(!confirm((r.person_name||'이 행')+' 을(를) 삭제할까요?'))return;
+  sb.from('fac_gift_entries').delete().eq('id',id).then(function(res){
+    if(res.error){submitDone('삭제 오류: '+res.error.message);return;}
+    giftLoadRows();
+  });
+}
+function giftPrefill(){
+  if(giftLocked())return;
+  if(GIFT.rows.length){submitDone('이미 명단이 있습니다. 불러오기는 명단이 비어 있을 때만 가능합니다.');return;}
+  sb.rpc('fac_gift_prefill',{p_event:GIFT.ev.id,p_campus:giftMyCampus(),p_team:giftIsHQ()?giftMyTeam():null}).then(function(res){
+    if(res.error){submitDone('불러오기 오류: '+res.error.message);return;}
+    if(!res.data){submitDone('불러올 지난 회차 명단이 없습니다.');return;}
+    submitDone('<b>'+res.data+'명</b>을 불러왔습니다.<br><span class="hint">옵션은 새로 선택해 주세요.</span>');
+    giftLoadRows();
+  });
+}
+function giftDupOpen(id){
+  sb.rpc('fac_gift_dup_detail',{p_entry_id:id}).then(function(res){
+    if(res.error){submitDone('조회 오류: '+res.error.message);return;}
+    var d=res.data;
+    if(!d||!d.found){submitDone('원본 정보를 찾을 수 없습니다.');return;}
+    var pick=d.pickup_type==='campus'?'학원 수령':'자택 수령';
+    openModal('<div class="mh">중복 등록 확인</div><div class="mb">'
+      +'<div style="font-size:16px;font-weight:600;margin-bottom:10px">'+docEsc(d.person_name)+'</div>'
+      +'<div class="mrow"><span class="mk">최초 등록</span><span class="mv">'+docEsc(d.campus_code)+' · '+docEsc(d.team_name||'')+'</span></div>'
+      +'<div class="mrow"><span class="mk">등록자</span><span class="mv">'+docEsc(d.registered_by)+' ('+docEsc(d.registered_at)+')</span></div>'
+      +'<div class="mrow"><span class="mk">근무 건물</span><span class="mv">'+docEsc((d.building_name||'')+' '+(d.floor_no||''))+'</span></div>'
+      +'<div class="mrow"><span class="mk">수령방법</span><span class="mv">'+pick+'</span></div>'
+      +'<div class="mrow"><span class="mk">배송지</span><span class="mv">'+docEsc(d.address||'-')+'</span></div>'
+      +'<div class="mrow"><span class="mk">선택 옵션</span><span class="mv">'+docEsc((d.option_code||'')+(d.option_name?(' · '+d.option_name):''))+'</span></div>'
+      +(d.dup_count>1?'<div class="hint" style="margin-top:8px;color:var(--warn)">이미 '+d.dup_count+'개 관에서 중복 등록되었습니다.</div>':'')
+      +'<div class="hint" style="margin-top:10px;line-height:1.6">1인 1개 원칙에 따라 이 행은 <b>수량 0</b>으로 처리되어 발주에서 제외됩니다. 우리 명단에는 그대로 남습니다.</div>'
+      +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">확인</button>'
+      +(giftLocked()?'':'<button class="mbtn yes" onclick="giftAddrOpen(\''+id+'\')">배송지 변경</button>')+'</div>');
+  });
+}
+function giftAddrOpen(id){
+  openModal('<div class="mh">배송지 변경 요청</div><div class="mb">'
+    +'<div class="hint" style="line-height:1.6;margin-bottom:10px">변경하면 <b>최초 등록 관과 총무기획팀에 알림</b>이 가고 변경 이력이 기록됩니다.</div>'
+    +'<div class="lbl">수령방법</div>'
+    +'<select id="ga_pick" style="width:100%"><option value="home">자택 수령</option><option value="campus">학원 수령</option></select>'
+    +'<div class="lbl" style="margin-top:10px">변경할 배송주소</div>'
+    +'<input type="text" id="ga_addr" placeholder="도로명 주소 + 상세주소" style="width:100%">'
+    +'<div class="lbl" style="margin-top:10px">변경 사유 (필수)</div>'
+    +'<input type="text" id="ga_reason" placeholder="예) 수지관에서 수령 예정" style="width:100%">'
+    +'<div class="hint" id="ga_msg" style="margin-top:9px"></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button>'
+    +'<button class="mbtn yes" id="ga_ok" onclick="giftAddrGo(\''+id+'\')">변경</button></div>');
+}
+function giftAddrGo(id){
+  var a=document.getElementById('ga_addr'),p=document.getElementById('ga_pick'),
+      rs=document.getElementById('ga_reason'),ok=document.getElementById('ga_ok'),msg=document.getElementById('ga_msg');
+  if(!a.value.trim()){msg.innerHTML='<b style="color:var(--dng)">배송주소를 입력하세요.</b>';return;}
+  if((rs.value||'').trim().length<5){msg.innerHTML='<b style="color:var(--dng)">변경 사유를 5자 이상 입력하세요.</b>';return;}
+  ok.disabled=true;ok.textContent='처리 중...';
+  sb.rpc('fac_gift_change_address',{p_entry_id:id,p_address:a.value.trim(),p_pickup:p.value,p_reason:rs.value.trim()}).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='변경';msg.innerHTML='<b style="color:var(--dng)">'+docEsc(res.error.message)+'</b>';return;}
+    var d=res.data||{};
+    closeModal();
+    giftAddrNotify(d);
+    submitDone('<b>'+docEsc(d.person_name||'')+'</b> 배송지가 변경되었습니다.<br><span class="hint">'+docEsc(d.owner_campus||'')+' 관과 총무기획팀에 알림이 발송되었습니다.</span>');
+  });
+}
+function giftAddrNotify(d){
+  try{
+    n8nNotify({type:'gift_addr_changed',summary:{
+      person:d.person_name||'-',owner_campus:d.owner_campus||'-',owner_team:d.owner_team||'-',
+      changer_campus:d.changer_campus||'-',old_address:d.old_address||'-',new_address:d.new_address||'-',
+      pickup:(d.new_pickup==='campus'?'학원 수령':'자택 수령'),reason:d.reason||'-',
+      event:(GIFT.ev&&GIFT.ev.title)||'-'}});
+  }catch(e){}
+}
+function giftSubmitAll(){
+  if(giftLocked())return;
+  var bad=GIFT.rows.filter(giftRowIncomplete);
+  if(bad.length){
+    GIFT.flt='inc';giftRender();
+    submitDone('<b>'+bad.length+'명</b>의 필수 항목이 비어 있습니다.<br><span class="hint">미완성 행만 표시했습니다. 채운 뒤 다시 제출해 주세요.</span>');
+    return;
+  }
+  if(!GIFT.rows.length){submitDone('제출할 명단이 없습니다.');return;}
+  var qty=GIFT.rows.filter(function(r){return !r.dup_of;}).length;
+  var dup=GIFT.rows.length-qty;
+  openModal('<div class="mh">명단 제출</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">회차</span><span class="mv">'+docEsc(GIFT.ev.title)+'</span></div>'
+    +'<div class="mrow"><span class="mk">소속</span><span class="mv">'+docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():(GIFT.meta.label||''))+'</span></div>'
+    +'<div class="mrow"><span class="mk">명단</span><span class="mv">'+GIFT.rows.length+'명</span></div>'
+    +'<div class="mrow"><span class="mk">발주 수량</span><span class="mv"><b>'+qty+'개</b>'+(dup?(' <span style="color:var(--warn)">(중복 '+dup+'명 제외)</span>'):'')+'</span></div>'
+    +'<div class="hint" style="margin-top:10px">제출 후에도 마감 전까지는 수정할 수 있습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button>'
+    +'<button class="mbtn yes" id="gs_ok" onclick="giftSubmitGo()">제출</button></div>');
+}
+function giftSubmitGo(){
+  var ok=document.getElementById('gs_ok');if(!ok||GIFT.busy)return;
+  GIFT.busy=true;ok.disabled=true;ok.textContent='제출 중...';
+  var ids=GIFT.rows.map(function(r){return r.id;});
+  sb.from('fac_gift_entries').update({submit_status:'submitted'}).in('id',ids).then(function(res){
+    GIFT.busy=false;
+    if(res.error){ok.disabled=false;ok.textContent='제출';submitDone('제출 오류: '+res.error.message);return;}
+    closeModal();
+    var qty=GIFT.rows.filter(function(r){return !r.dup_of;}).length;
+    giftSubmitNotify(qty);
+    submitDone('<b>제출 완료</b><br>'+docEsc(giftMyCampus())+' · '+GIFT.rows.length+'명 (발주 '+qty+'개)<br><span class="hint">마감 전까지 수정할 수 있습니다.</span>');
+    giftLoadRows();
+  });
+}
+function giftSubmitNotify(qty){
+  try{
+    n8nNotify({type:'gift_submitted',summary:{
+      event:(GIFT.ev&&GIFT.ev.title)||'-',campus:giftMyCampus()||'-',
+      team:(giftIsHQ()?giftMyTeam():(GIFT.meta&&GIFT.meta.label))||'-',
+      total:String(GIFT.rows.length),qty:String(qty),
+      by:(CURRENT_USER&&(CURRENT_USER.name||CURRENT_USER.login_id))||'-'}});
+  }catch(e){}
+}
+
 function render(v){var el=document.getElementById('view');
   if(v==='aka'){PREFILL_AKA=true;v='voice';}
   if(v==='home')el.innerHTML=homeHTML();
@@ -2424,6 +2809,7 @@ function render(v){var el=document.getElementById('view');
   else if(v==='lms'){el.innerHTML=lmsHTML();bindLms();}
   else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
   else if(v==='docs'){el.innerHTML=docsHTML();bindDocs();}
+  else if(v==='gift'){el.innerHTML=giftHTML();bindGift();}
   else if(v==='info')el.innerHTML=infoHTML();
   else if(v==='admin'){
     if(CURRENT_USER&&CURRENT_USER.role==='admin'&&SB_READY){
@@ -2433,7 +2819,7 @@ function render(v){var el=document.getElementById('view');
   }
   document.querySelectorAll('.tn').forEach(function(n){n.classList.toggle('on',n.dataset.v===v);});window.scrollTo(0,0);}
 window.nav=render;
-var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["report","유지보수 접수"],["voice","건의사항"],["lms","LMS 1차 검증"],["mylist","내 접수내역"],["docs","자료실"],["info","안내"],["admin","총무기획팀"]];
+var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["report","유지보수 접수"],["voice","건의사항"],["lms","LMS 1차 검증"],["mylist","내 접수내역"],["gift","명절선물"],["docs","자료실"],["info","안내"],["admin","총무기획팀"]];
 // ===== 계정/세션 =====
 var CURRENT_USER=null; // {login_id, role, region, name, gwan_code}
 var DOMAIN="@flowedu.local";
