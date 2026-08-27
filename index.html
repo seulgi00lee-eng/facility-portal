@@ -2517,8 +2517,11 @@ function giftRender(){
   giftRenderHead();
   var box=document.getElementById('gift_body');if(!box)return;
   if(!GIFT.rows.length){
-    box.innerHTML=giftModeBar()+giftToolbar()+'<div class="hint" style="padding:26px;border:1px dashed var(--line);border-radius:10px;text-align:center;margin-top:10px">'
-      +'아직 등록된 명단이 없습니다.<br><span style="font-size:12px">위 <b>전년도 명단 불러오기</b> 또는 <b>행 추가</b>로 시작하세요.</span></div>';
+    box.innerHTML=giftModeBar()+giftToolbar()
+      +'<div class="hint" style="padding:26px;border:1px dashed var(--line);border-radius:10px;text-align:center;margin-top:10px">'
+      +'아직 등록된 명단이 없습니다.<br><span style="font-size:12px">아래 <b>행 추가</b> 또는 <b>엑셀 업로드</b>로 시작하세요.</span></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
+      +'<button class="flt" onclick="giftAddRow()"'+(giftLocked()?' disabled':'')+'>+ 행 추가</button></div>';
     giftBind();return;
   }
   var rows=giftFiltered();
@@ -2571,7 +2574,6 @@ function giftToolbar(){
     +'<input id="gift_q" value="'+docEsc(GIFT.q)+'" placeholder="이름 또는 연락처 뒷자리 검색" style="flex:1;min-width:200px;padding:7px 11px;font-size:12.5px;border:1px solid var(--line);border-radius:9px">'
     +'<button class="flt'+(GIFT.flt==='dup'?' on':'')+'" onclick="giftSetFilter(\'dup\')" style="padding:6px 11px;font-size:12px">중복만</button>'
     +'<button class="flt'+(GIFT.flt==='inc'?' on':'')+'" onclick="giftSetFilter(\'inc\')" style="padding:6px 11px;font-size:12px">미완성만</button>'
-    +'<button class="flt" onclick="giftPrefill()" style="padding:6px 11px;font-size:12px"'+(lock?' disabled':'')+'>전년도 불러오기</button>'
     +'<button class="flt" onclick="giftUploadOpen()" style="padding:6px 11px;font-size:12px"'+(lock?' disabled':'')+'>엑셀 업로드</button>'
     +'</div>';
 }
