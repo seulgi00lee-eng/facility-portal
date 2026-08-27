@@ -3050,6 +3050,172 @@ function giftCsv(rows,map,fname){
   setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},600);
 }
 
+/* ===== 명절선물 · 엑셀 일괄 업로드 ===== */
+var GUP={rows:[],errs:[],busy:false};
+var GUP_COLS=[['건물명','building_name',1],['층수','floor_no',1],['성함','person_name',1],
+  ['직책','job_title',0],['배송주소','address',1],['연락처','phone',1],
+  ['옵션','option_code',1],['수령방법','pickup_type',1],['비고','note',0]];
+
+function giftUploadOpen(){
+  if(giftLocked()){submitDone('마감된 회차는 업로드할 수 없습니다.');return;}
+  GUP.rows=[];GUP.errs=[];
+  openModal('<div class="mh">엑셀 일괄 업로드</div><div class="mb">'
+    +'<div class="hint" style="line-height:1.75;margin-bottom:10px">'
+    +'<b>'+docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():((GIFT.meta&&GIFT.meta.label)||''))+'</b> 명단으로 등록됩니다.<br>'
+    +'관코드·법인명·팀명은 계정에서 자동 지정되므로 양식에 없습니다.<br>'
+    +'<b>중복 여부는 판단하지 마세요.</b> 우리 소속 인원을 전부 넣으면 시스템이 자동으로 처리합니다.</div>'
+    +'<button class="flt" onclick="gupTemplate()" style="padding:7px 13px;font-size:12px;margin-bottom:10px">양식 내려받기</button>'
+    +'<div class="lbl">파일 선택 (.xlsx / .csv)</div>'
+    +'<input type="file" id="gup_file" accept=".xlsx,.xls,.csv" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px">'
+    +'<div id="gup_prev" style="margin-top:10px"></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">닫기</button>'
+    +'<button class="mbtn yes" id="gup_ok" onclick="gupGo()" disabled>등록</button></div>');
+  var f=document.getElementById('gup_file');
+  if(f)f.addEventListener('change',function(){gupRead(f.files&&f.files[0]);});
+}
+function gupLib(cb){
+  if(window.XLSX){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  s.onload=function(){cb();};
+  s.onerror=function(){submitDone('엑셀 라이브러리를 불러오지 못했습니다. 네트워크를 확인해 주세요.');};
+  document.head.appendChild(s);
+}
+function gupTemplate(){
+  gupLib(function(){
+    var head=GUP_COLS.map(function(c){return c[0]+(c[2]?' *':'');});
+    var ex=['코포모타워','5층','홍길동','사원','경기 성남시 분당구 황새울로258번길 40, 301동 1502호','010-0000-0000','B','자택','부재 시 경비실 위탁'];
+    var ws=XLSX.utils.aoa_to_sheet([head,ex]);
+    ws['!cols']=[{wch:16},{wch:8},{wch:12},{wch:10},{wch:46},{wch:16},{wch:8},{wch:12},{wch:28}];
+    var opts=GIFT.opts.map(function(o){return [o.code,o.name,o.composition||''];});
+    var blds=(GIFT.blds||[]).map(function(b){
+      return [b,(GIFT.flrs||[]).filter(function(f){return f.building===b;}).map(function(f){return f.floor;}).join(' / ')];});
+    var g=XLSX.utils.aoa_to_sheet([
+      ['작성 안내'],[''],
+      ['· 1행 헤더와 열 순서를 변경하지 마세요. * 는 필수 항목입니다.'],
+      ['· 2행 예시는 반드시 삭제한 뒤 업로드하세요.'],
+      ['· 연락처는 010-0000-0000 형식으로 입력합니다.'],
+      ['· 수령방법은 자택 또는 학원 중 하나입니다.'],
+      ['· 동명이인은 성함 뒤에 A, B를 붙여 구분합니다.'],
+      ['· 우리 소속 인원을 전부 입력하세요. 중복 여부는 시스템이 자동 판정합니다.'],
+      ['· 비고에는 배송 특이사항만 적습니다. 중복 관련 내용은 적지 마세요.'],
+      [''],['선택 가능한 옵션'],['코드','상품명','구성']
+    ].concat(opts).concat([[''],['선택 가능한 건물 · 층'],['건물명','층수']]).concat(blds));
+    g['!cols']=[{wch:20},{wch:34},{wch:50}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'명단입력');
+    XLSX.utils.book_append_sheet(wb,g,'작성안내');
+    XLSX.writeFile(wb,'명절선물_명단_'+giftMyCampus()+'.xlsx');
+  });
+}
+function gupRead(file){
+  if(!file)return;
+  var prev=document.getElementById('gup_prev');
+  prev.innerHTML='<div class="hint">읽는 중...</div>';
+  gupLib(function(){
+    var fr=new FileReader();
+    fr.onload=function(e){
+      try{
+        var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        gupParse(aoa);
+      }catch(err){prev.innerHTML='<div class="hint" style="color:var(--dng)">파일을 읽을 수 없습니다: '+docEsc(String(err&&err.message||err))+'</div>';}
+    };
+    fr.readAsArrayBuffer(file);
+  });
+}
+function gupParse(aoa){
+  var prev=document.getElementById('gup_prev'), ok=document.getElementById('gup_ok');
+  GUP.rows=[];GUP.errs=[];
+  if(!aoa||aoa.length<2){prev.innerHTML='<div class="hint" style="color:var(--dng)">데이터가 없습니다.</div>';ok.disabled=true;return;}
+  // 헤더 매핑 (이름 기준, * 및 공백 제거)
+  var head=(aoa[0]||[]).map(function(h){return String(h||'').replace(/\*/g,'').replace(/\s/g,'');});
+  var idx={};
+  GUP_COLS.forEach(function(c){idx[c[1]]=head.indexOf(c[0].replace(/\s/g,''));});
+  var miss=GUP_COLS.filter(function(c){return c[2]&&idx[c[1]]<0;}).map(function(c){return c[0];});
+  if(miss.length){
+    prev.innerHTML='<div class="hint" style="color:var(--dng);line-height:1.7"><b>헤더를 찾을 수 없습니다:</b> '+docEsc(miss.join(', '))
+      +'<br>양식을 내려받아 헤더 그대로 사용해 주세요.</div>';ok.disabled=true;return;}
+  var optCodes=GIFT.opts.map(function(o){return o.code;});
+  var blds=GIFT.blds||[], flrs=GIFT.flrs||[];
+  for(var i=1;i<aoa.length;i++){
+    var r=aoa[i]||[];
+    var get=function(k){var j=idx[k];return j>=0?String(r[j]||'').trim():'';};
+    if(!get('person_name')&&!get('phone')&&!get('address'))continue; // 빈 행
+    var e=[], o={};
+    o.building_name=get('building_name');
+    o.floor_no=get('floor_no');
+    o.person_name=get('person_name');
+    o.job_title=get('job_title')||null;
+    o.address=get('address');
+    o.phone=giftPhoneFmt(get('phone'));
+    o.option_code=get('option_code').toUpperCase();
+    o.note=get('note')||null;
+    var pk=get('pickup_type');
+    o.pickup_type=(pk==='학원'||pk==='campus')?'campus':'home';
+
+    if(!o.person_name)e.push('성함 누락');
+    if(!o.building_name)e.push('건물명 누락');
+    else if(blds.indexOf(o.building_name)<0)e.push('등록되지 않은 건물: '+o.building_name);
+    if(!o.floor_no)e.push('층수 누락');
+    else if(o.building_name&&blds.indexOf(o.building_name)>=0
+       &&!flrs.filter(function(f){return f.building===o.building_name&&f.floor===o.floor_no;}).length)
+      e.push('해당 건물에 없는 층: '+o.floor_no);
+    if(!o.address)e.push('배송주소 누락');
+    if(!/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/.test(o.phone))e.push('연락처 형식 오류: '+(get('phone')||'공란'));
+    if(!o.option_code)e.push('옵션 누락');
+    else if(optCodes.indexOf(o.option_code)<0)e.push('선택 불가 옵션: '+o.option_code);
+
+    if(e.length)GUP.errs.push({line:i+1,name:o.person_name||'(성함없음)',msg:e.join(' · ')});
+    else GUP.rows.push(o);
+  }
+  gupPreview();
+}
+function gupPreview(){
+  var prev=document.getElementById('gup_prev'), ok=document.getElementById('gup_ok');
+  var h='<div style="display:flex;gap:8px;margin-bottom:8px">'
+    +'<div style="flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 11px"><div style="font-size:11px;color:var(--mute)">등록 가능</div>'
+    +'<div style="font-size:18px;font-weight:600;color:var(--ok,#0a7)">'+GUP.rows.length+'명</div></div>'
+    +'<div style="flex:1;border:1px solid '+(GUP.errs.length?'var(--dng)':'var(--line)')+';border-radius:9px;padding:8px 11px"><div style="font-size:11px;color:var(--mute)">오류</div>'
+    +'<div style="font-size:18px;font-weight:600;color:'+(GUP.errs.length?'var(--dng)':'var(--mute)')+'">'+GUP.errs.length+'행</div></div></div>';
+  var el='';
+  if(GUP.errs.length){
+    el='<div style="max-height:180px;overflow:auto;border:1px solid var(--dng);border-radius:9px;padding:8px 11px;background:#fff7f7">'
+      +GUP.errs.map(function(x){
+        return '<div style="font-size:11.5px;line-height:1.6;padding:2px 0"><b>'+x.line+'행</b> '+docEsc(x.name)+' — <span style="color:var(--dng)">'+docEsc(x.msg)+'</span></div>';
+      }).join('')+'</div>'
+      +'<div class="hint" style="margin-top:7px">오류 행은 등록되지 않습니다. 정상 행만 먼저 등록한 뒤, 오류 행을 수정해 다시 올려도 됩니다.</div>';
+  }
+  prev.innerHTML=h+el;
+  ok.disabled=!GUP.rows.length;
+  ok.textContent=GUP.rows.length?(GUP.rows.length+'명 등록'):'등록';
+}
+function gupGo(){
+  if(GUP.busy||!GUP.rows.length)return;
+  var ok=document.getElementById('gup_ok');
+  GUP.busy=true;ok.disabled=true;ok.textContent='등록 중...';
+  var label=(typeof staffLabel==='function'?staffLabel():((CURRENT_USER&&CURRENT_USER.name)||''));
+  var payload=GUP.rows.map(function(o){
+    var x={event_id:GIFT.ev.id,campus_code:giftMyCampus(),qty:1,submit_status:'draft',created_by_label:label};
+    for(var k in o)x[k]=o[k];
+    if(giftIsHQ())x.team_name=giftMyTeam();
+    return x;
+  });
+  sb.from('fac_gift_entries').insert(payload).select().then(function(res){
+    GUP.busy=false;
+    if(res.error){ok.disabled=false;ok.textContent='등록';
+      document.getElementById('gup_prev').innerHTML+='<div class="hint" style="margin-top:8px;color:var(--dng)"><b>등록 실패:</b> '+docEsc(res.error.message)+'</div>';return;}
+    var n=(res.data||[]).length, dup=(res.data||[]).filter(function(r){return r.dup_of;}).length;
+    closeModal();
+    submitDone('<b>'+n+'명</b> 등록되었습니다.'
+      +(dup?('<br><span style="color:var(--warn)">중복 '+dup+'명</span> — 수량 0으로 처리되어 발주에서 제외됩니다.'):'')
+      +(GUP.errs.length?('<br><span class="hint">오류 '+GUP.errs.length+'행은 등록되지 않았습니다.</span>'):'')
+      +'<br><span class="hint">확인 후 <b>명단 제출</b>을 눌러주세요.</span>');
+    giftLoadRows();
+  }).catch(function(e){GUP.busy=false;ok.disabled=false;ok.textContent='등록';submitDone('오류: '+String(e&&e.message||e));});
+}
+
 function render(v){var el=document.getElementById('view');
   if(v==='aka'){PREFILL_AKA=true;v='voice';}
   if(v==='home')el.innerHTML=homeHTML();
