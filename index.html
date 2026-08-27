@@ -2039,10 +2039,41 @@ function rejectAcct(loginId){
   });
 }
 var ACCOUNTS_CACHE=[];
+// ===== 명절선물 조직 캐시 (본사 팀 / 겸임 관코드 / 운영 관) =====
+var HQ_TEAMS=[], GRANTS_CACHE=[], CAMPUS_CACHE=[];
+
+function loadOrgMeta(){
+  if(!SB_READY)return Promise.resolve();
+  return Promise.all([
+    sb.from('fac_org_teams').select('team_name,sort_no').eq('gwan_code','100').eq('is_active',true).order('sort_no',{ascending:true}),
+    sb.from('fac_gift_campus_grants').select('user_id,campus_code,memo'),
+    sb.from('fac_org_view').select('campus_code,region,division,brand,campus_label').eq('is_active',true).order('campus_code',{ascending:true})
+  ]).then(function(r){
+    HQ_TEAMS=((r[0]&&r[0].data)||[]).map(function(x){return x.team_name;});
+    GRANTS_CACHE=(r[1]&&r[1].data)||[];
+    CAMPUS_CACHE=(r[2]&&r[2].data)||[];
+  }).catch(function(){});
+}
+function grantsOf(authUid){
+  if(!authUid)return [];
+  return GRANTS_CACHE.filter(function(g){return g.user_id===authUid;}).map(function(g){return g.campus_code;});
+}
+// 담당자 계정이 아직 없는 운영 관 (배포 초기 미가입 포함)
+function unassignedCampuses(){
+  var owned={};
+  (ACCOUNTS_CACHE||[]).forEach(function(a){
+    String(a.gwan_code||'').split(',').forEach(function(c){c=c.trim();if(c)owned[c]=1;});
+  });
+  (GRANTS_CACHE||[]).forEach(function(g){owned[g.campus_code]=1;});
+  return CAMPUS_CACHE.filter(function(c){return !owned[c.campus_code]&&c.campus_code!=='100';});
+}
+
 function loadAccounts(){
   var box=document.getElementById('account_list');if(!box)return;
   if(!SB_READY){box.innerHTML='<div class="hint" style="padding:14px">서버 연결 없음</div>';return;}
-  sb.from('fac_accounts').select('*').eq('status','active').order('approved_at',{ascending:false}).then(function(res){
+  loadOrgMeta().then(function(){
+    return sb.from('fac_accounts').select('*').eq('status','active').order('approved_at',{ascending:false});
+  }).then(function(res){
     ACCOUNTS_CACHE=(res.data)||[];
     renderAccounts(ACCOUNTS_CACHE);
   });
@@ -2052,19 +2083,25 @@ function renderAccounts(rows){
   var cnt=document.getElementById('acc_count');if(cnt)cnt.textContent='('+rows.length+'명)';
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center">승인된 계정이 없습니다.</div>';return;}
   var missing=rows.filter(function(a){return !a.email;}).length;
+  var noTeam=rows.filter(function(a){return isHqAcc(a)&&!(a.hq_team||'').trim();}).length;
+  var unas=unassignedCampuses();
   var warn=missing?('<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:9px;color:var(--warn)">이메일 미입력 <b>'+missing+'명</b> — 미입력 계정은 접수·진행 알림을 받지 못합니다. 이메일을 등록해 주세요.</div>'):'';
-  var head='<div style="display:grid;grid-template-columns:1.3fr 0.85fr 0.6fr 1.8fr 0.8fr 0.7fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>승인일</div><div>비밀번호</div></div>';
+  if(noTeam)warn+='<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:9px;color:var(--warn)">본사 소속팀 미지정 <b>'+noTeam+'명</b> — 소속팀을 지정하지 않으면 명절선물 명단을 조회·입력할 수 없습니다.</div>';
+  if(unas.length)warn+='<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--line);background:var(--soft,#f7f8fa);border-radius:9px">담당자 계정이 없는 관 <b>'+unas.length+'곳</b> — 아직 가입하지 않았을 수 있습니다. 마감 전까지 가입되지 않으면 아래 <b>겸임 관코드</b>로 다른 담당자에게 부여하세요. <span style="color:var(--mute)">'+unas.slice(0,12).map(function(c){return docEsc(c.campus_code);}).join(', ')+(unas.length>12?' 외 '+(unas.length-12)+'곳':'')+'</span></div>';
+  var GT='1.15fr 0.7fr 0.5fr 1.5fr 1.15fr 0.65fr 0.6fr';
+  var head='<div style="display:grid;grid-template-columns:'+GT+';gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>소속팀 · 겸임 관코드</div><div>승인일</div><div>비밀번호</div></div>';
   var body=rows.map(function(a){
     var role=a.role==='admin'?' <span style="font-size:10px;color:var(--blue);border:1px solid var(--blue);border-radius:4px;padding:0 4px">관리자</span>':'';
     var id=a.login_id;
     var emCell='<div style="display:flex;align-items:center;gap:6px">'
       +'<input type="email" data-em-id="'+id+'" value="'+(a.email||'')+'" placeholder="이메일 미입력 — 등록" style="flex:1;padding:6px 9px;font-size:12px;border:1px solid '+(a.email?'var(--line)':'var(--warnln)')+';border-radius:8px;background:'+(a.email?'#fff':'var(--warnbg)')+'">'
       +'<button class="flt" data-em-save="'+id+'" style="padding:6px 11px;white-space:nowrap">'+(a.email?'수정':'등록')+'</button></div>';
-    return '<div style="display:grid;grid-template-columns:1.3fr 0.85fr 0.6fr 1.8fr 0.8fr 0.7fr;gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
+    return '<div style="display:grid;grid-template-columns:'+GT+';gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
       +'<div style="font-weight:600">'+a.login_id+role+'</div>'
       +'<div>'+(a.name||'')+'</div>'
       +'<div>'+(a.region||'')+'</div>'
       +emCell
+      +orgCell(a)
       +'<div style="color:var(--mute)">'+((a.approved_at||'').slice(0,10))+'</div>'
       +'<div><button class="flt" style="padding:6px 10px;white-space:nowrap" onclick="pwResetOpen(\''+String(id).replace(/'/g,"\\'")+'\')">초기화</button></div>'
       +'</div>';
@@ -2072,6 +2109,94 @@ function renderAccounts(rows){
   box.innerHTML=warn+'<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+head+body+'</div>';
   box.querySelectorAll('[data-em-save]').forEach(function(btn){btn.addEventListener('click',function(){saveEmail(btn.dataset.emSave);});});
   box.querySelectorAll('[data-em-id]').forEach(function(inp){inp.addEventListener('keydown',function(e){if(e.key==='Enter')saveEmail(inp.dataset.emId);});});
+  box.querySelectorAll('[data-hqteam]').forEach(function(sel){sel.addEventListener('change',function(){saveHqTeam(sel.dataset.hqteam,sel.value);});});
+  box.querySelectorAll('[data-grant-add]').forEach(function(btn){btn.addEventListener('click',function(){grantAddOpen(btn.dataset.grantAdd);});});
+  box.querySelectorAll('[data-grant-del]').forEach(function(btn){btn.addEventListener('click',function(){grantDel(btn.dataset.grantUid,btn.dataset.grantDel);});});
+}
+// 본사 계정 판별 : 지역='본사' 또는 관코드 100
+function isHqAcc(a){
+  return (a.region==='본사')||String(a.gwan_code||'').split(',').map(function(s){return s.trim();}).indexOf('100')>=0;
+}
+// 소속팀 · 겸임 관코드 셀
+function orgCell(a){
+  var id=String(a.login_id).replace(/'/g,"\\'");
+  if(isHqAcc(a)){
+    var cur=(a.hq_team||'').trim();
+    var opts='<option value="">— 소속팀 선택 —</option>'+HQ_TEAMS.map(function(t){
+      return '<option value="'+docEsc(t)+'"'+(t===cur?' selected':'')+'>'+docEsc(t)+'</option>';
+    }).join('');
+    return '<div><select data-hqteam="'+docEsc(a.login_id)+'" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid '+(cur?'var(--line)':'var(--warnln)')+';border-radius:8px;background:'+(cur?'#fff':'var(--warnbg)')+'">'+opts+'</select></div>';
+  }
+  var gs=grantsOf(a.auth_uid);
+  var chips=gs.map(function(c){
+    return '<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 5px 2px 7px;border:1px solid var(--blue);color:var(--blue);border-radius:6px">'+docEsc(c)
+      +'<button data-grant-del="'+docEsc(c)+'" data-grant-uid="'+docEsc(a.auth_uid||'')+'" title="해제" style="border:0;background:none;cursor:pointer;color:var(--blue);font-size:13px;line-height:1;padding:0 1px">&times;</button></span>';
+  }).join(' ');
+  var disabled=a.auth_uid?'':' disabled title="인증 정보가 없어 부여할 수 없습니다"';
+  return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px">'+chips
+    +'<button class="flt" data-grant-add="'+docEsc(a.login_id)+'" style="padding:3px 8px;font-size:11px;white-space:nowrap"'+disabled+'>+ 겸임</button></div>';
+}
+// 본사 소속팀 저장
+function saveHqTeam(loginId,team){
+  var sel=document.querySelector('[data-hqteam="'+loginId+'"]');
+  if(!SB_READY){submitDone('서버에 연결되어 있지 않습니다.');return;}
+  if(sel)sel.disabled=true;
+  sb.from('fac_accounts').update({hq_team:team||null}).eq('login_id',loginId).then(function(res){
+    if(sel)sel.disabled=false;
+    if(res.error){submitDone('저장 오류: '+res.error.message);return;}
+    var hit=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0];if(hit)hit.hq_team=team||null;
+    if(sel){sel.style.borderColor=team?'var(--okln)':'var(--warnln)';sel.style.background=team?'var(--okbg)':'var(--warnbg)';}
+  });
+}
+// 겸임 관코드 부여 (총무기획팀 전용)
+function grantAddOpen(loginId){
+  if(!(CURRENT_USER&&CURRENT_USER.role==='admin')){alert('총무기획팀 계정만 부여할 수 있습니다.');return;}
+  var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0];
+  if(!a||!a.auth_uid){submitDone('해당 계정의 인증 정보가 없어 부여할 수 없습니다.');return;}
+  var own=String(a.gwan_code||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  var has=grantsOf(a.auth_uid);
+  var unas={};unassignedCampuses().forEach(function(c){unas[c.campus_code]=1;});
+  var pool=CAMPUS_CACHE.filter(function(c){return own.indexOf(c.campus_code)<0&&has.indexOf(c.campus_code)<0;});
+  pool.sort(function(x,y){
+    var a1=unas[x.campus_code]?0:1,b1=unas[y.campus_code]?0:1;
+    if(a1!==b1)return a1-b1;
+    return x.campus_code<y.campus_code?-1:1;
+  });
+  var opts=pool.map(function(c){
+    return '<option value="'+docEsc(c.campus_code)+'">'+docEsc(c.campus_code)+' · '+docEsc(c.campus_label||'')+(unas[c.campus_code]?'  ★ 담당자 없음':'')+'</option>';
+  }).join('');
+  openModal('<div class="mh">겸임 관코드 부여</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">아이디</span><span class="mv">'+docEsc(loginId)+'</span></div>'
+    +'<div class="mrow"><span class="mk">이름</span><span class="mv">'+docEsc(a.name||'-')+'</span></div>'
+    +'<div class="mrow"><span class="mk">본래 관</span><span class="mv">'+docEsc(own.join(', ')||'-')+'</span></div>'
+    +'<div class="lbl" style="margin-top:12px">부여할 관코드</div>'
+    +'<select id="gr_code" style="width:100%">'+opts+'</select>'
+    +'<div class="lbl" style="margin-top:10px">메모 (선택)</div>'
+    +'<input type="text" id="gr_memo" placeholder="예) 수지 겸임" style="width:100%">'
+    +'<div class="hint" id="gr_msg" style="margin-top:9px;line-height:1.55">부여하면 해당 관의 <b>명절선물 명단을 조회·입력·수정</b>할 수 있습니다. <b>★ 담당자 없음</b> 표시는 아직 계정이 가입되지 않은 관입니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="gr_ok" onclick="grantAddGo(\''+id2js(loginId)+'\')">부여</button></div>');
+}
+function id2js(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function grantAddGo(loginId){
+  var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0];
+  var sel=document.getElementById('gr_code'), memo=document.getElementById('gr_memo');
+  var ok=document.getElementById('gr_ok'), msg=document.getElementById('gr_msg');
+  if(!a||!sel||!sel.value){if(msg)msg.innerHTML='<b style="color:var(--dng)">부여할 관코드를 선택하세요.</b>';return;}
+  ok.disabled=true;ok.textContent='처리 중...';
+  sb.from('fac_gift_campus_grants').insert({user_id:a.auth_uid,campus_code:sel.value,memo:(memo&&memo.value||'').trim()||null}).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='부여';msg.innerHTML='<b style="color:var(--dng)">부여 실패: '+docEsc(res.error.message)+'</b>';return;}
+    GRANTS_CACHE.push({user_id:a.auth_uid,campus_code:sel.value,memo:null});
+    closeModal();renderAccounts(ACCOUNTS_CACHE);
+  });
+}
+function grantDel(uid,code){
+  if(!(CURRENT_USER&&CURRENT_USER.role==='admin')){alert('총무기획팀 계정만 해제할 수 있습니다.');return;}
+  if(!confirm(code+' 관 겸임 권한을 해제할까요?\n해당 관의 명절선물 명단에 접근할 수 없게 됩니다.'))return;
+  sb.from('fac_gift_campus_grants').delete().eq('user_id',uid).eq('campus_code',code).then(function(res){
+    if(res.error){submitDone('해제 실패: '+res.error.message);return;}
+    GRANTS_CACHE=GRANTS_CACHE.filter(function(g){return !(g.user_id===uid&&g.campus_code===code);});
+    renderAccounts(ACCOUNTS_CACHE);
+  });
 }
 function saveEmail(loginId){
   var inp=document.querySelector('[data-em-id="'+loginId+'"]');if(!inp)return;
