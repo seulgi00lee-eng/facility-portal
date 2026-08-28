@@ -743,11 +743,13 @@ function mapReq(r){
   var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜',card:'명함'}[r.type]||r.type;
   var cardSub=(r.type==='card'&&r.payload)?('명함 · '+(r.payload.target_name||'')+(r.payload.emp_no?(' (사번 '+r.payload.emp_no+')'):'')):'';
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),photos:(Array.isArray(r.photos)?r.photos:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
+  var _gwan=(r.gwan_code||(r.applicant_login?String(r.applicant_login).split('_')[0]:'')||'');
+  return {id:r.id,type:r.type,tt:tt,gwan:_gwan,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),photos:(Array.isArray(r.photos)?r.photos:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:'-'};
+  var _vgwan=(r.gwan_code||(r.applicant_login?String(r.applicant_login).split('_')[0]:'')||'');
+  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),gwan:_vgwan,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:'-'};
 }
 function loadMyList(){
   var box=document.getElementById('mlcards');
@@ -1851,7 +1853,8 @@ function submitBoard(){
 
 var ADMIN_OK=false;
 var ADMIN_PIN="0000"; // 임시 비번 (편의 구분용). 실제 잠금은 Supabase 로그인 단계에서.
-var ADM_TAB='work', ADM_Q='', ADM_ST='all';
+var ADM_TAB='work', ADM_Q='', ADM_ST='all', ADM_PAGE=1;
+var ADM_PER=10;
 function admTab(t){
   ADM_TAB=t;
   document.querySelectorAll('#adm_tabs .flt').forEach(function(b){b.classList.toggle('on',b.dataset.t===t);});
@@ -1860,28 +1863,69 @@ function admTab(t){
   if(t==='docs')renderDocAdmin();
 }
 function admSt(v){
-  ADM_ST=v;
+  ADM_ST=v;ADM_PAGE=1;
   document.querySelectorAll('.admsec[data-t="work"] .flt[data-s]').forEach(function(b){b.classList.toggle('on',b.dataset.s===v);});
   filterAdmRows();
 }
+function admGo(pg){ADM_PAGE=pg;filterAdmRows();window.scrollTo({top:0,behavior:'instant'});}
 // 접수 처리 목록 검색·상태 필터
+function renderAdmPager(pages){
+  var box=document.getElementById('adm_pager');if(!box)return;
+  if(pages<=1){box.innerHTML='';return;}
+  var html='';
+  function btn(label,pg,active,disabled){
+    if(disabled)return '<button class="flt" style="opacity:.4;pointer-events:none;padding:6px 11px">'+label+'</button>';
+    return '<button class="flt'+(active?' on':'')+'" style="padding:6px 11px;min-width:36px" onclick="admGo('+pg+')">'+label+'</button>';
+  }
+  html+=btn('‹',ADM_PAGE-1,false,ADM_PAGE<=1);
+  // 최대 7개 페이지 번호 (현재 중심)
+  var win=7, from=Math.max(1,ADM_PAGE-3), to=Math.min(pages,from+win-1);
+  from=Math.max(1,Math.min(from,to-win+1));
+  if(from>1){html+=btn('1',1,ADM_PAGE===1,false);if(from>2)html+='<span style="color:var(--mute);padding:0 2px">…</span>';}
+  for(var i=from;i<=to;i++){html+=btn(String(i),i,i===ADM_PAGE,false);}
+  if(to<pages){if(to<pages-1)html+='<span style="color:var(--mute);padding:0 2px">…</span>';html+=btn(String(pages),pages,ADM_PAGE===pages,false);}
+  html+=btn('›',ADM_PAGE+1,false,ADM_PAGE>=pages);
+  box.innerHTML=html;
+}
+function admMatch(rec){
+  if(ADM_Q){
+    var hay=[rec.rid,rec.campus,rec.building,rec.title,rec.applicant,rec.req,rec.tt,rec.gwan].join(' ').toLowerCase();
+    var ts=ADM_Q.toLowerCase().split(/\s+/).filter(Boolean);
+    for(var j=0;j<ts.length;j++){if(hay.indexOf(ts[j])<0)return false;}
+  }
+  return true;
+}
 function filterAdmRows(){
   var box=document.getElementById('adm_rows');if(!box)return;
-  var cards=box.children, shown=0;
-  for(var i=0;i<cards.length;i++){
-    var c=cards[i], rec=SAMPLE[Number(c.dataset.i)]||{};
-    var ok=true;
-    if(ADM_ST!=='all'&&rec.st!==ADM_ST)ok=false;
-    if(ok&&ADM_Q){
-      var hay=[rec.rid,rec.campus,rec.building,rec.title,rec.applicant,rec.req,rec.tt].join(' ').toLowerCase();
-      var ts=ADM_Q.toLowerCase().split(/\s+/).filter(Boolean);
-      for(var j=0;j<ts.length;j++){if(hay.indexOf(ts[j])<0){ok=false;break;}}
-    }
-    c.style.display=ok?'':'none'; if(ok)shown++;
-  }
-  var e=document.getElementById('adm_empty');if(e)e.style.display=shown?'none':'';
+  var cards=box.children;
+  // 검색어에 맞는 카드 인덱스 목록 (상태 무관 — 상태별 건수 집계용)
+  var searched=[];
+  for(var i=0;i<cards.length;i++){var rec=SAMPLE[Number(cards[i].dataset.i)]||{};if(admMatch(rec))searched.push(i);}
+  // 상태별 건수
+  var cAll=searched.length,cWait=0,cProg=0,cDone=0;
+  searched.forEach(function(i){var st=(SAMPLE[Number(cards[i].dataset.i)]||{}).st;if(st==='wait')cWait++;else if(st==='prog')cProg++;else if(st==='done')cDone++;});
+  // 상태 필터 적용된 대상
+  var filtered=searched.filter(function(i){var st=(SAMPLE[Number(cards[i].dataset.i)]||{}).st;return ADM_ST==='all'||st===ADM_ST;});
+  var total=filtered.length;
+  var pages=Math.max(1,Math.ceil(total/ADM_PER));
+  if(ADM_PAGE>pages)ADM_PAGE=pages;
+  var start=(ADM_PAGE-1)*ADM_PER, end=start+ADM_PER;
+  var pageSet={};filtered.slice(start,end).forEach(function(i){pageSet[i]=1;});
+  // 표시 토글: 현재 페이지 대상만 노출
+  for(var k=0;k<cards.length;k++){cards[k].style.display=pageSet[k]?'':'none';}
+  var e=document.getElementById('adm_empty');if(e)e.style.display=total?'none':'';
+  // 상태 탭 라벨에 건수 표시
+  function setLbl(sel,base,n){var b=document.querySelector(sel);if(b)b.innerHTML=base+' <span class="hint" style="font-size:11px;font-weight:400">('+n+')</span>';}
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"all\"]','전체',cAll);
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"wait\"]','접수 대기',cWait);
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"prog\"]','진행중',cProg);
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"done\"]','완료',cDone);
+  // 건수 요약
   var cnt=document.getElementById('adm_cnt');
-  if(cnt)cnt.innerHTML=(ADM_Q||ADM_ST!=='all')?('<b>'+shown+'</b>/'+cards.length+'건'):('총 <b>'+cards.length+'</b>건');
+  if(cnt){cnt.innerHTML=total?('<b>'+(start+1)+'–'+Math.min(end,total)+'</b> / 총 <b>'+total+'</b>건'):'0건';}
+  // 페이지네이션 렌더
+  renderAdmPager(pages);
+  // 처리 탭 배지(미완료 수)
   var w=document.getElementById('admc_work');
   if(w){var n=SAMPLE.filter(function(r){return r.st!=='done';}).length;w.textContent=n?('('+n+')'):'';}
 }
@@ -1901,7 +1945,7 @@ function adminHTML(){
     if(r.detail)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink);font-size:13px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
     if(r.location)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">발생 위치</span> <span style="color:var(--ink);font-size:13px">'+esc(r.location)+'</span></div>';
     aInfo+=photoBoxHTML(r,true);
-    var aContact=[];if(r.applicant)aContact.push(esc(r.applicant));if(r.phone)aContact.push(esc(r.phone));if(r.ext)aContact.push('내선 '+esc(r.ext));
+    var aContact=[];if(r.gwan)aContact.push('<b style="color:var(--blue)">관코드 '+esc(r.gwan)+'</b>');if(r.applicant)aContact.push(esc(r.applicant));if(r.phone)aContact.push(esc(r.phone));if(r.ext)aContact.push('내선 '+esc(r.ext));
     if(aContact.length)aInfo+='<div><span style="color:var(--mute);font-size:11.5px">신청자·연락처</span> <span style="color:var(--ink);font-size:13px">'+aContact.join(' · ')+'</span></div>';
     var aInfoBlock=aInfo?('<div style="padding:12px 15px;background:var(--bg);border-bottom:1px solid var(--line)">'+aInfo+'</div>'):'';
     return head+aInfoBlock
@@ -1933,7 +1977,7 @@ function adminHTML(){
     +'<div class="admsec" data-t="work"'+(ADM_TAB==='work'?'':' style="display:none"')+'>'
     +'<div class="hint" style="margin-bottom:12px;line-height:1.5">처리예정일·진행사항·완료여부를 입력하고 저장하면, 접수자에게 메일·슬랙 알림이 발송됩니다.</div>'
     +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'
-      +'<input type="text" id="adm_q" placeholder="접수번호·캠퍼스·제목·신청자 검색" oninput="ADM_Q=this.value.trim();filterAdmRows()" style="flex:1;max-width:320px;margin:0">'
+      +'<input type="text" id="adm_q" placeholder="접수번호·캠퍼스·제목·신청자 검색" oninput="ADM_Q=this.value.trim();ADM_PAGE=1;filterAdmRows()" style="flex:1;max-width:320px;margin:0">'
       +'<button class="flt'+(ADM_ST==='all'?' on':'')+'" data-s="all" onclick="admSt(\'all\')">전체</button>'
       +'<button class="flt'+(ADM_ST==='wait'?' on':'')+'" data-s="wait" onclick="admSt(\'wait\')">접수 대기</button>'
       +'<button class="flt'+(ADM_ST==='prog'?' on':'')+'" data-s="prog" onclick="admSt(\'prog\')">진행중</button>'
@@ -1941,6 +1985,7 @@ function adminHTML(){
       +'<span class="hint" id="adm_cnt" style="margin-left:auto"></span>'
     +'</div>'
     +'<div id="adm_rows">'+rows+'</div>'
+    +'<div id="adm_pager" style="display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin-top:16px"></div>'
     +'<div id="adm_empty" class="hint" style="display:none;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">조건에 맞는 접수건이 없습니다.</div>'
     +'</div>'
 
