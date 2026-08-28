@@ -493,6 +493,7 @@ function cardHTML(){
     +'<div class="hint" style="margin:-4px 0 10px">캠퍼스를 선택하지 않으면 <b>본사</b>로 접수됩니다.</div>'
     +'<div class="row2"><div class="fld"><div class="lbl">신청일자</div><input type="date" id="cdate"></div><div class="fld"><div class="lbl">신청자</div><input type="text" id="capplicant" placeholder="이름"></div></div>'
     +'<div class="row2"><div class="fld"><div class="lbl">대상자 이름 '+b+'</div><input type="text" id="ctarget" placeholder="명함 대상자 이름"></div><div class="fld"><div class="lbl">대상자 사번 '+b+'</div><input type="text" id="cempno" placeholder="사번"></div></div>'
+    +'<div class="fld"><div class="lbl">비용 부담 관코드 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ccost_gwan" placeholder="예: 201 (단일) / 201, 203 (분담)"><div class="hint" style="margin-top:5px;line-height:1.5">명함 비용을 부담할 관코드를 입력하세요. 분담 시 콤마로 구분. 비워두면 신청 관으로 처리됩니다.</div></div>'
     +'<button class="submit" style="width:100%" onclick="submitCard()">접수완료 (알림 발송)</button>'
     +'<div class="hint" style="margin-top:9px;line-height:1.55">외부 사이트에서 등록을 마친 뒤 이 버튼을 눌러야 총무팀 알림과 기록이 남습니다.</div></div>'
     +'</div>';
@@ -503,13 +504,14 @@ function submitCard(){
   if(!fieldVal('ctarget')){submitDone('대상자 이름을 입력해 주세요.');return;}
   if(!fieldVal('cempno')){submitDone('대상자 사번을 입력해 주세요.');return;}
   if(!STATE.campus)STATE.campus='본사';
-  var rows=[['사업부',selVal('biz')||'-'],['캠퍼스',selVal('campus')],['신청일자',fieldVal('cdate')],['신청자',fieldVal('capplicant')||'현장'],['대상자 이름',fieldVal('ctarget')],['대상자 사번',fieldVal('cempno')]];
+  var rows=[['사업부',selVal('biz')||'-'],['캠퍼스',selVal('campus')],['신청일자',fieldVal('cdate')],['신청자',fieldVal('capplicant')||'현장'],['대상자 이름',fieldVal('ctarget')],['대상자 사번',fieldVal('cempno')],['비용 부담 관코드',fieldVal('ccost_gwan')||'(신청 관)']];
   confirmSubmit('명함 신청 접수 확인', rows, function(){saveRequest('card',{
     applicant:fieldVal('capplicant')||'현장', apply_date:fieldVal('cdate')||null,
+    cost_gwan:fieldVal('ccost_gwan')||null,
     payload:{target_name:fieldVal('ctarget'), emp_no:fieldVal('cempno')}
   },'명함 신청이 접수되었습니다. 제작은 외부 사이트에서 진행되며, 처리 상황은 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
-function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진을 첨부하면 총무기획팀이 상태를 바로 확인할 수 있어 처리가 빨라집니다. (최대 3장)</div><div id="fixPhotoWrap" style="margin-top:8px"><input type="file" id="fixPhoto" accept="image/*" multiple style="display:none" onchange="fixPhotoPick(this)"><button type="button" class="flt" style="padding:8px 14px" onclick="document.getElementById(\'fixPhoto\').click()">📷 사진 첨부</button><div id="fixPhotoList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
+function reportHTML(){return '<div class="twocol"><div><div class="secttl">접수 정보</div><div class="dd" data-k="biz"></div><div class="dd" data-k="brand"></div><div class="dd" data-k="campus"></div><div class="dd" data-k="building"></div><div class="dd" data-k="floor"></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">6</span>신청일자</div><input type="date" id="date"></div><div class="fld"><div class="lbl"><span class="num">7</span>신청자</div><input type="text" id="applicant" placeholder="이름"></div></div><div class="fld"><div class="lbl">알림 받을 이메일 <span class="hint" style="font-size:11px;font-weight:400">진행상황을 이 주소로 안내합니다</span></div><input type="email" id="notify_email" placeholder="현장 담당자 이메일"><div class="hint" id="notify_hint" style="margin-top:5px"></div></div><div class="row2"><div class="fld"><div class="lbl"><span class="num">8</span>연락처</div><input type="tel" id="phone" placeholder="휴대폰 (예: 010-0000-0000)"></div><div class="fld"><div class="lbl"><span class="num">9</span>내선번호 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="ext" placeholder="예: 1234"></div></div><div class="dd" data-k="reqtype"></div><div class="fld"><div class="lbl"><span class="num">10</span>현상 및 요청 상세</div><textarea id="detail" rows="3" placeholder="어떤 문제인지 한두 줄로"></textarea><div class="hint" style="margin-top:7px">사진을 첨부하면 총무기획팀이 상태를 바로 확인할 수 있어 처리가 빨라집니다. (최대 3장)</div><div id="fixPhotoWrap" style="margin-top:8px"><input type="file" id="fixPhoto" accept="image/*" multiple style="display:none" onchange="fixPhotoPick(this)"><button type="button" class="flt" style="padding:8px 14px" onclick="document.getElementById(\'fixPhoto\').click()">📷 사진 첨부</button><div id="fixPhotoList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div></div><div class="fld"><div class="lbl"><span class="num">11</span>발생 위치 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="loc" placeholder="예: 611호 (몰라도 됩니다)"></div><div class="fld"><div class="lbl"><span class="num">12</span>비용 부담 관코드 <span class="hint" style="font-size:11px">선택</span></div><input type="text" id="cost_gwan" placeholder="예: 201 (단일) / 201, 203 (분담)"><div class="hint" style="margin-top:5px;line-height:1.5">비용이 발생할 경우 <b>부담할 관코드</b>를 입력하세요. 한 건물에 여러 관이 분담하면 콤마로 구분합니다. 비워두면 신청자 관으로 처리됩니다.</div></div><button class="submit" style="width:100%" onclick="submitReport()">접수하기</button></div>'
   +'<div><div class="secttl">접수 후 진행 상황</div><div class="statusbox"><div class="sbi"><span class="k">11 · 처리예정일</span><span class="v-wait">총무기획팀 확인 후 등록</span></div><div class="sbi"><span class="k">12 · 진행사항</span><span class="v-wait">접수 대기</span></div><div class="sbi"><span class="k">13 · 완료여부</span><span class="v-wait">대기</span></div></div><div class="hint" style="margin-top:11px;line-height:1.55">총무기획팀이 처리예정일·진행사항·완료여부를 등록하거나 변경하면 접수자에게 알림이 갑니다. 진행사항은 현장 컨디션·업체 일정에 따라 변동될 수 있습니다.</div></div></div>';}
 function bindReport(){CARD_MODE=false;FIX_PHOTOS=[];setTimeout(fixPhotoRender,0);Object.keys(META).forEach(buildDD);document.getElementById('date').value=new Date().toISOString().slice(0,10);
   // 캠퍼스/건물/층: Supabase 실시간 조회 + 방문기억 복원
@@ -620,6 +622,7 @@ function renderCards(f){ML_TYPE=f;var box=document.getElementById('mlcards');
     var infoRows='';
     if(r.detail)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">현상·요청</span><div style="color:var(--ink2);font-size:14px;line-height:1.6;margin-top:3px">'+esc(r.detail)+'</div></div>';
     if(r.location)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">발생 위치</span> <span style="color:var(--ink2);font-size:14px">'+esc(r.location)+'</span></div>';
+    if(r.cost_gwan)infoRows+='<div style="margin-bottom:8px"><span style="color:var(--mute);font-size:12.5px">비용 부담 관코드</span> <b style="color:var(--blue);font-size:14px">'+esc(r.cost_gwan)+'</b></div>';
     infoRows+=photoBoxHTML(r,false);
     var contact=[];if(r.applicant)contact.push(esc(r.applicant));if(r.phone)contact.push(esc(r.phone));if(r.ext)contact.push('내선 '+esc(r.ext));
     if(contact.length)infoRows+='<div><span style="color:var(--mute);font-size:12.5px">신청자</span> <span style="color:var(--ink2);font-size:14px">'+contact.join(' · ')+'</span></div>';
@@ -743,11 +746,13 @@ function mapReq(r){
   var tt={fix:'유지보수',buy:'구매',rent:'렌탈',pen:'볼펜',card:'명함'}[r.type]||r.type;
   var cardSub=(r.type==='card'&&r.payload)?('명함 · '+(r.payload.target_name||'')+(r.payload.emp_no?(' (사번 '+r.payload.emp_no+')'):'')):'';
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:r.type,tt:tt,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),photos:(Array.isArray(r.photos)?r.photos:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
+  var _gwan=(r.gwan_code||(r.applicant_login?String(r.applicant_login).split('_')[0]:'')||'');
+  return {id:r.id,type:r.type,tt:tt,gwan:_gwan,cost_gwan:(r.cost_gwan||''),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+(cardSub?(' · '+cardSub):(r.reqtype?(' · '+r.reqtype):(r.detail?(' · '+r.detail.slice(0,20)):''))),when:when,applicant:r.applicant||'',phone:r.phone||'',ext:r.ext||'',campus:r.campus||'',building:r.building||'',floors:r.floors||null,req:r.reqtype||'',detail:r.detail||'',location:r.location||'',st:r.status,plan:r.plan_date||'-',prog:r.progress||'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),photos:(Array.isArray(r.photos)?r.photos:[]),done:(r.status==='done'?'완료':r.status==='prog'?'진행중':'-')};
 }
 function mapVoice(r){
   var when=(r.created_at||'').slice(5,10).replace('-','.');
-  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:'-'};
+  var _vgwan=(r.gwan_code||(r.applicant_login?String(r.applicant_login).split('_')[0]:'')||'');
+  return {id:r.id,type:'voice',vtype:(r.vtype==='ai'?'AI 해결 요청':r.vtype==='aka'?'아카 권한 신청':'일반 건의'),tt:(r.vtype==='ai'?'AI건의':r.vtype==='aka'?'아카권한':'건의'),gwan:_vgwan,rid:r.record_no||'',title:(r.campus||'')+(r.building?(' '+r.building):'')+' · '+(r.title||''),when:when,applicant:r.applicant||'',campus:r.campus||'',building:r.building||'',req:'건의사항',st:r.status,content:r.content||'',reply:(r.reply&&r.reply!=='-')?r.reply:'-',plan:'-',prog:'-',plog:(Array.isArray(r.progress_log)?r.progress_log:[]),done:'-'};
 }
 function loadMyList(){
   var box=document.getElementById('mlcards');
@@ -1811,11 +1816,12 @@ function fixPhotoUpload(reqId){
   });
 }
 function submitReport(){
-  var rows=[['사업부',selVal('biz')],['브랜드',selVal('brand')],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['층수',selVal('floor')],['신청일자',fieldVal('date')],['신청자',fieldVal('applicant')],['연락처',fieldVal('phone')],['내선번호',fieldVal('ext')],['요청구분',selVal('reqtype')],['현상·상세',fieldVal('detail')],['발생 위치',fieldVal('loc')]];
+  var rows=[['사업부',selVal('biz')],['브랜드',selVal('brand')],['캠퍼스',selVal('campus')],['건물명',selVal('building')],['층수',selVal('floor')],['신청일자',fieldVal('date')],['신청자',fieldVal('applicant')],['연락처',fieldVal('phone')],['내선번호',fieldVal('ext')],['요청구분',selVal('reqtype')],['현상·상세',fieldVal('detail')],['발생 위치',fieldVal('loc')],['비용 부담 관코드',fieldVal('cost_gwan')||'(신청자 관)']];
   confirmSubmit('유지보수 접수 확인', rows, function(){saveRequest('fix',{
     applicant:fieldVal('applicant'), phone:fieldVal('phone'), ext:fieldVal('ext'),
     apply_date:fieldVal('date')||null, reqtype:STATE.reqtype||null,
     detail:fieldVal('detail')||null, location:fieldVal('loc')||null,
+    cost_gwan:fieldVal('cost_gwan')||null,
     notify_email:fieldVal('notify_email')||null
   },'접수되었습니다. 총무기획팀이 확인 후 처리예정일·진행사항을 등록하면 <b>내 접수내역 조회</b>에서 확인할 수 있습니다.');});
 }
@@ -1851,7 +1857,8 @@ function submitBoard(){
 
 var ADMIN_OK=false;
 var ADMIN_PIN="0000"; // 임시 비번 (편의 구분용). 실제 잠금은 Supabase 로그인 단계에서.
-var ADM_TAB='work', ADM_Q='', ADM_ST='all';
+var ADM_TAB='work', ADM_Q='', ADM_ST='all', ADM_PAGE=1;
+var ADM_PER=10;
 function admTab(t){
   ADM_TAB=t;
   document.querySelectorAll('#adm_tabs .flt').forEach(function(b){b.classList.toggle('on',b.dataset.t===t);});
@@ -1860,28 +1867,69 @@ function admTab(t){
   if(t==='docs')renderDocAdmin();
 }
 function admSt(v){
-  ADM_ST=v;
+  ADM_ST=v;ADM_PAGE=1;
   document.querySelectorAll('.admsec[data-t="work"] .flt[data-s]').forEach(function(b){b.classList.toggle('on',b.dataset.s===v);});
   filterAdmRows();
 }
+function admGo(pg){ADM_PAGE=pg;filterAdmRows();window.scrollTo({top:0,behavior:'instant'});}
 // 접수 처리 목록 검색·상태 필터
+function renderAdmPager(pages){
+  var box=document.getElementById('adm_pager');if(!box)return;
+  if(pages<=1){box.innerHTML='';return;}
+  var html='';
+  function btn(label,pg,active,disabled){
+    if(disabled)return '<button class="flt" style="opacity:.4;pointer-events:none;padding:6px 11px">'+label+'</button>';
+    return '<button class="flt'+(active?' on':'')+'" style="padding:6px 11px;min-width:36px" onclick="admGo('+pg+')">'+label+'</button>';
+  }
+  html+=btn('‹',ADM_PAGE-1,false,ADM_PAGE<=1);
+  // 최대 7개 페이지 번호 (현재 중심)
+  var win=7, from=Math.max(1,ADM_PAGE-3), to=Math.min(pages,from+win-1);
+  from=Math.max(1,Math.min(from,to-win+1));
+  if(from>1){html+=btn('1',1,ADM_PAGE===1,false);if(from>2)html+='<span style="color:var(--mute);padding:0 2px">…</span>';}
+  for(var i=from;i<=to;i++){html+=btn(String(i),i,i===ADM_PAGE,false);}
+  if(to<pages){if(to<pages-1)html+='<span style="color:var(--mute);padding:0 2px">…</span>';html+=btn(String(pages),pages,ADM_PAGE===pages,false);}
+  html+=btn('›',ADM_PAGE+1,false,ADM_PAGE>=pages);
+  box.innerHTML=html;
+}
+function admMatch(rec){
+  if(ADM_Q){
+    var hay=[rec.rid,rec.campus,rec.building,rec.title,rec.applicant,rec.req,rec.tt,rec.gwan].join(' ').toLowerCase();
+    var ts=ADM_Q.toLowerCase().split(/\s+/).filter(Boolean);
+    for(var j=0;j<ts.length;j++){if(hay.indexOf(ts[j])<0)return false;}
+  }
+  return true;
+}
 function filterAdmRows(){
   var box=document.getElementById('adm_rows');if(!box)return;
-  var cards=box.children, shown=0;
-  for(var i=0;i<cards.length;i++){
-    var c=cards[i], rec=SAMPLE[Number(c.dataset.i)]||{};
-    var ok=true;
-    if(ADM_ST!=='all'&&rec.st!==ADM_ST)ok=false;
-    if(ok&&ADM_Q){
-      var hay=[rec.rid,rec.campus,rec.building,rec.title,rec.applicant,rec.req,rec.tt].join(' ').toLowerCase();
-      var ts=ADM_Q.toLowerCase().split(/\s+/).filter(Boolean);
-      for(var j=0;j<ts.length;j++){if(hay.indexOf(ts[j])<0){ok=false;break;}}
-    }
-    c.style.display=ok?'':'none'; if(ok)shown++;
-  }
-  var e=document.getElementById('adm_empty');if(e)e.style.display=shown?'none':'';
+  var cards=box.children;
+  // 검색어에 맞는 카드 인덱스 목록 (상태 무관 — 상태별 건수 집계용)
+  var searched=[];
+  for(var i=0;i<cards.length;i++){var rec=SAMPLE[Number(cards[i].dataset.i)]||{};if(admMatch(rec))searched.push(i);}
+  // 상태별 건수
+  var cAll=searched.length,cWait=0,cProg=0,cDone=0;
+  searched.forEach(function(i){var st=(SAMPLE[Number(cards[i].dataset.i)]||{}).st;if(st==='wait')cWait++;else if(st==='prog')cProg++;else if(st==='done')cDone++;});
+  // 상태 필터 적용된 대상
+  var filtered=searched.filter(function(i){var st=(SAMPLE[Number(cards[i].dataset.i)]||{}).st;return ADM_ST==='all'||st===ADM_ST;});
+  var total=filtered.length;
+  var pages=Math.max(1,Math.ceil(total/ADM_PER));
+  if(ADM_PAGE>pages)ADM_PAGE=pages;
+  var start=(ADM_PAGE-1)*ADM_PER, end=start+ADM_PER;
+  var pageSet={};filtered.slice(start,end).forEach(function(i){pageSet[i]=1;});
+  // 표시 토글: 현재 페이지 대상만 노출
+  for(var k=0;k<cards.length;k++){cards[k].style.display=pageSet[k]?'':'none';}
+  var e=document.getElementById('adm_empty');if(e)e.style.display=total?'none':'';
+  // 상태 탭 라벨에 건수 표시
+  function setLbl(sel,base,n){var b=document.querySelector(sel);if(b)b.innerHTML=base+' <span class="hint" style="font-size:11px;font-weight:400">('+n+')</span>';}
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"all\"]','전체',cAll);
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"wait\"]','접수 대기',cWait);
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"prog\"]','진행중',cProg);
+  setLbl('.admsec[data-t=\"work\"] .flt[data-s=\"done\"]','완료',cDone);
+  // 건수 요약
   var cnt=document.getElementById('adm_cnt');
-  if(cnt)cnt.innerHTML=(ADM_Q||ADM_ST!=='all')?('<b>'+shown+'</b>/'+cards.length+'건'):('총 <b>'+cards.length+'</b>건');
+  if(cnt){cnt.innerHTML=total?('<b>'+(start+1)+'–'+Math.min(end,total)+'</b> / 총 <b>'+total+'</b>건'):'0건';}
+  // 페이지네이션 렌더
+  renderAdmPager(pages);
+  // 처리 탭 배지(미완료 수)
   var w=document.getElementById('admc_work');
   if(w){var n=SAMPLE.filter(function(r){return r.st!=='done';}).length;w.textContent=n?('('+n+')'):'';}
 }
@@ -1901,8 +1949,9 @@ function adminHTML(){
     if(r.detail)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">현상·요청</span><div style="color:var(--ink);font-size:13px;line-height:1.55;margin-top:2px">'+esc(r.detail)+'</div></div>';
     if(r.location)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">발생 위치</span> <span style="color:var(--ink);font-size:13px">'+esc(r.location)+'</span></div>';
     aInfo+=photoBoxHTML(r,true);
-    var aContact=[];if(r.applicant)aContact.push(esc(r.applicant));if(r.phone)aContact.push(esc(r.phone));if(r.ext)aContact.push('내선 '+esc(r.ext));
-    if(aContact.length)aInfo+='<div><span style="color:var(--mute);font-size:11.5px">신청자·연락처</span> <span style="color:var(--ink);font-size:13px">'+aContact.join(' · ')+'</span></div>';
+    var aContact=[];if(r.gwan)aContact.push('관코드 '+esc(r.gwan));if(r.applicant)aContact.push(esc(r.applicant));if(r.phone)aContact.push(esc(r.phone));if(r.ext)aContact.push('내선 '+esc(r.ext));
+    if(aContact.length)aInfo+='<div style="margin-bottom:6px"><span style="color:var(--mute);font-size:11.5px">신청자·연락처</span> <span style="color:var(--ink);font-size:13px">'+aContact.join(' · ')+'</span></div>';
+    if(r.cost_gwan)aInfo+='<div><span style="color:var(--mute);font-size:11.5px">비용 부담 관코드</span> <b style="color:var(--blue);font-size:13.5px">'+esc(r.cost_gwan)+'</b></div>';
     var aInfoBlock=aInfo?('<div style="padding:12px 15px;background:var(--bg);border-bottom:1px solid var(--line)">'+aInfo+'</div>'):'';
     return head+aInfoBlock
       +'<div style="padding:12px 15px;border-bottom:1px solid var(--line)">'
@@ -1933,7 +1982,7 @@ function adminHTML(){
     +'<div class="admsec" data-t="work"'+(ADM_TAB==='work'?'':' style="display:none"')+'>'
     +'<div class="hint" style="margin-bottom:12px;line-height:1.5">처리예정일·진행사항·완료여부를 입력하고 저장하면, 접수자에게 메일·슬랙 알림이 발송됩니다.</div>'
     +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'
-      +'<input type="text" id="adm_q" placeholder="접수번호·캠퍼스·제목·신청자 검색" oninput="ADM_Q=this.value.trim();filterAdmRows()" style="flex:1;max-width:320px;margin:0">'
+      +'<input type="text" id="adm_q" placeholder="접수번호·캠퍼스·제목·신청자 검색" oninput="ADM_Q=this.value.trim();ADM_PAGE=1;filterAdmRows()" style="flex:1;max-width:320px;margin:0">'
       +'<button class="flt'+(ADM_ST==='all'?' on':'')+'" data-s="all" onclick="admSt(\'all\')">전체</button>'
       +'<button class="flt'+(ADM_ST==='wait'?' on':'')+'" data-s="wait" onclick="admSt(\'wait\')">접수 대기</button>'
       +'<button class="flt'+(ADM_ST==='prog'?' on':'')+'" data-s="prog" onclick="admSt(\'prog\')">진행중</button>'
@@ -1941,6 +1990,7 @@ function adminHTML(){
       +'<span class="hint" id="adm_cnt" style="margin-left:auto"></span>'
     +'</div>'
     +'<div id="adm_rows">'+rows+'</div>'
+    +'<div id="adm_pager" style="display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin-top:16px"></div>'
     +'<div id="adm_empty" class="hint" style="display:none;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:12px">조건에 맞는 접수건이 없습니다.</div>'
     +'</div>'
 
@@ -2983,8 +3033,8 @@ function gadmStatus(units,notStarted){
       +'<div>'+u.total+'</div>'
       +'<div style="color:var(--ok,#0a7)">'+u.submitted+'</div>'
       +'<div style="color:'+(u.draft?'var(--warn)':'var(--mute)')+'">'+u.draft+'</div>'
-      +'<div>'+(u.submitted?('<b>'+(u.qty||0)+'</b>'):'<span style="color:var(--mute)">—</span>')+'</div>'
-      +'<div style="color:var(--mute);font-size:11px">'+(u.at?String(u.at).slice(0,10):'<span style="color:var(--warn)">작성 중</span>')+'</div></div>';
+      +'<div><b>'+(u.qty||0)+'</b></div>'
+      +'<div style="color:var(--mute);font-size:11px">'+String(u.at||'').slice(0,10)+'</div></div>';
   }).join('');
   var ns='';
   if(notStarted.length){
