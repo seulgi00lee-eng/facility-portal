@@ -665,18 +665,12 @@ var STAGES={
   buy : ['접수 확인','견적 요청','견적 확정','발주','입고·설치','완료','보류'],
   rent: ['접수 확인','견적 요청','견적 확정','발주','입고·설치','완료','보류'],
   pen : ['접수 확인','준비 중','전달 완료','보류'],
-  voice:['접수 확인','검토 중','답변 완료','보류'],
-  card:['접수 확인','제작 요청','제작 중','전달 완료','보류']
+  voice:['접수 확인','검토 중','답변 완료','보류']
 };
-var STAGE_DONE={fix:'조치 완료', buy:'완료', rent:'완료', pen:'전달 완료', voice:'답변 완료', card:'전달 완료'};
+var STAGE_DONE={fix:'조치 완료', buy:'완료', rent:'완료', pen:'전달 완료', voice:'답변 완료'};
 function stagesOf(t){return STAGES[t]||STAGES.fix;}
 function stageDone(t){return STAGE_DONE[t]||'완료';}
-function stageStatus(t,name){
-  if(name===stageDone(t))return 'done';
-  // 명함: 단계 정비 이전에 '조치 완료'로 등록된 기존 건도 완료로 인정
-  if(t==='card'&&name==='조치 완료')return 'done';
-  return 'prog';
-}
+function stageStatus(t,name){return (name===stageDone(t))?'done':'prog';}
 // 진행률 (보류는 계산 제외)
 function stageProgress(t,name){
   var list=stagesOf(t).filter(function(x){return x!=='보류';});
@@ -2045,10 +2039,41 @@ function rejectAcct(loginId){
   });
 }
 var ACCOUNTS_CACHE=[];
+// ===== 명절선물 조직 캐시 (본사 팀 / 겸임 관코드 / 운영 관) =====
+var HQ_TEAMS=[], GRANTS_CACHE=[], ORG_CAMPUS=[];
+
+function loadOrgMeta(){
+  if(!SB_READY)return Promise.resolve();
+  return Promise.all([
+    sb.from('fac_org_teams').select('team_name,sort_no').eq('gwan_code','100').eq('is_active',true).order('sort_no',{ascending:true}),
+    sb.from('fac_gift_campus_grants').select('user_id,campus_code,memo'),
+    sb.from('fac_org_view').select('campus_code,region,division,brand,campus_label').eq('is_active',true).order('campus_code',{ascending:true})
+  ]).then(function(r){
+    HQ_TEAMS=((r[0]&&r[0].data)||[]).map(function(x){return x.team_name;});
+    GRANTS_CACHE=(r[1]&&r[1].data)||[];
+    ORG_CAMPUS=(r[2]&&r[2].data)||[];
+  }).catch(function(){});
+}
+function grantsOf(authUid){
+  if(!authUid)return [];
+  return GRANTS_CACHE.filter(function(g){return g.user_id===authUid;}).map(function(g){return g.campus_code;});
+}
+// 담당자 계정이 아직 없는 운영 관 (배포 초기 미가입 포함)
+function unassignedCampuses(){
+  var owned={};
+  (ACCOUNTS_CACHE||[]).forEach(function(a){
+    String(a.gwan_code||'').split(',').forEach(function(c){c=c.trim();if(c)owned[c]=1;});
+  });
+  (GRANTS_CACHE||[]).forEach(function(g){owned[g.campus_code]=1;});
+  return ORG_CAMPUS.filter(function(c){return !owned[c.campus_code]&&c.campus_code!=='100';});
+}
+
 function loadAccounts(){
   var box=document.getElementById('account_list');if(!box)return;
   if(!SB_READY){box.innerHTML='<div class="hint" style="padding:14px">서버 연결 없음</div>';return;}
-  sb.from('fac_accounts').select('*').eq('status','active').order('approved_at',{ascending:false}).then(function(res){
+  loadOrgMeta().then(function(){
+    return sb.from('fac_accounts').select('*').eq('status','active').order('approved_at',{ascending:false});
+  }).then(function(res){
     ACCOUNTS_CACHE=(res.data)||[];
     renderAccounts(ACCOUNTS_CACHE);
   });
@@ -2058,19 +2083,25 @@ function renderAccounts(rows){
   var cnt=document.getElementById('acc_count');if(cnt)cnt.textContent='('+rows.length+'명)';
   if(!rows.length){box.innerHTML='<div class="hint" style="padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center">승인된 계정이 없습니다.</div>';return;}
   var missing=rows.filter(function(a){return !a.email;}).length;
+  var noTeam=rows.filter(function(a){return isHqAcc(a)&&!(a.hq_team||'').trim();}).length;
+  var unas=unassignedCampuses();
   var warn=missing?('<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:9px;color:var(--warn)">이메일 미입력 <b>'+missing+'명</b> — 미입력 계정은 접수·진행 알림을 받지 못합니다. 이메일을 등록해 주세요.</div>'):'';
-  var head='<div style="display:grid;grid-template-columns:1.3fr 0.85fr 0.6fr 1.8fr 0.8fr 0.7fr;gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>승인일</div><div>비밀번호</div></div>';
+  if(noTeam)warn+='<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:9px;color:var(--warn)">본사 소속팀 미지정 <b>'+noTeam+'명</b> — 소속팀을 지정하지 않으면 명절선물 명단을 조회·입력할 수 없습니다.</div>';
+  if(unas.length)warn+='<div class="hint" style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--line);background:var(--soft,#f7f8fa);border-radius:9px">담당자 계정이 없는 관 <b>'+unas.length+'곳</b> — 아직 가입하지 않았을 수 있습니다. 마감 전까지 가입되지 않으면 아래 <b>겸임 관코드</b>로 다른 담당자에게 부여하세요. <span style="color:var(--mute)">'+unas.slice(0,12).map(function(c){return docEsc(c.campus_code);}).join(', ')+(unas.length>12?' 외 '+(unas.length-12)+'곳':'')+'</span></div>';
+  var GT='1.15fr 0.7fr 0.5fr 1.5fr 1.15fr 0.65fr 0.6fr';
+  var head='<div style="display:grid;grid-template-columns:'+GT+';gap:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)"><div>아이디</div><div>이름</div><div>지역</div><div>알림 이메일 (클릭해 등록·수정)</div><div>소속팀 · 겸임 관코드</div><div>승인일</div><div>비밀번호</div></div>';
   var body=rows.map(function(a){
     var role=a.role==='admin'?' <span style="font-size:10px;color:var(--blue);border:1px solid var(--blue);border-radius:4px;padding:0 4px">관리자</span>':'';
     var id=a.login_id;
     var emCell='<div style="display:flex;align-items:center;gap:6px">'
       +'<input type="email" data-em-id="'+id+'" value="'+(a.email||'')+'" placeholder="이메일 미입력 — 등록" style="flex:1;padding:6px 9px;font-size:12px;border:1px solid '+(a.email?'var(--line)':'var(--warnln)')+';border-radius:8px;background:'+(a.email?'#fff':'var(--warnbg)')+'">'
       +'<button class="flt" data-em-save="'+id+'" style="padding:6px 11px;white-space:nowrap">'+(a.email?'수정':'등록')+'</button></div>';
-    return '<div style="display:grid;grid-template-columns:1.3fr 0.85fr 0.6fr 1.8fr 0.8fr 0.7fr;gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
+    return '<div style="display:grid;grid-template-columns:'+GT+';gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--line);align-items:center">'
       +'<div style="font-weight:600">'+a.login_id+role+'</div>'
       +'<div>'+(a.name||'')+'</div>'
       +'<div>'+(a.region||'')+'</div>'
       +emCell
+      +orgCell(a)
       +'<div style="color:var(--mute)">'+((a.approved_at||'').slice(0,10))+'</div>'
       +'<div><button class="flt" style="padding:6px 10px;white-space:nowrap" onclick="pwResetOpen(\''+String(id).replace(/'/g,"\\'")+'\')">초기화</button></div>'
       +'</div>';
@@ -2078,6 +2109,94 @@ function renderAccounts(rows){
   box.innerHTML=warn+'<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+head+body+'</div>';
   box.querySelectorAll('[data-em-save]').forEach(function(btn){btn.addEventListener('click',function(){saveEmail(btn.dataset.emSave);});});
   box.querySelectorAll('[data-em-id]').forEach(function(inp){inp.addEventListener('keydown',function(e){if(e.key==='Enter')saveEmail(inp.dataset.emId);});});
+  box.querySelectorAll('[data-hqteam]').forEach(function(sel){sel.addEventListener('change',function(){saveHqTeam(sel.dataset.hqteam,sel.value);});});
+  box.querySelectorAll('[data-grant-add]').forEach(function(btn){btn.addEventListener('click',function(){grantAddOpen(btn.dataset.grantAdd);});});
+  box.querySelectorAll('[data-grant-del]').forEach(function(btn){btn.addEventListener('click',function(){grantDel(btn.dataset.grantUid,btn.dataset.grantDel);});});
+}
+// 본사 계정 판별 : 지역='본사' 또는 관코드 100
+function isHqAcc(a){
+  return (a.region==='본사')||String(a.gwan_code||'').split(',').map(function(s){return s.trim();}).indexOf('100')>=0;
+}
+// 소속팀 · 겸임 관코드 셀
+function orgCell(a){
+  var id=String(a.login_id).replace(/'/g,"\\'");
+  if(isHqAcc(a)){
+    var cur=(a.hq_team||'').trim();
+    var opts='<option value="">— 소속팀 선택 —</option>'+HQ_TEAMS.map(function(t){
+      return '<option value="'+docEsc(t)+'"'+(t===cur?' selected':'')+'>'+docEsc(t)+'</option>';
+    }).join('');
+    return '<div><select data-hqteam="'+docEsc(a.login_id)+'" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid '+(cur?'var(--line)':'var(--warnln)')+';border-radius:8px;background:'+(cur?'#fff':'var(--warnbg)')+'">'+opts+'</select></div>';
+  }
+  var gs=grantsOf(a.auth_uid);
+  var chips=gs.map(function(c){
+    return '<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 5px 2px 7px;border:1px solid var(--blue);color:var(--blue);border-radius:6px">'+docEsc(c)
+      +'<button data-grant-del="'+docEsc(c)+'" data-grant-uid="'+docEsc(a.auth_uid||'')+'" title="해제" style="border:0;background:none;cursor:pointer;color:var(--blue);font-size:13px;line-height:1;padding:0 1px">&times;</button></span>';
+  }).join(' ');
+  var disabled=a.auth_uid?'':' disabled title="인증 정보가 없어 부여할 수 없습니다"';
+  return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px">'+chips
+    +'<button class="flt" data-grant-add="'+docEsc(a.login_id)+'" style="padding:3px 8px;font-size:11px;white-space:nowrap"'+disabled+'>+ 겸임</button></div>';
+}
+// 본사 소속팀 저장
+function saveHqTeam(loginId,team){
+  var sel=document.querySelector('[data-hqteam="'+loginId+'"]');
+  if(!SB_READY){submitDone('서버에 연결되어 있지 않습니다.');return;}
+  if(sel)sel.disabled=true;
+  sb.from('fac_accounts').update({hq_team:team||null}).eq('login_id',loginId).then(function(res){
+    if(sel)sel.disabled=false;
+    if(res.error){submitDone('저장 오류: '+res.error.message);return;}
+    var hit=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0];if(hit)hit.hq_team=team||null;
+    if(sel){sel.style.borderColor=team?'var(--okln)':'var(--warnln)';sel.style.background=team?'var(--okbg)':'var(--warnbg)';}
+  });
+}
+// 겸임 관코드 부여 (총무기획팀 전용)
+function grantAddOpen(loginId){
+  if(!(CURRENT_USER&&CURRENT_USER.role==='admin')){alert('총무기획팀 계정만 부여할 수 있습니다.');return;}
+  var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0];
+  if(!a||!a.auth_uid){submitDone('해당 계정의 인증 정보가 없어 부여할 수 없습니다.');return;}
+  var own=String(a.gwan_code||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  var has=grantsOf(a.auth_uid);
+  var unas={};unassignedCampuses().forEach(function(c){unas[c.campus_code]=1;});
+  var pool=ORG_CAMPUS.filter(function(c){return own.indexOf(c.campus_code)<0&&has.indexOf(c.campus_code)<0;});
+  pool.sort(function(x,y){
+    var a1=unas[x.campus_code]?0:1,b1=unas[y.campus_code]?0:1;
+    if(a1!==b1)return a1-b1;
+    return x.campus_code<y.campus_code?-1:1;
+  });
+  var opts=pool.map(function(c){
+    return '<option value="'+docEsc(c.campus_code)+'">'+docEsc(c.campus_code)+' · '+docEsc(c.campus_label||'')+(unas[c.campus_code]?'  ★ 담당자 없음':'')+'</option>';
+  }).join('');
+  openModal('<div class="mh">겸임 관코드 부여</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">아이디</span><span class="mv">'+docEsc(loginId)+'</span></div>'
+    +'<div class="mrow"><span class="mk">이름</span><span class="mv">'+docEsc(a.name||'-')+'</span></div>'
+    +'<div class="mrow"><span class="mk">본래 관</span><span class="mv">'+docEsc(own.join(', ')||'-')+'</span></div>'
+    +'<div class="lbl" style="margin-top:12px">부여할 관코드</div>'
+    +'<select id="gr_code" style="width:100%">'+opts+'</select>'
+    +'<div class="lbl" style="margin-top:10px">메모 (선택)</div>'
+    +'<input type="text" id="gr_memo" placeholder="예) 수지 겸임" style="width:100%">'
+    +'<div class="hint" id="gr_msg" style="margin-top:9px;line-height:1.55">부여하면 해당 관의 <b>명절선물 명단을 조회·입력·수정</b>할 수 있습니다. <b>★ 담당자 없음</b> 표시는 아직 계정이 가입되지 않은 관입니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="gr_ok" onclick="grantAddGo(\''+id2js(loginId)+'\')">부여</button></div>');
+}
+function id2js(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function grantAddGo(loginId){
+  var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===loginId;})[0];
+  var sel=document.getElementById('gr_code'), memo=document.getElementById('gr_memo');
+  var ok=document.getElementById('gr_ok'), msg=document.getElementById('gr_msg');
+  if(!a||!sel||!sel.value){if(msg)msg.innerHTML='<b style="color:var(--dng)">부여할 관코드를 선택하세요.</b>';return;}
+  ok.disabled=true;ok.textContent='처리 중...';
+  sb.from('fac_gift_campus_grants').insert({user_id:a.auth_uid,campus_code:sel.value,memo:(memo&&memo.value||'').trim()||null}).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='부여';msg.innerHTML='<b style="color:var(--dng)">부여 실패: '+docEsc(res.error.message)+'</b>';return;}
+    GRANTS_CACHE.push({user_id:a.auth_uid,campus_code:sel.value,memo:null});
+    closeModal();renderAccounts(ACCOUNTS_CACHE);
+  });
+}
+function grantDel(uid,code){
+  if(!(CURRENT_USER&&CURRENT_USER.role==='admin')){alert('총무기획팀 계정만 해제할 수 있습니다.');return;}
+  if(!confirm(code+' 관 겸임 권한을 해제할까요?\n해당 관의 명절선물 명단에 접근할 수 없게 됩니다.'))return;
+  sb.from('fac_gift_campus_grants').delete().eq('user_id',uid).eq('campus_code',code).then(function(res){
+    if(res.error){submitDone('해제 실패: '+res.error.message);return;}
+    GRANTS_CACHE=GRANTS_CACHE.filter(function(g){return !(g.user_id===uid&&g.campus_code===code);});
+    renderAccounts(ACCOUNTS_CACHE);
+  });
 }
 function saveEmail(loginId){
   var inp=document.querySelector('[data-em-id="'+loginId+'"]');if(!inp)return;
@@ -2293,6 +2412,1080 @@ function doDelete(){
   });
 }
 
+/* ===================== 명절선물 명단 취합 ===================== */
+var GIFT={ev:null,evs:[],opts:[],rows:[],teams:[],meta:null,q:'',flt:'',busy:false,loaded:false};
+
+function giftMyCampus(){ return (GIFT.meta&&GIFT.meta.campus)||''; }
+function giftIsHQ(){ return !!(GIFT.meta&&GIFT.meta.team_required); }
+function giftMyTeam(){ return (GIFT.meta&&GIFT.meta.hq_team)||''; }
+function giftLocked(){
+  if(!GIFT.ev)return true;
+  if(CURRENT_USER&&CURRENT_USER.role==='admin')return false;
+  if(GIFT.ev.status!=='open')return true;
+  return new Date(GIFT.ev.deadline).getTime() < Date.now();
+}
+function giftDday(){
+  if(!GIFT.ev)return '';
+  var d=Math.ceil((new Date(GIFT.ev.deadline).getTime()-Date.now())/86400000);
+  return d>0?('D-'+d):(d===0?'오늘 마감':'마감됨');
+}
+function giftPhoneFmt(v){
+  var n=String(v||'').replace(/\D/g,'').slice(0,11);
+  if(n.length<4)return n;
+  if(n.length<8)return n.slice(0,3)+'-'+n.slice(3);
+  return n.slice(0,3)+'-'+n.slice(3,n.length-4)+'-'+n.slice(n.length-4);
+}
+function giftOptName(c){
+  var o=GIFT.opts.filter(function(x){return x.code===c;})[0];
+  return o?(o.code+' · '+o.name):(c||'');
+}
+function giftRowIncomplete(r){
+  if(r.dup_of)return !r.building_name||!r.floor_no||!r.person_name||!r.address||!/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/.test(r.phone||'');
+  return !r.building_name||!r.floor_no||!r.person_name||!r.address||!r.option_code
+      || !/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/.test(r.phone||'');
+}
+
+function giftHTML(){
+  return '<div class="secttl">명절선물 명단</div>'
+    +'<div id="gift_head"></div>'
+    +'<div id="gift_body"><div class="hint" style="padding:30px;text-align:center">불러오는 중...</div></div>';
+}
+
+function bindGift(){
+  if(!SB_READY){document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:14px">서버 연결 없음</div>';return;}
+  GIFT.loaded=false;
+  Promise.all([
+    sb.from('fac_gift_events').select('*').order('year',{ascending:false}).order('season',{ascending:false}),
+    sb.rpc('fac_my_campuses'),
+    sb.rpc('fac_my_hq_team')
+  ]).then(function(r){
+    GIFT.evs=((r[0]&&r[0].data)||[]);
+    var mine=((r[1]&&r[1].data)||[]);
+    var team=(r[2]&&r[2].data)||'';
+    if(!giftIsAdmin())GIFT.evs=GIFT.evs.filter(function(e){return e.status!=='draft';});
+    var open=GIFT.evs.filter(function(e){return e.status==='open';})[0]
+           ||GIFT.evs.filter(function(e){return e.status==='closed';})[0]
+           ||GIFT.evs[0]||null;
+    GIFT.ev=open;
+    GIFT.meta={campus:mine[0]||'',all:mine,hq_team:team,team_required:false};
+    if(!giftIsAdmin()&&(!GIFT.ev||GIFT.ev.status==='draft')){giftNotReady();return;}
+    if(!GIFT.meta.campus){
+      if(CURRENT_USER&&CURRENT_USER.role==='admin'){GIFT.mode='admin';GIFT.meta.noCampus=true;gadmLoad();return;}
+      giftNoCampus();return;}
+    return sb.from('fac_org_view').select('*').eq('campus_code',GIFT.meta.campus).limit(1).then(function(o){
+      var u=((o.data)||[])[0]||{};
+      GIFT.meta.team_required=!!u.team_required;
+      GIFT.meta.region=u.region;GIFT.meta.label=u.campus_label;GIFT.meta.division=u.division;
+      if(giftIsHQ()&&!team){
+        if(CURRENT_USER&&CURRENT_USER.role==='admin'){GIFT.mode='admin';GIFT.meta.noTeam=true;gadmLoad();return;}
+        giftNoTeam();return;}
+      return giftLoadRows();
+    });
+  }).catch(function(e){
+    document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:14px;color:var(--dng)">불러오기 오류: '+docEsc(String(e&&e.message||e))+'</div>';
+  });
+}
+function giftNotReady(){
+  var h=document.getElementById('gift_head'), b=document.getElementById('gift_body');
+  if(h)h.innerHTML='';
+  if(!b)return;
+  var ev=GIFT.ev;
+  b.innerHTML='<div style="border:1px solid var(--line);border-radius:14px;padding:38px 24px;text-align:center">'
+    +'<div style="font-size:32px;margin-bottom:10px">🎁</div>'
+    +'<div style="font-size:16px;font-weight:600;margin-bottom:7px">명절선물 명단 접수 준비 중입니다</div>'
+    +'<div class="hint" style="line-height:1.75;font-size:12.5px">'
+    +(ev?('<b>'+docEsc(ev.title)+'</b><br>'):'')
+    +'상품 구성이 확정되면 접수를 시작합니다.<br>접수가 열리면 별도로 안내드립니다.</div>'
+    +'</div>';
+}
+function giftNoCampus(){
+  document.getElementById('gift_head').innerHTML='';
+  document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:18px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:10px;color:var(--warn)">'
+    +'<b>담당 관이 지정되지 않았습니다.</b><br>계정에 관코드가 없어 명단을 입력할 수 없습니다. 총무기획팀에 문의해 주세요.</div>';
+}
+function giftNoTeam(){
+  document.getElementById('gift_head').innerHTML='';
+  document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:18px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:10px;color:var(--warn)">'
+    +'<b>소속팀이 지정되지 않았습니다.</b><br>본사 계정은 소속팀이 지정되어야 명단을 입력할 수 있습니다. 총무기획팀에 문의해 주세요.</div>';
+}
+
+function giftLoadRows(){
+  if(!GIFT.ev){document.getElementById('gift_body').innerHTML='<div class="hint" style="padding:18px">진행 중인 회차가 없습니다.</div>';return;}
+  var q=sb.from('fac_gift_entries').select('*').eq('event_id',GIFT.ev.id).eq('campus_code',giftMyCampus());
+  if(giftIsHQ())q=q.eq('team_name',giftMyTeam());
+  return Promise.all([
+    q.order('created_at',{ascending:true}),
+    sb.from('fac_gift_options').select('*').eq('event_id',GIFT.ev.id).order('sort_no',{ascending:true}),
+    sb.from('fac_campus_buildings').select('building').eq('gwan_code',giftMyCampus()),
+    sb.from('fac_campus_floors').select('building,floor').eq('gwan_code',giftMyCampus())
+  ]).then(function(r){
+    GIFT.rows=((r[0]&&r[0].data)||[]);
+    GIFT.optsAll=((r[1]&&r[1].data)||[]);
+    GIFT.opts=GIFT.optsAll.filter(function(o){return !o.sold_out;});
+    GIFT.blds=((r[2]&&r[2].data)||[]).map(function(x){return x.building;});
+    GIFT.flrs=((r[3]&&r[3].data)||[]);
+    GIFT.loaded=true;
+    giftRender();
+  });
+}
+
+function giftRender(){
+  if(giftIsAdmin()&&GIFT.mode==='admin'){gadmLoad();return;}
+  giftRenderHead();
+  var box=document.getElementById('gift_body');if(!box)return;
+  if(!GIFT.rows.length){
+    box.innerHTML=giftModeBar()+giftOptCards()+giftToolbar()
+      +'<div class="hint" style="padding:26px;border:1px dashed var(--line);border-radius:10px;text-align:center;margin-top:10px">'
+      +'아직 등록된 명단이 없습니다.<br><span style="font-size:12px">아래 <b>행 추가</b> 또는 <b>엑셀 업로드</b>로 시작하세요.</span></div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
+      +'<button class="flt" onclick="giftAddRow()"'+(giftLocked()?' disabled':'')+'>+ 행 추가</button></div>';
+    giftBind();return;
+  }
+  var rows=giftFiltered();
+  var dup=GIFT.rows.filter(function(r){return r.dup_of;}).length;
+  var inc=GIFT.rows.filter(giftRowIncomplete).length;
+  var sub=GIFT.rows.filter(function(r){return r.submit_status==='submitted';}).length;
+  var stat='<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0">'
+    +giftStat('전체',GIFT.rows.length,'')
+    +giftStat('제출완료',sub,'ok')
+    +giftStat('중복',dup,dup?'warn':'')
+    +giftStat('미완성',inc,inc?'dng':'')
+    +'</div>';
+  var fname=GIFT.flt==='dup'?'중복만':(GIFT.flt==='inc'?'미완성만':'');
+  var fq=(GIFT.q||'').trim();
+  var tags=[];
+  if(fname)tags.push('<b>'+fname+'</b>');
+  if(fq)tags.push('검색 <b>'+docEsc(fq)+'</b>');
+  var note=(rows.length!==GIFT.rows.length||tags.length)
+    ?'<div class="hint" style="margin-bottom:8px">'+(tags.length?(tags.join(' · ')+' · '):'')
+      +GIFT.rows.length+'명 중 <b>'+rows.length+'명</b> 표시 중'
+      +' <button class="flt" style="padding:2px 8px;font-size:11px" onclick="giftClearFilter()">전체 보기</button></div>':'';
+  var empty=(!rows.length)?giftEmptyResult():'';
+  box.innerHTML=giftModeBar()+giftOptCards()+giftToolbar()+stat+note+(empty||('<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'
+    +giftHead()+rows.map(giftRowHTML).join('')+'</div>'))
+    +'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
+    +'<button class="flt" onclick="giftAddRow()"'+(giftLocked()?' disabled':'')+'>+ 행 추가</button>'
+    +'<div style="flex:1"></div>'
+    +'<button class="mbtn yes" onclick="giftSubmitAll()"'+(giftLocked()?' disabled':'')+' style="padding:9px 20px">명단 제출</button></div>';
+  giftBind();
+}
+function giftStat(t,n,tone){
+  var c=tone==='ok'?'var(--ok,#0a7)':tone==='warn'?'var(--warn)':tone==='dng'?'var(--dng)':'var(--ink,#111)';
+  return '<div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">'
+    +'<div style="font-size:11px;color:var(--mute)">'+t+'</div>'
+    +'<div style="font-size:19px;font-weight:600;color:'+c+'">'+n+'</div></div>';
+}
+function giftRenderHead(){
+  var h=document.getElementById('gift_head');if(!h)return;
+  if(!GIFT.ev){h.innerHTML='';return;}
+  var lock=giftLocked();
+  var sel=GIFT.evs.length>1?('<select id="gift_ev" style="padding:6px 9px;font-size:12px;border:1px solid var(--line);border-radius:8px">'
+    +GIFT.evs.map(function(e){return '<option value="'+e.id+'"'+(e.id===GIFT.ev.id?' selected':'')+'>'+docEsc(e.title)+'</option>';}).join('')+'</select>'):('<b>'+docEsc(GIFT.ev.title)+'</b>');
+  h.innerHTML='<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+sel
+    +'<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:'+(lock?'var(--warnbg)':'var(--okbg,#eaf7f0)')+';color:'+(lock?'var(--warn)':'var(--ok,#0a7)')+'">'+(lock?'마감':'접수중')+'</span>'
+    +'<span style="font-size:12px;color:var(--mute)">마감 '+String(GIFT.ev.deadline).slice(0,10)+' · '+giftDday()+'</span></div>'
+    +'<div style="font-size:12.5px;color:var(--mute);margin-top:6px">'
+    +docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():(GIFT.meta.label||''))
+    +(GIFT.ev.notice?(' · '+docEsc(GIFT.ev.notice)):'')+'</div>'
+    +(lock?'<div class="hint" style="margin-top:8px;color:var(--warn)">마감되어 수정할 수 없습니다.</div>':'')
+    +'</div>';
+}
+function giftToolbar(){
+  var lock=giftLocked();
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    +'<input id="gift_q" value="'+docEsc(GIFT.q)+'" placeholder="이름 또는 연락처 뒷자리 검색" style="flex:1;min-width:200px;padding:7px 11px;font-size:12.5px;border:1px solid var(--line);border-radius:9px">'
+    +'<button class="flt'+(GIFT.flt==='dup'?' on':'')+'" onclick="giftSetFilter(\'dup\')" style="padding:6px 11px;font-size:12px">중복만</button>'
+    +'<button class="flt'+(GIFT.flt==='inc'?' on':'')+'" onclick="giftSetFilter(\'inc\')" style="padding:6px 11px;font-size:12px">미완성만</button>'
+    +'<button class="flt" onclick="giftUploadOpen()" style="padding:6px 11px;font-size:12px"'+(lock?' disabled':'')+'>엑셀 업로드</button>'
+    +'</div>';
+}
+function giftHead(){
+  return '<div style="display:grid;grid-template-columns:0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
+    +'<div>건물명</div><div>층수</div><div>성함</div><div>직책</div><div>배송주소</div><div>연락처</div><div>옵션</div><div>수령</div><div></div></div>';
+}
+function giftRowHTML(r){
+  var lock=giftLocked(), i=r.id;
+  var dup=!!r.dup_of, bad=giftRowIncomplete(r);
+  var bg=dup?'var(--warnbg)':(bad?'#fff7f7':'#fff');
+  var d=function(f,v,ph,w){
+    return '<input data-g="'+f+'" data-id="'+i+'" value="'+docEsc(v||'')+'" placeholder="'+ph+'"'+(lock?' disabled':'')
+      +' style="width:100%;padding:5px 7px;font-size:12px;border:1px solid var(--line);border-radius:7px;background:transparent">';
+  };
+  var bldOpts='<option value="">선택</option>'+(GIFT.blds||[]).map(function(b){
+    return '<option value="'+docEsc(b)+'"'+(b===r.building_name?' selected':'')+'>'+docEsc(b)+'</option>';}).join('');
+  var flOpts='<option value="">선택</option>'+(GIFT.flrs||[]).filter(function(f){return f.building===r.building_name;}).map(function(f){
+    return '<option value="'+docEsc(f.floor)+'"'+(f.floor===r.floor_no?' selected':'')+'>'+docEsc(f.floor)+'</option>';}).join('');
+  var optSel=dup
+    ? '<div style="font-size:11px;color:var(--mute);padding:5px 2px">중복 · 수량 0</div>'
+    : '<select data-g="option_code" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px"><option value="">선택</option>'
+      +GIFT.opts.map(function(o){return '<option value="'+docEsc(o.code)+'"'+(o.code===r.option_code?' selected':'')+'>'+docEsc(o.code+' · '+o.name)+'</option>';}).join('')+'</select>';
+  var pick='<select data-g="pickup_type" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'
+    +'<option value="home"'+(r.pickup_type==='home'?' selected':'')+'>자택</option>'
+    +'<option value="campus"'+(r.pickup_type==='campus'?' selected':'')+'>학원</option></select>';
+  var badge=dup?'<span style="font-size:10px;padding:1px 5px;border-radius:5px;background:var(--warn);color:#fff;margin-left:4px">중복</span>':'';
+  var act=dup?'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="giftDupOpen(\''+i+'\')">상세</button>'
+             :'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="giftDelRow(\''+i+'\')"'+(lock?' disabled':'')+'>삭제</button>';
+  return '<div data-grow="'+i+'" style="display:grid;grid-template-columns:0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center;background:'+bg+'">'
+    +'<div><select data-g="building_name" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'+bldOpts+'</select></div>'
+    +'<div><select data-g="floor_no" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'+flOpts+'</select></div>'
+    +'<div style="display:flex;align-items:center">'+d('person_name',r.person_name,'성함')+badge+'</div>'
+    +'<div>'+d('job_title',r.job_title,'직책')+'</div>'
+    +'<div>'+d('address',r.address,'배송주소')+'</div>'
+    +'<div>'+d('phone',r.phone,'010-0000-0000')+'</div>'
+    +'<div>'+optSel+'</div>'
+    +'<div>'+pick+'</div>'
+    +'<div>'+act+'</div></div>';
+}
+function giftEmptyResult(){
+  var q=(GIFT.q||'').trim();
+  if(!q){
+    var fn=GIFT.flt==='dup'?'중복으로 판정된 행':(GIFT.flt==='inc'?'미완성 행':'해당하는 행');
+    return '<div class="hint" style="padding:22px;border:1px dashed var(--line);border-radius:10px;text-align:center;line-height:1.7">'
+      +fn+'이 없습니다.'+(GIFT.flt?'<br><button class="flt" style="margin-top:8px;padding:4px 12px;font-size:11.5px" onclick="giftClearFilter()">필터 해제</button>':'')+'</div>';
+  }
+  var isName=!/\d/.test(q);
+  return '<div class="hint" style="padding:22px;border:1px dashed var(--line);border-radius:10px;text-align:center;line-height:1.7">'
+    +'<b>'+docEsc(q)+'</b> 검색 결과가 없습니다.<br>'
+    +(isName&&!giftLocked()?'<button class="flt" style="margin-top:8px" onclick="giftAddRow(\''+docEsc(q).replace(/'/g,"")+'\')">이 이름으로 행 추가</button>':'')
+    +'</div>';
+}
+function giftFiltered(){
+  var q=(GIFT.q||'').trim();
+  var nk=q.replace(/\s/g,'').toLowerCase(), pk=q.replace(/\D/g,'');
+  return GIFT.rows.filter(function(r){
+    if(GIFT.flt==='dup'&&!r.dup_of)return false;
+    if(GIFT.flt==='inc'&&!giftRowIncomplete(r))return false;
+    if(!q)return true;
+    if(pk&&String(r.phone||'').replace(/\D/g,'').indexOf(pk)>=0)return true;
+    if(nk&&String(r.person_name||'').replace(/\s/g,'').toLowerCase().indexOf(nk)>=0)return true;
+    return false;
+  });
+}
+function giftSetFilter(f){GIFT.flt=(GIFT.flt===f)?'':f;giftRender();}
+function giftClearFilter(){GIFT.q='';GIFT.flt='';giftRender();}
+
+function giftBind(){
+  var q=document.getElementById('gift_q');
+  if(q){
+    q.addEventListener('input',function(){
+      clearTimeout(GIFT._t);GIFT._t=setTimeout(function(){GIFT.q=q.value;giftRender();
+        var n=document.getElementById('gift_q');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},260);
+    });
+  }
+  var ev=document.getElementById('gift_ev');
+  if(ev)ev.addEventListener('change',function(){
+    GIFT.ev=GIFT.evs.filter(function(e){return e.id===ev.value;})[0];GIFT.q='';GIFT.flt='';giftLoadRows();});
+  document.querySelectorAll('[data-g]').forEach(function(el){
+    var ev2=(el.tagName==='SELECT')?'change':'blur';
+    el.addEventListener(ev2,function(){giftSave(el.dataset.id,el.dataset.g,el.value,el);});
+    if(el.dataset.g==='phone')el.addEventListener('input',function(){el.value=giftPhoneFmt(el.value);});
+  });
+}
+function giftSave(id,field,val,el){
+  var r=GIFT.rows.filter(function(x){return x.id===id;})[0];if(!r)return;
+  if(field==='phone')val=giftPhoneFmt(val);
+  if(String(r[field]||'')===String(val||''))return;
+  var patch={};patch[field]=val||null;
+  if(field==='building_name')patch.floor_no=null;
+  if(el){el.style.borderColor='var(--blue)';}
+  sb.from('fac_gift_entries').update(patch).eq('id',id).select().then(function(res){
+    if(res.error){if(el){el.style.borderColor='var(--dng)';}submitDone('저장 오류: '+res.error.message);return;}
+    var nr=(res.data||[])[0];
+    if(nr){var idx=GIFT.rows.map(function(x){return x.id;}).indexOf(id);if(idx>=0)GIFT.rows[idx]=nr;}
+    var wasDup=r.dup_of, isDup=nr&&nr.dup_of;
+    if(el&&!(field==='building_name')){el.style.borderColor='var(--okln)';}
+    if((!wasDup&&isDup)||(wasDup&&!isDup)||field==='building_name'){giftRender();if(isDup&&!wasDup)giftDupOpen(id);}
+  });
+}
+function giftAddRow(name){
+  if(giftLocked())return;
+  var body={event_id:GIFT.ev.id,campus_code:giftMyCampus(),person_name:name||'',
+    pickup_type:'home',qty:1,submit_status:'draft',
+    created_by_label:staffLabel?staffLabel():((CURRENT_USER&&CURRENT_USER.name)||'')};
+  if(giftIsHQ())body.team_name=giftMyTeam();
+  if(GIFT.blds&&GIFT.blds.length===1){body.building_name=GIFT.blds[0];
+    var f=(GIFT.flrs||[]).filter(function(x){return x.building===GIFT.blds[0];});
+    if(f.length===1)body.floor_no=f[0].floor;}
+  sb.from('fac_gift_entries').insert(body).select().then(function(res){
+    if(res.error){submitDone('추가 오류: '+res.error.message);return;}
+    GIFT.rows.push((res.data||[])[0]);GIFT.q='';GIFT.flt='';giftRender();
+    var els=document.querySelectorAll('[data-g="person_name"]');if(els.length)els[els.length-1].focus();
+  });
+}
+function giftDelRow(id){
+  var r=GIFT.rows.filter(function(x){return x.id===id;})[0];if(!r)return;
+  if(!confirm((r.person_name||'이 행')+' 을(를) 삭제할까요?'))return;
+  sb.from('fac_gift_entries').delete().eq('id',id).then(function(res){
+    if(res.error){submitDone('삭제 오류: '+res.error.message);return;}
+    giftLoadRows();
+  });
+}
+function giftPrefill(){
+  if(giftLocked())return;
+  if(GIFT.rows.length){submitDone('이미 명단이 있습니다. 불러오기는 명단이 비어 있을 때만 가능합니다.');return;}
+  sb.rpc('fac_gift_prefill',{p_event:GIFT.ev.id,p_campus:giftMyCampus(),p_team:giftIsHQ()?giftMyTeam():null}).then(function(res){
+    if(res.error){submitDone('불러오기 오류: '+res.error.message);return;}
+    if(!res.data){submitDone('불러올 지난 회차 명단이 없습니다.');return;}
+    submitDone('<b>'+res.data+'명</b>을 불러왔습니다.<br><span class="hint">옵션은 새로 선택해 주세요.</span>');
+    giftLoadRows();
+  });
+}
+function giftDupOpen(id){
+  sb.rpc('fac_gift_dup_detail',{p_entry_id:id}).then(function(res){
+    if(res.error){submitDone('조회 오류: '+res.error.message);return;}
+    var d=res.data;
+    if(!d||!d.found){submitDone('원본 정보를 찾을 수 없습니다.');return;}
+    var pick=d.pickup_type==='campus'?'학원 수령':'자택 수령';
+    openModal('<div class="mh">중복 등록 확인</div><div class="mb">'
+      +'<div style="font-size:16px;font-weight:600;margin-bottom:10px">'+docEsc(d.person_name)+'</div>'
+      +'<div class="mrow"><span class="mk">최초 등록</span><span class="mv">'+docEsc(d.campus_code)+' · '+docEsc(d.team_name||'')+'</span></div>'
+      +'<div class="mrow"><span class="mk">등록자</span><span class="mv">'+docEsc(d.registered_by)+' ('+docEsc(d.registered_at)+')</span></div>'
+      +'<div class="mrow"><span class="mk">근무 건물</span><span class="mv">'+docEsc((d.building_name||'')+' '+(d.floor_no||''))+'</span></div>'
+      +'<div class="mrow"><span class="mk">수령방법</span><span class="mv">'+pick+'</span></div>'
+      +'<div class="mrow"><span class="mk">배송지</span><span class="mv">'+docEsc(d.address||'-')+'</span></div>'
+      +'<div class="mrow"><span class="mk">선택 옵션</span><span class="mv">'+docEsc((d.option_code||'')+(d.option_name?(' · '+d.option_name):''))+'</span></div>'
+      +(d.dup_count>1?'<div class="hint" style="margin-top:8px;color:var(--warn)">이미 '+d.dup_count+'개 관에서 중복 등록되었습니다.</div>':'')
+      +'<div class="hint" style="margin-top:10px;line-height:1.6">1인 1개 원칙에 따라 이 행은 <b>수량 0</b>으로 처리되어 발주에서 제외됩니다. 우리 명단에는 그대로 남습니다.</div>'
+      +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">확인</button>'
+      +(giftLocked()?'':'<button class="mbtn yes" onclick="giftAddrOpen(\''+id+'\')">배송지 변경</button>')+'</div>');
+  });
+}
+function giftAddrOpen(id){
+  openModal('<div class="mh">배송지 변경 요청</div><div class="mb">'
+    +'<div class="hint" style="line-height:1.6;margin-bottom:10px">변경하면 <b>최초 등록 관과 총무기획팀에 알림</b>이 가고 변경 이력이 기록됩니다.</div>'
+    +'<div class="lbl">수령방법</div>'
+    +'<select id="ga_pick" style="width:100%"><option value="home">자택 수령</option><option value="campus">학원 수령</option></select>'
+    +'<div class="lbl" style="margin-top:10px">변경할 배송주소</div>'
+    +'<input type="text" id="ga_addr" placeholder="도로명 주소 + 상세주소" style="width:100%">'
+    +'<div class="lbl" style="margin-top:10px">변경 사유 (필수)</div>'
+    +'<input type="text" id="ga_reason" placeholder="예) 수지관에서 수령 예정" style="width:100%">'
+    +'<div class="hint" id="ga_msg" style="margin-top:9px"></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button>'
+    +'<button class="mbtn yes" id="ga_ok" onclick="giftAddrGo(\''+id+'\')">변경</button></div>');
+}
+function giftAddrGo(id){
+  var a=document.getElementById('ga_addr'),p=document.getElementById('ga_pick'),
+      rs=document.getElementById('ga_reason'),ok=document.getElementById('ga_ok'),msg=document.getElementById('ga_msg');
+  if(!a.value.trim()){msg.innerHTML='<b style="color:var(--dng)">배송주소를 입력하세요.</b>';return;}
+  if((rs.value||'').trim().length<5){msg.innerHTML='<b style="color:var(--dng)">변경 사유를 5자 이상 입력하세요.</b>';return;}
+  ok.disabled=true;ok.textContent='처리 중...';
+  sb.rpc('fac_gift_change_address',{p_entry_id:id,p_address:a.value.trim(),p_pickup:p.value,p_reason:rs.value.trim()}).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='변경';msg.innerHTML='<b style="color:var(--dng)">'+docEsc(res.error.message)+'</b>';return;}
+    var d=res.data||{};
+    closeModal();
+    giftAddrNotify(d);
+    submitDone('<b>'+docEsc(d.person_name||'')+'</b> 배송지가 변경되었습니다.<br><span class="hint">'+docEsc(d.owner_campus||'')+' 관과 총무기획팀에 알림이 발송되었습니다.</span>');
+  });
+}
+function giftAddrNotify(d){
+  try{
+    n8nNotify({type:'gift_addr_changed',summary:{
+      person:d.person_name||'-',owner_campus:d.owner_campus||'-',owner_team:d.owner_team||'-',
+      changer_campus:d.changer_campus||'-',old_address:d.old_address||'-',new_address:d.new_address||'-',
+      pickup:(d.new_pickup==='campus'?'학원 수령':'자택 수령'),reason:d.reason||'-',
+      event:(GIFT.ev&&GIFT.ev.title)||'-'}});
+  }catch(e){}
+}
+function giftSubmitAll(){
+  if(giftLocked())return;
+  var bad=GIFT.rows.filter(giftRowIncomplete);
+  if(bad.length){
+    GIFT.flt='inc';giftRender();
+    submitDone('<b>'+bad.length+'명</b>의 필수 항목이 비어 있습니다.<br><span class="hint">미완성 행만 표시했습니다. 채운 뒤 다시 제출해 주세요.</span>');
+    return;
+  }
+  if(!GIFT.rows.length){submitDone('제출할 명단이 없습니다.');return;}
+  var qty=GIFT.rows.filter(function(r){return !r.dup_of;}).length;
+  var dup=GIFT.rows.length-qty;
+  openModal('<div class="mh">명단 제출</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">회차</span><span class="mv">'+docEsc(GIFT.ev.title)+'</span></div>'
+    +'<div class="mrow"><span class="mk">소속</span><span class="mv">'+docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():(GIFT.meta.label||''))+'</span></div>'
+    +'<div class="mrow"><span class="mk">명단</span><span class="mv">'+GIFT.rows.length+'명</span></div>'
+    +'<div class="mrow"><span class="mk">발주 수량</span><span class="mv"><b>'+qty+'개</b>'+(dup?(' <span style="color:var(--warn)">(중복 '+dup+'명 제외)</span>'):'')+'</span></div>'
+    +'<div class="hint" style="margin-top:10px">제출 후에도 마감 전까지는 수정할 수 있습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button>'
+    +'<button class="mbtn yes" id="gs_ok" onclick="giftSubmitGo()">제출</button></div>');
+}
+function giftSubmitGo(){
+  var ok=document.getElementById('gs_ok');if(!ok||GIFT.busy)return;
+  GIFT.busy=true;ok.disabled=true;ok.textContent='제출 중...';
+  var ids=GIFT.rows.map(function(r){return r.id;});
+  sb.from('fac_gift_entries').update({submit_status:'submitted'}).in('id',ids).then(function(res){
+    GIFT.busy=false;
+    if(res.error){ok.disabled=false;ok.textContent='제출';submitDone('제출 오류: '+res.error.message);return;}
+    closeModal();
+    var qty=GIFT.rows.filter(function(r){return !r.dup_of;}).length;
+    giftSubmitNotify(qty);
+    submitDone('<b>제출 완료</b><br>'+docEsc(giftMyCampus())+' · '+GIFT.rows.length+'명 (발주 '+qty+'개)<br><span class="hint">마감 전까지 수정할 수 있습니다.</span>');
+    giftLoadRows();
+  });
+}
+function giftSubmitNotify(qty){
+  try{
+    n8nNotify({type:'gift_submitted',summary:{
+      event:(GIFT.ev&&GIFT.ev.title)||'-',campus:giftMyCampus()||'-',
+      team:(giftIsHQ()?giftMyTeam():(GIFT.meta&&GIFT.meta.label))||'-',
+      total:String(GIFT.rows.length),qty:String(qty),
+      by:(CURRENT_USER&&(CURRENT_USER.name||CURRENT_USER.login_id))||'-'}});
+  }catch(e){}
+}
+
+/* ===== 명절선물 · 관리자 화면 ===== */
+var GADM={tab:'status',data:null,busy:false};
+function giftIsAdmin(){return !!(CURRENT_USER&&CURRENT_USER.role==='admin');}
+
+function giftModeBar(){
+  if(!giftIsAdmin())return '';
+  var m=GIFT.mode||'mine';
+  return '<div style="display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:10px">'
+    +['mine','내 명단','admin','전체 현황'].reduce(function(a,_,i,arr){
+        if(i%2)return a;
+        var k=arr[i],t=arr[i+1],on=(m===k);
+        return a+'<button onclick="giftSetMode(\''+k+'\')" style="padding:7px 16px;font-size:12.5px;border:0;cursor:pointer;background:'
+          +(on?'var(--blue)':'transparent')+';color:'+(on?'#fff':'var(--mute)')+';font-weight:'+(on?'600':'400')+'">'+t+'</button>';
+      },'')
+    +'</div>';
+}
+function giftSetMode(m){GIFT.mode=m;if(m==='admin')gadmLoad();else giftLoadRows();}
+
+function gadmLoad(){
+  var box=document.getElementById('gift_body');
+  if(!box)return;
+  box.innerHTML=giftModeBar()+'<div class="hint" style="padding:30px;text-align:center">전체 현황 불러오는 중...</div>';
+  var eid=GIFT.ev&&GIFT.ev.id;
+  if(!eid){box.innerHTML=giftModeBar()+'<div class="hint" style="padding:18px">회차가 없습니다.</div>';return;}
+  Promise.all([
+    sb.from('v_fac_gift_campus_status').select('*').eq('event_id',eid),
+    sb.from('v_fac_gift_option_summary').select('*').eq('event_id',eid),
+    sb.from('v_fac_gift_duplicates').select('*').eq('event_id',eid),
+    sb.from('v_fac_gift_building_roster').select('*').eq('event_id',eid),
+    sb.from('fac_org_view').select('*').eq('is_active',true),
+    sb.from('fac_gift_address_logs').select('*').eq('event_id',eid).order('created_at',{ascending:false}).limit(60),
+    sb.from('fac_gift_options').select('*').eq('event_id',eid).order('sort_no',{ascending:true})
+  ]).then(function(r){
+    GADM.optAll=(r[6]&&r[6].data)||[];
+    GADM.data={
+      status:(r[0]&&r[0].data)||[], opts:(r[1]&&r[1].data)||[],
+      dups:(r[2]&&r[2].data)||[],   bld:(r[3]&&r[3].data)||[],
+      org:(r[4]&&r[4].data)||[],    logs:(r[5]&&r[5].data)||[]
+    };
+    gadmRender();
+  }).catch(function(e){
+    box.innerHTML=giftModeBar()+'<div class="hint" style="padding:18px;color:var(--dng)">오류: '+docEsc(String(e&&e.message||e))+'</div>';
+  });
+}
+function gadmRender(){
+  var box=document.getElementById('gift_body');if(!box||!GADM.data)return;
+  var d=GADM.data;
+  // 관/팀 단위 집계
+  var byKey={};
+  d.status.forEach(function(s){
+    var k=s.campus_code+'|'+(s.team_name||'');
+    byKey[k]={code:s.campus_code,team:s.team_name,region:s.region,division:s.division,brand:s.brand,
+      total:s.total,submitted:s.submitted,draft:s.draft,dup:s.dup_rows,qty:s.order_qty,at:s.last_submitted_at};
+  });
+  var units=Object.keys(byKey).map(function(k){return byKey[k];});
+  var doneUnits=units.filter(function(u){return u.submitted>0&&u.draft===0;});
+  var partUnits=units.filter(function(u){return u.draft>0;});
+  // 미착수 관 = 운영 관 중 명단 행이 하나도 없는 곳
+  var touched={};units.forEach(function(u){touched[u.code]=1;});
+  var notStarted=d.org.filter(function(o){return !touched[o.campus_code];});
+  var totQty=d.opts.reduce(function(a,o){return a+(o.total_qty||0);},0);
+  var totDup=d.dups.reduce(function(a,x){return a+(x.dup_count||0);},0);
+
+  var cards='<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px">'
+    +giftStat('제출 완료',doneUnits.length+'곳','ok')
+    +giftStat('작성 중',partUnits.length+'곳',partUnits.length?'warn':'')
+    +giftStat('미착수',notStarted.length+'곳',notStarted.length?'dng':'')
+    +giftStat('발주 수량',totQty+'개','')
+    +'</div>';
+
+  var tabs=[['status','제출 현황'],['option','옵션 집계'],['dup','중복 '+(totDup?('('+totDup+')'):'')],
+            ['bld','건물별'],['log','변경 이력'],['order','발주'],['optmg','옵션 관리']];
+  var tabbar='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">'
+    +tabs.map(function(t){var on=GADM.tab===t[0];
+      return '<button class="flt'+(on?' on':'')+'" onclick="gadmTab(\''+t[0]+'\')" style="padding:6px 13px;font-size:12px">'+t[1]+'</button>';}).join('')
+    +'</div>';
+
+  var body='';
+  if(GADM.tab==='status')      body=gadmStatus(units,notStarted);
+  else if(GADM.tab==='option') body=gadmOption(d.opts,totQty);
+  else if(GADM.tab==='dup')    body=gadmDup(d.dups);
+  else if(GADM.tab==='bld')    body=gadmBld(d.bld);
+  else if(GADM.tab==='log')    body=gadmLog(d.logs);
+  else if(GADM.tab==='order')  body=gadmOrder();
+  else if(GADM.tab==='optmg')  body=gadmOpt();
+
+  box.innerHTML=giftModeBar()+gadmEventBar()+cards+tabbar+body;
+  if(GADM.tab==='optmg')gadmOptBind();
+  box.querySelectorAll('[data-rs]').forEach(function(el){
+    el.addEventListener('click',function(){gadmRoster(el.dataset.rc,el.dataset.rt,el.dataset.rs);});
+  });
+}
+function gadmTab(t){GADM.tab=t;gadmRender();}
+function gadmEventBar(){
+  if(!GIFT.ev)return '';
+  var lock=giftLocked();
+  var sel='<select id="gadm_ev" onchange="gadmEvChange(this.value)" style="padding:6px 9px;font-size:12px;border:1px solid var(--line);border-radius:8px">'
+    +GIFT.evs.map(function(e){return '<option value="'+e.id+'"'+(e.id===GIFT.ev.id?' selected':'')+'>'+docEsc(e.title)+'</option>';}).join('')+'</select>';
+  var st=GIFT.ev.status;
+  var B=function(to,txt,hi){
+    return '<button class="'+(hi?'mbtn yes':'flt')+'" onclick="gadmEvStatus(\''+to+'\')" style="padding:6px '+(hi?'15':'12')+'px;font-size:12px">'+txt+'</button>';
+  };
+  var btn='';
+  if(st==='open')       btn=B('draft','준비중으로')+' '+B('closed','접수 마감');
+  else if(st==='draft') btn=B('closed','마감 처리')+' '+B('open','접수 시작',1);
+  else                  btn=B('draft','준비중으로')+' '+B('open','접수 재개');
+  return '<div style="border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+    +sel
+    +'<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:'+(st==='open'?'var(--okbg,#eaf7f0)':'var(--warnbg)')+';color:'+(st==='open'?'var(--ok,#0a7)':'var(--warn)')+'">'
+    +(st==='open'?'접수중':(st==='closed'?'마감':'준비중'))+'</span>'
+    +'<span style="font-size:12px;color:var(--mute)">마감 '+String(GIFT.ev.deadline).slice(0,10)+' · '+giftDday()+'</span>'
+    +(st==='draft'?'<span style="font-size:11.5px;color:var(--warn)">캠퍼스에는 준비중 안내만 표시됩니다</span>':'')
+    +'<div style="flex:1"></div>'
+    +'<button class="flt" onclick="gadmEvDeadline()" style="padding:6px 12px;font-size:12px">마감일 변경</button> '
+    +btn+'</div>';
+}
+function gadmEvChange(id){GIFT.ev=GIFT.evs.filter(function(e){return e.id===id;})[0];gadmLoad();}
+function gadmEvDeadline(){
+  var cur=String(GIFT.ev.deadline||'').slice(0,10);
+  openModal('<div class="mh">마감일 변경</div><div class="mb">'
+    +'<div class="mrow"><span class="mk">회차</span><span class="mv">'+docEsc(GIFT.ev.title)+'</span></div>'
+    +'<div class="lbl" style="margin-top:10px">제출 마감일</div>'
+    +'<input type="date" id="gd_date" value="'+cur+'" style="width:100%">'
+    +'<div class="hint" style="margin-top:9px">해당 일자 <b>23:59</b>까지 제출·수정할 수 있습니다.</div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button>'
+    +'<button class="mbtn yes" id="gd_ok" onclick="gadmEvDeadlineGo()">저장</button></div>');
+}
+function gadmEvDeadlineGo(){
+  var d=document.getElementById('gd_date');if(!d||!d.value)return;
+  var ok=document.getElementById('gd_ok');ok.disabled=true;ok.textContent='저장 중...';
+  sb.from('fac_gift_events').update({deadline:d.value+'T23:59:00+09:00'}).eq('id',GIFT.ev.id).then(function(res){
+    if(res.error){ok.disabled=false;ok.textContent='저장';submitDone('저장 오류: '+res.error.message);return;}
+    GIFT.ev.deadline=d.value+'T23:59:00+09:00';
+    var i=GIFT.evs.map(function(e){return e.id;}).indexOf(GIFT.ev.id);
+    if(i>=0)GIFT.evs[i].deadline=GIFT.ev.deadline;
+    closeModal();gadmLoad();
+  });
+}
+function gadmEvStatus(st){
+  var msg=st==='open'?'접수를 시작할까요?\n전 캠퍼스에서 명절선물 탭이 열리고 명단 입력이 가능해집니다.'
+    :(st==='draft'?'준비중으로 되돌릴까요?\n캠퍼스에는 준비중 안내만 표시됩니다.'
+    :'접수를 마감할까요?\n캠퍼스에서 더 이상 수정할 수 없습니다.');
+  if(!confirm(msg))return;
+  sb.from('fac_gift_events').update({status:st}).eq('id',GIFT.ev.id).then(function(res){
+    if(res.error){submitDone('변경 오류: '+res.error.message);return;}
+    GIFT.ev.status=st;
+    var i=GIFT.evs.map(function(e){return e.id;}).indexOf(GIFT.ev.id);if(i>=0)GIFT.evs[i].status=st;
+    gadmLoad();
+  });
+}
+function gadmStatus(units,notStarted){
+  var h='<div style="display:grid;grid-template-columns:0.55fr 1.2fr 0.85fr 0.5fr 0.5fr 0.5fr 0.5fr 0.75fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
+    +'<div>관코드</div><div>소속</div><div>사업부</div><div>인원</div><div>제출</div><div>작성중</div><div>발주</div><div>제출일</div></div>';
+  units.sort(function(a,b){
+    var x=(a.draft>0?0:(a.submitted>0?2:1)), y=(b.draft>0?0:(b.submitted>0?2:1));
+    if(x!==y)return x-y; return a.code<b.code?-1:1;});
+  var rows=units.map(function(u){
+    var done=u.draft===0&&u.submitted>0;
+    var lk=function(html,f,tone){
+      return '<div data-rs="'+f+'" data-rc="'+docEsc(u.code)+'" data-rt="'+docEsc(u.team||'')+'"'
+        +' style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px'
+        +(tone?(';color:'+tone):'')+'">'+html+'</div>';
+    };
+    return '<div style="display:grid;grid-template-columns:0.55fr 1.2fr 0.85fr 0.5fr 0.5fr 0.5fr 0.5fr 0.75fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center;background:'+(done?'#fff':'var(--warnbg)')+'">'
+      +'<div style="font-weight:600">'+docEsc(u.code)+'</div>'
+      +'<div>'+docEsc(u.team||'')+'</div>'
+      +'<div style="color:var(--mute)">'+docEsc(u.division||'')+'</div>'
+      +lk(u.total,'all')
+      +lk(u.submitted,'submitted','var(--ok,#0a7)')
+      +lk(u.draft,'draft',u.draft?'var(--warn)':'var(--mute)')
+      +(u.submitted?lk('<b>'+(u.qty||0)+'</b>','order'):'<div style="color:var(--mute)">—</div>')
+      +'<div style="color:var(--mute);font-size:11px">'+(u.at?String(u.at).slice(0,10):'<span style="color:var(--warn)">작성 중</span>')+'</div></div>';
+  }).join('');
+  var ns='';
+  if(notStarted.length){
+    ns='<div style="margin-top:12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--dng)">미착수 '+notStarted.length+'곳</div>'
+      +'<div style="border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.9">'
+      +notStarted.map(function(o){return '<span style="display:inline-block;margin-right:10px"><b>'+docEsc(o.campus_code)+'</b> <span style="color:var(--mute)">'+docEsc(o.campus_label||'')+'</span></span>';}).join('')
+      +'</div></div>';
+  }
+  return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+h+(rows||'<div class="hint" style="padding:20px;text-align:center">제출된 명단이 없습니다.</div>')+'</div>'+ns;
+}
+function gadmRoster(code,team,filter){
+  var eid=GIFT.ev&&GIFT.ev.id;if(!eid)return;
+  var q=sb.from('fac_gift_entries').select('*').eq('event_id',eid).eq('campus_code',code);
+  if(team)q=q.eq('team_name',team);
+  if(filter==='submitted')q=q.eq('submit_status','submitted');
+  else if(filter==='draft')q=q.eq('submit_status','draft');
+  else if(filter==='order')q=q.eq('submit_status','submitted').is('dup_of',null);
+  openModal('<div class="mh">명단 조회</div><div class="mb"><div class="hint" style="padding:16px;text-align:center">불러오는 중...</div></div>'
+    +'<div class="mf"><button class="mbtn no" onclick="closeModal()">닫기</button></div>');
+  q.order('person_name',{ascending:true}).then(function(res){
+    var box=document.querySelector('.mb');if(!box)return;
+    if(res.error){box.innerHTML='<div class="hint" style="color:var(--dng)">조회 오류: '+docEsc(res.error.message)+'</div>';return;}
+    var rows=res.data||[];
+    var ttl={all:'전체',submitted:'제출 완료',draft:'작성 중',order:'발주 대상'}[filter]||'전체';
+    var mh=document.querySelector('.mh');
+    if(mh)mh.textContent=code+(team?(' · '+team):'')+' — '+ttl+' '+rows.length+'명';
+    if(!rows.length){box.innerHTML='<div class="hint" style="padding:16px;text-align:center">해당하는 명단이 없습니다.</div>';return;}
+    var optName=function(c){
+      var o=(GADM.optAll||[]).filter(function(x){return x.code===c;})[0];
+      return o?(c+' · '+o.name):(c||'-');
+    };
+    box.innerHTML='<div style="max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px">'
+      +'<div style="display:grid;grid-template-columns:0.65fr 0.5fr 1fr 1.4fr 0.9fr 0.45fr;gap:7px;padding:7px 10px;font-size:11px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff">'
+      +'<div>성함</div><div>직책</div><div>옵션</div><div>배송지</div><div>연락처</div><div>수량</div></div>'
+      +rows.map(function(r){
+        var dup=!!r.dup_of;
+        return '<div style="display:grid;grid-template-columns:0.65fr 0.5fr 1fr 1.4fr 0.9fr 0.45fr;gap:7px;padding:6px 10px;font-size:11.5px;border-bottom:1px solid var(--line);align-items:center;background:'+(dup?'var(--warnbg)':'#fff')+'">'
+        +'<div style="font-weight:600">'+docEsc(r.person_name||'')
+        +(dup?' <span style="font-size:9.5px;padding:1px 4px;border-radius:4px;background:var(--warn);color:#fff">중복</span>':'')+'</div>'
+        +'<div style="color:var(--mute)">'+docEsc(r.job_title||'-')+'</div>'
+        +'<div>'+docEsc(optName(r.option_code))+'</div>'
+        +'<div style="color:var(--mute)">'+docEsc(r.address||'-')+'<br><span style="font-size:10px">'+(r.pickup_type==='campus'?'학원 수령':'자택 수령')+'</span></div>'
+        +'<div style="color:var(--mute)">'+docEsc(r.phone||'-')+'</div>'
+        +'<div>'+(r.qty||0)+'</div></div>';
+      }).join('')+'</div>'
+      +'<div class="hint" style="margin-top:8px">중복 인원은 수량 0으로 발주에서 제외됩니다.</div>';
+  });
+}
+function gadmOption(opts,tot){
+  if(!opts.length)return '<div class="hint" style="padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center">제출된 명단이 없습니다.</div>';
+  var max=Math.max.apply(null,opts.map(function(o){return o.total_qty||0;}));
+  return '<div style="border:1px solid var(--line);border-radius:12px;padding:14px">'
+    +opts.map(function(o){
+      var pct=max?Math.round((o.total_qty/max)*100):0;
+      return '<div style="margin-bottom:12px">'
+        +'<div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px">'
+        +'<span><b>'+docEsc(o.code)+'</b> '+docEsc(o.product_name||'')+'</span>'
+        +'<span><b style="font-size:15px">'+o.total_qty+'</b>개 <span style="color:var(--mute);font-size:11px">('+o.persons+'명)</span></span></div>'
+        +'<div style="height:7px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--blue)"></div></div></div>';
+    }).join('')
+    +'<div style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;display:flex;justify-content:space-between;font-size:13px"><b>총 발주 수량</b><b style="font-size:17px">'+tot+'개</b></div></div>';
+}
+function gadmDup(dups){
+  if(!dups.length)return '<div class="hint" style="padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center">중복 등록된 인원이 없습니다.</div>';
+  var h='<div style="display:grid;grid-template-columns:0.7fr 0.6fr 1fr 0.5fr 1.5fr 0.6fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
+    +'<div>성함</div><div>수령 관</div><div>중복 관</div><div>수령</div><div>배송지</div><div>옵션</div></div>';
+  return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+h
+    +dups.map(function(x){
+      return '<div style="display:grid;grid-template-columns:0.7fr 0.6fr 1fr 0.5fr 1.5fr 0.6fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center">'
+        +'<div style="font-weight:600">'+docEsc(x.person_name)+'</div>'
+        +'<div>'+docEsc(x.owner_campus)+'</div>'
+        +'<div style="color:var(--warn)">'+docEsc(x.dup_campuses||'')+'</div>'
+        +'<div style="font-size:11px">'+(x.pickup_type==='campus'?'학원':'자택')+'</div>'
+        +'<div style="font-size:11px;color:var(--mute)">'+docEsc(x.address||'')+(x.addr_changed_at?' <span style="color:var(--warn)">·변경됨</span>':'')+'</div>'
+        +'<div>'+docEsc(x.option_code||'')+'</div></div>';
+    }).join('')+'</div>';
+}
+function gadmBld(bld){
+  if(!bld.length)return '<div class="hint" style="padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center">제출된 명단이 없습니다.</div>';
+  var h='<div style="display:grid;grid-template-columns:1.1fr 0.5fr 1.1fr 0.5fr 0.5fr 0.5fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
+    +'<div>건물</div><div>층</div><div>관코드</div><div>인원</div><div>학원수령</div><div>자택수령</div></div>';
+  return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+h
+    +bld.map(function(b){
+      return '<div style="display:grid;grid-template-columns:1.1fr 0.5fr 1.1fr 0.5fr 0.5fr 0.5fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center">'
+        +'<div style="font-weight:600">'+docEsc(b.building_name||'')+'</div>'
+        +'<div>'+docEsc(b.floor_no||'')+'</div>'
+        +'<div style="font-size:11px;color:var(--mute)">'+docEsc(b.campus_list||'')+'</div>'
+        +'<div>'+b.persons+'</div>'
+        +'<div style="color:var(--blue)">'+b.pickup_campus+'</div>'
+        +'<div>'+b.pickup_home+'</div></div>';
+    }).join('')+'</div>';
+}
+function gadmLog(logs){
+  if(!logs.length)return '<div class="hint" style="padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center">배송지 변경 이력이 없습니다.</div>';
+  return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'
+    +logs.map(function(l){
+      return '<div style="padding:9px 12px;font-size:12px;border-bottom:1px solid var(--line);line-height:1.65">'
+        +'<div><b>'+docEsc(l.person_name||'')+'</b> <span style="color:var(--mute)">'+docEsc(l.campus_code||'')+'</span>'
+        +' <span style="font-size:11px;color:var(--mute);float:right">'+String(l.created_at||'').slice(0,16).replace('T',' ')+'</span></div>'
+        +'<div style="color:var(--mute);font-size:11.5px">'+docEsc(l.old_address||'-')+' → <span style="color:var(--ink,#111)">'+docEsc(l.new_address||'-')+'</span></div>'
+        +'<div style="font-size:11.5px">사유 '+docEsc(l.reason||'-')+' <span style="color:var(--mute)">· 변경 '+docEsc(l.changed_by_campus||'-')+'</span></div></div>';
+    }).join('')+'</div>';
+}
+function gadmOrder(){
+  return '<div style="border:1px solid var(--line);border-radius:12px;padding:16px">'
+    +'<div style="font-size:13px;font-weight:600;margin-bottom:6px">발주 자료 다운로드</div>'
+    +'<div class="hint" style="line-height:1.7;margin-bottom:12px">중복 인원은 제외되고 <b>제출 완료된 명단만</b> 포함됩니다. 엑셀에서 바로 벤더에 전달할 수 있습니다.</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button class="mbtn yes" onclick="gadmDownload(\'order\')" style="padding:9px 16px">발주 명단 (전체)</button>'
+    +'<button class="flt" onclick="gadmDownload(\'plan\')" style="padding:9px 16px">배송 계획 (건물/자택)</button>'
+    +'<button class="flt" onclick="gadmDownload(\'status\')" style="padding:9px 16px">제출 현황</button>'
+    +'</div></div>';
+}
+function gadmDownload(kind){
+  if(GADM.busy)return;GADM.busy=true;
+  var eid=GIFT.ev.id, title=GIFT.ev.title;
+  var p;
+  if(kind==='order')      p=sb.from('v_fac_gift_order_sheet').select('*').eq('event_id',eid);
+  else if(kind==='plan')  p=sb.from('v_fac_gift_delivery_plan').select('*').eq('event_id',eid);
+  else                    p=sb.from('v_fac_gift_campus_status').select('*').eq('event_id',eid);
+  p.then(function(res){
+    GADM.busy=false;
+    if(res.error){submitDone('다운로드 오류: '+res.error.message);return;}
+    var rows=res.data||[];
+    if(!rows.length){submitDone('내려받을 데이터가 없습니다.');return;}
+    var map;
+    if(kind==='order')map=[['법인명','corp_name'],['관코드','campus_code'],['팀명','team_name'],
+      ['건물명','building_name'],['층수','floor_no'],['성함','person_name'],['직책','job_title'],
+      ['배송주소','address'],['연락처','phone'],['옵션','option_code'],['상품명','option_name'],
+      ['수량','qty'],['수령방법','pickup_type'],['비고','note']];
+    else if(kind==='plan')map=[['유형','ship_type'],['배송처','ship_to'],['주소','address'],
+      ['옵션','option_code'],['상품명','option_name'],['수량','qty'],['대상자','members']];
+    else map=[['관코드','campus_code'],['사업부','division'],['지역','region'],['소속','team_name'],
+      ['인원','total'],['제출','submitted'],['작성중','draft'],['중복','dup_rows'],
+      ['발주수량','order_qty'],['최종제출','last_submitted_at']];
+    giftCsv(rows,map,title+'_'+({order:'발주명단',plan:'배송계획',status:'제출현황'}[kind]));
+  }).catch(function(e){GADM.busy=false;submitDone('오류: '+String(e&&e.message||e));});
+}
+function giftCsv(rows,map,fname){
+  var esc=function(v){
+    if(v==null)v='';
+    v=String(v);
+    if(v==='home')v='자택';else if(v==='campus')v='학원';
+    return '"'+v.replace(/"/g,'""')+'"';
+  };
+  var csv=map.map(function(m){return esc(m[0]);}).join(',')+'\r\n'
+    +rows.map(function(r){return map.map(function(m){return esc(r[m[1]]);}).join(',');}).join('\r\n');
+  var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=fname+'.csv';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},600);
+}
+
+/* ===== 명절선물 · 엑셀 일괄 업로드 ===== */
+var GUP={rows:[],errs:[],busy:false};
+var GUP_COLS=[['건물명','building_name',1],['층수','floor_no',1],['성함','person_name',1],
+  ['직책','job_title',0],['배송주소','address',1],['연락처','phone',1],
+  ['옵션','option_code',1],['수령방법','pickup_type',1],['비고','note',0]];
+
+function giftUploadOpen(){
+  if(giftLocked()){submitDone('마감된 회차는 업로드할 수 없습니다.');return;}
+  GUP.rows=[];GUP.errs=[];
+  openModal('<div class="mh">엑셀 일괄 업로드</div><div class="mb">'
+    +'<div class="hint" style="line-height:1.75;margin-bottom:10px">'
+    +'<b>'+docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():((GIFT.meta&&GIFT.meta.label)||''))+'</b> 명단으로 등록됩니다.<br>'
+    +'관코드·법인명·팀명은 계정에서 자동 지정되므로 양식에 없습니다.<br>'
+    +'<b>중복 여부는 판단하지 마세요.</b> 우리 소속 인원을 전부 넣으면 시스템이 자동으로 처리합니다.</div>'
+    +'<button class="flt" onclick="gupTemplate()" style="padding:7px 13px;font-size:12px;margin-bottom:10px">양식 내려받기</button>'
+    +'<div class="lbl">파일 선택 (.xlsx / .csv)</div>'
+    +'<input type="file" id="gup_file" accept=".xlsx,.xls,.csv" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px">'
+    +'<div id="gup_prev" style="margin-top:10px"></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">닫기</button>'
+    +'<button class="mbtn yes" id="gup_ok" onclick="gupGo()" disabled>등록</button></div>');
+  var f=document.getElementById('gup_file');
+  if(f)f.addEventListener('change',function(){gupRead(f.files&&f.files[0]);});
+}
+function gupLib(cb){
+  if(window.XLSX){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  s.onload=function(){cb();};
+  s.onerror=function(){submitDone('엑셀 라이브러리를 불러오지 못했습니다. 네트워크를 확인해 주세요.');};
+  document.head.appendChild(s);
+}
+function gupTemplate(){
+  gupLib(function(){
+    var head=GUP_COLS.map(function(c){return c[0]+(c[2]?' *':'');});
+    var ex=['코포모타워','5층','홍길동','사원','경기 성남시 분당구 황새울로258번길 40, 301동 1502호','010-0000-0000','B','자택','부재 시 경비실 위탁'];
+    var ws=XLSX.utils.aoa_to_sheet([head,ex]);
+    ws['!cols']=[{wch:16},{wch:8},{wch:12},{wch:10},{wch:46},{wch:16},{wch:8},{wch:12},{wch:28}];
+    var opts=GIFT.opts.map(function(o){return [o.code,o.name,o.composition||''];});
+    var blds=(GIFT.blds||[]).map(function(b){
+      return [b,(GIFT.flrs||[]).filter(function(f){return f.building===b;}).map(function(f){return f.floor;}).join(' / ')];});
+    var g=XLSX.utils.aoa_to_sheet([
+      ['작성 안내'],[''],
+      ['· 1행 헤더와 열 순서를 변경하지 마세요. * 는 필수 항목입니다.'],
+      ['· 2행 예시는 반드시 삭제한 뒤 업로드하세요.'],
+      ['· 연락처는 010-0000-0000 형식으로 입력합니다.'],
+      ['· 수령방법은 자택 또는 학원 중 하나입니다.'],
+      ['· 동명이인은 성함 뒤에 A, B를 붙여 구분합니다.'],
+      ['· 우리 소속 인원을 전부 입력하세요. 중복 여부는 시스템이 자동 판정합니다.'],
+      ['· 비고에는 배송 특이사항만 적습니다. 중복 관련 내용은 적지 마세요.'],
+      [''],['선택 가능한 옵션'],['코드','상품명','구성']
+    ].concat(opts).concat([[''],['선택 가능한 건물 · 층'],['건물명','층수']]).concat(blds));
+    g['!cols']=[{wch:20},{wch:34},{wch:50}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'명단입력');
+    XLSX.utils.book_append_sheet(wb,g,'작성안내');
+    XLSX.writeFile(wb,'명절선물_명단_'+giftMyCampus()+'.xlsx');
+  });
+}
+function gupRead(file){
+  if(!file)return;
+  var prev=document.getElementById('gup_prev');
+  prev.innerHTML='<div class="hint">읽는 중...</div>';
+  gupLib(function(){
+    var fr=new FileReader();
+    fr.onload=function(e){
+      try{
+        var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        gupParse(aoa);
+      }catch(err){prev.innerHTML='<div class="hint" style="color:var(--dng)">파일을 읽을 수 없습니다: '+docEsc(String(err&&err.message||err))+'</div>';}
+    };
+    fr.readAsArrayBuffer(file);
+  });
+}
+function gupParse(aoa){
+  var prev=document.getElementById('gup_prev'), ok=document.getElementById('gup_ok');
+  GUP.rows=[];GUP.errs=[];
+  if(!aoa||aoa.length<2){prev.innerHTML='<div class="hint" style="color:var(--dng)">데이터가 없습니다.</div>';ok.disabled=true;return;}
+  // 헤더 매핑 (이름 기준, * 및 공백 제거)
+  var head=(aoa[0]||[]).map(function(h){return String(h||'').replace(/\*/g,'').replace(/\s/g,'');});
+  var idx={};
+  GUP_COLS.forEach(function(c){idx[c[1]]=head.indexOf(c[0].replace(/\s/g,''));});
+  var miss=GUP_COLS.filter(function(c){return c[2]&&idx[c[1]]<0;}).map(function(c){return c[0];});
+  if(miss.length){
+    prev.innerHTML='<div class="hint" style="color:var(--dng);line-height:1.7"><b>헤더를 찾을 수 없습니다:</b> '+docEsc(miss.join(', '))
+      +'<br>양식을 내려받아 헤더 그대로 사용해 주세요.</div>';ok.disabled=true;return;}
+  var optCodes=GIFT.opts.map(function(o){return o.code;});
+  var blds=GIFT.blds||[], flrs=GIFT.flrs||[];
+  for(var i=1;i<aoa.length;i++){
+    var r=aoa[i]||[];
+    var get=function(k){var j=idx[k];return j>=0?String(r[j]||'').trim():'';};
+    if(!get('person_name')&&!get('phone')&&!get('address'))continue; // 빈 행
+    var e=[], o={};
+    o.building_name=get('building_name');
+    o.floor_no=get('floor_no');
+    o.person_name=get('person_name');
+    o.job_title=get('job_title')||null;
+    o.address=get('address');
+    o.phone=giftPhoneFmt(get('phone'));
+    o.option_code=get('option_code').toUpperCase();
+    o.note=get('note')||null;
+    var pk=get('pickup_type');
+    o.pickup_type=(pk==='학원'||pk==='campus')?'campus':'home';
+
+    if(!o.person_name)e.push('성함 누락');
+    if(!o.building_name)e.push('건물명 누락');
+    else if(blds.indexOf(o.building_name)<0)e.push('등록되지 않은 건물: '+o.building_name);
+    if(!o.floor_no)e.push('층수 누락');
+    else if(o.building_name&&blds.indexOf(o.building_name)>=0
+       &&!flrs.filter(function(f){return f.building===o.building_name&&f.floor===o.floor_no;}).length)
+      e.push('해당 건물에 없는 층: '+o.floor_no);
+    if(!o.address)e.push('배송주소 누락');
+    if(!/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/.test(o.phone))e.push('연락처 형식 오류: '+(get('phone')||'공란'));
+    if(!o.option_code)e.push('옵션 누락');
+    else if(optCodes.indexOf(o.option_code)<0)e.push('선택 불가 옵션: '+o.option_code);
+
+    if(e.length)GUP.errs.push({line:i+1,name:o.person_name||'(성함없음)',msg:e.join(' · ')});
+    else GUP.rows.push(o);
+  }
+  gupPreview();
+}
+function gupPreview(){
+  var prev=document.getElementById('gup_prev'), ok=document.getElementById('gup_ok');
+  var h='<div style="display:flex;gap:8px;margin-bottom:8px">'
+    +'<div style="flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 11px"><div style="font-size:11px;color:var(--mute)">등록 가능</div>'
+    +'<div style="font-size:18px;font-weight:600;color:var(--ok,#0a7)">'+GUP.rows.length+'명</div></div>'
+    +'<div style="flex:1;border:1px solid '+(GUP.errs.length?'var(--dng)':'var(--line)')+';border-radius:9px;padding:8px 11px"><div style="font-size:11px;color:var(--mute)">오류</div>'
+    +'<div style="font-size:18px;font-weight:600;color:'+(GUP.errs.length?'var(--dng)':'var(--mute)')+'">'+GUP.errs.length+'행</div></div></div>';
+  var el='';
+  if(GUP.errs.length){
+    el='<div style="max-height:180px;overflow:auto;border:1px solid var(--dng);border-radius:9px;padding:8px 11px;background:#fff7f7">'
+      +GUP.errs.map(function(x){
+        return '<div style="font-size:11.5px;line-height:1.6;padding:2px 0"><b>'+x.line+'행</b> '+docEsc(x.name)+' — <span style="color:var(--dng)">'+docEsc(x.msg)+'</span></div>';
+      }).join('')+'</div>'
+      +'<div class="hint" style="margin-top:7px">오류 행은 등록되지 않습니다. 정상 행만 먼저 등록한 뒤, 오류 행을 수정해 다시 올려도 됩니다.</div>';
+  }
+  prev.innerHTML=h+el;
+  ok.disabled=!GUP.rows.length;
+  ok.textContent=GUP.rows.length?(GUP.rows.length+'명 등록'):'등록';
+}
+function gupGo(){
+  if(GUP.busy||!GUP.rows.length)return;
+  var ok=document.getElementById('gup_ok');
+  GUP.busy=true;ok.disabled=true;ok.textContent='등록 중...';
+  var label=(typeof staffLabel==='function'?staffLabel():((CURRENT_USER&&CURRENT_USER.name)||''));
+  var payload=GUP.rows.map(function(o){
+    var x={event_id:GIFT.ev.id,campus_code:giftMyCampus(),qty:1,submit_status:'draft',created_by_label:label};
+    for(var k in o)x[k]=o[k];
+    if(giftIsHQ())x.team_name=giftMyTeam();
+    return x;
+  });
+  sb.from('fac_gift_entries').insert(payload).select().then(function(res){
+    GUP.busy=false;
+    if(res.error){ok.disabled=false;ok.textContent='등록';
+      document.getElementById('gup_prev').innerHTML+='<div class="hint" style="margin-top:8px;color:var(--dng)"><b>등록 실패:</b> '+docEsc(res.error.message)+'</div>';return;}
+    var n=(res.data||[]).length, dup=(res.data||[]).filter(function(r){return r.dup_of;}).length;
+    closeModal();
+    submitDone('<b>'+n+'명</b> 등록되었습니다.'
+      +(dup?('<br><span style="color:var(--warn)">중복 '+dup+'명</span> — 수량 0으로 처리되어 발주에서 제외됩니다.'):'')
+      +(GUP.errs.length?('<br><span class="hint">오류 '+GUP.errs.length+'행은 등록되지 않았습니다.</span>'):'')
+      +'<br><span class="hint">확인 후 <b>명단 제출</b>을 눌러주세요.</span>');
+    giftLoadRows();
+  }).catch(function(e){GUP.busy=false;ok.disabled=false;ok.textContent='등록';submitDone('오류: '+String(e&&e.message||e));});
+}
+
+/* ===== 명절선물 · 옵션 카드 + 관리자 옵션 관리 ===== */
+var GIMG_BUCKET='gift-images';
+function giftImgUrl(p){
+  if(!p)return '';
+  try{var r=sb.storage.from(GIMG_BUCKET).getPublicUrl(p);return (r&&r.data&&r.data.publicUrl)||'';}catch(e){return '';}
+}
+function giftOptThumb(p,size,radius){
+  var u=giftImgUrl(p);
+  if(u)return '<img src="'+u+'" alt="" style="width:100%;height:'+size+'px;object-fit:cover;border-radius:'+(radius||8)+'px;display:block">';
+  return '<div style="width:100%;height:'+size+'px;border-radius:'+(radius||8)+'px;background:var(--line);display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:11px">이미지 준비중</div>';
+}
+/* --- 캠퍼스 화면: 옵션 카드 --- */
+function giftOptCards(){
+  var all=GIFT.optsAll||GIFT.opts||[];
+  if(!all.length)return '';
+  var n=all.length;
+  return '<div style="border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:10px">'
+    +'<div style="font-size:12.5px;font-weight:600;margin-bottom:9px">선물 옵션 <span style="font-size:11px;color:var(--mute);font-weight:400">· 카드를 눌러 상세 확인</span></div>'
+    +'<div style="display:grid;grid-template-columns:repeat('+Math.min(n,5)+',minmax(0,1fr));gap:9px">'
+    +all.map(function(o){
+      var out=o.sold_out;
+      return '<div onclick="giftOptModal(\''+o.code+'\')" style="cursor:pointer;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;'+(out?'opacity:.55':'')+'">'
+        +'<div style="position:relative">'+giftOptThumb(o.image_path,96,0)
+        +(out?'<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11.5px;font-weight:600">수급 불가</div>':'')
+        +'</div>'
+        +'<div style="padding:7px 9px">'
+        +'<div style="font-size:12px;font-weight:600">'+docEsc(o.code)+'</div>'
+        +'<div style="font-size:11px;color:var(--mute);line-height:1.4;margin-top:2px;height:29px;overflow:hidden">'+docEsc(o.name||'')+'</div>'
+        +'</div></div>';
+    }).join('')+'</div></div>';
+}
+function giftOptModal(code){
+  var o=((GIFT.optsAll||GIFT.opts||[]).filter(function(x){return x.code===code;})[0]);
+  if(!o)return;
+  var u=giftImgUrl(o.image_path);
+  openModal('<div class="mh">'+docEsc(o.code)+' · '+docEsc(o.name||'')+'</div><div class="mb">'
+    +(u?('<img src="'+u+'" alt="" style="width:100%;border-radius:10px;display:block;margin-bottom:12px">')
+       :'<div style="width:100%;height:190px;border-radius:10px;background:var(--line);display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:12.5px;margin-bottom:12px">상품 이미지 준비 중입니다</div>')
+    +(o.sold_out?'<div class="hint" style="margin-bottom:9px;padding:8px 11px;border:1px solid var(--warnln);background:var(--warnbg);border-radius:8px;color:var(--warn)"><b>수급 불가</b> — 현재 선택할 수 없는 옵션입니다.</div>':'')
+    +'<div class="mrow"><span class="mk">상품명</span><span class="mv">'+docEsc(o.name||'-')+'</span></div>'
+    +'<div class="mrow"><span class="mk">구성</span><span class="mv" style="line-height:1.6">'+docEsc(o.composition||'-')+'</span></div>'
+    +'</div><div class="mf"><button class="mbtn no" onclick="closeModal()">닫기</button></div>');
+}
+/* --- 관리자: 옵션 관리 --- */
+function gadmOpt(){
+  var all=GADM.optAll||[];
+  var rows=all.map(function(o){
+    return '<div style="display:grid;grid-template-columns:110px 1fr;gap:12px;padding:12px;border-bottom:1px solid var(--line);align-items:start">'
+      +'<div>'+giftOptThumb(o.image_path,80,8)
+      +'<div style="display:flex;gap:4px;margin-top:5px">'
+      +'<button class="flt" style="flex:1;padding:3px 0;font-size:10.5px" onclick="gadmOptImg(\''+o.id+'\')">이미지</button>'
+      +(o.image_path?'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="gadmOptImgDel(\''+o.id+'\')">×</button>':'')
+      +'</div></div>'
+      +'<div>'
+      +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+      +'<input data-o="code" data-id="'+o.id+'" value="'+docEsc(o.code||'')+'" style="width:46px;padding:5px 7px;font-size:12px;font-weight:600;text-align:center;border:1px solid var(--line);border-radius:7px">'
+      +'<input data-o="name" data-id="'+o.id+'" value="'+docEsc(o.name||'')+'" placeholder="상품명" style="flex:1;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:7px">'
+      +'<label style="display:flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;color:'+(o.sold_out?'var(--warn)':'var(--mute)')+'">'
+      +'<input type="checkbox" data-o="sold_out" data-id="'+o.id+'"'+(o.sold_out?' checked':'')+'> 수급 불가</label>'
+      +'<button class="flt" style="padding:4px 9px;font-size:11px" onclick="gadmOptDel(\''+o.id+'\')">삭제</button></div>'
+      +'<textarea data-o="composition" data-id="'+o.id+'" placeholder="구성 (예: 재래캔김 30g×2 / 파래캔김 30g×2)" rows="2" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--line);border-radius:7px;resize:vertical"></textarea>'
+      +'</div></div>';
+  }).join('');
+  return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'
+    +'<div style="padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">'
+    +'<span style="font-size:12.5px;font-weight:600">'+docEsc((GIFT.ev&&GIFT.ev.title)||'')+' 옵션</span>'
+    +'<span style="font-size:11px;color:var(--mute)">'+all.length+'개 · 수정하면 즉시 저장됩니다</span>'
+    +'<div style="flex:1"></div>'
+    +'<button class="flt" style="padding:5px 12px;font-size:12px" onclick="gadmOptAdd()">+ 옵션 추가</button></div>'
+    +(rows||'<div class="hint" style="padding:22px;text-align:center">등록된 옵션이 없습니다. <b>+ 옵션 추가</b>로 시작하세요.</div>')
+    +'</div>'
+    +'<div class="hint" style="margin-top:9px;line-height:1.7">이미지는 <b>gift-images</b> 버킷에 저장되며 캠퍼스 화면 옵션 카드에 표시됩니다. '
+    +'<b>수급 불가</b>로 체크하면 캠퍼스에서 선택할 수 없게 되고, 이미 선택한 명단은 제출 시 오류로 걸립니다.</div>';
+}
+function gadmOptBind(){
+  document.querySelectorAll('[data-o="composition"]').forEach(function(t){
+    var o=(GADM.optAll||[]).filter(function(x){return x.id===t.dataset.id;})[0];
+    if(o)t.value=o.composition||'';
+  });
+  document.querySelectorAll('[data-o]').forEach(function(el){
+    var evt=(el.type==='checkbox')?'change':'blur';
+    el.addEventListener(evt,function(){
+      var v=(el.type==='checkbox')?el.checked:el.value;
+      gadmOptSave(el.dataset.id,el.dataset.o,v,el);
+    });
+  });
+}
+function gadmOptSave(id,f,v,el){
+  var o=(GADM.optAll||[]).filter(function(x){return x.id===id;})[0];if(!o)return;
+  if(f==='code')v=String(v||'').trim().toUpperCase();
+  if(String(o[f]==null?'':o[f])===String(v==null?'':v))return;
+  var p={};p[f]=(v===''?null:v);
+  if(el&&el.type!=='checkbox')el.style.borderColor='var(--blue)';
+  sb.from('fac_gift_options').update(p).eq('id',id).then(function(res){
+    if(res.error){if(el&&el.type!=='checkbox')el.style.borderColor='var(--dng)';submitDone('저장 오류: '+res.error.message);return;}
+    o[f]=(v===''?null:v);
+    if(el&&el.type!=='checkbox')el.style.borderColor='var(--okln)';
+    if(f==='sold_out')gadmLoad();
+  });
+}
+function gadmOptAdd(){
+  var all=GADM.optAll||[];
+  var used=all.map(function(x){return x.code;});
+  var next='ABCDEFGHIJ'.split('').filter(function(c){return used.indexOf(c)<0;})[0]||('X'+all.length);
+  sb.from('fac_gift_options').insert({event_id:GIFT.ev.id,code:next,name:'',sort_no:all.length+1}).select().then(function(res){
+    if(res.error){submitDone('추가 오류: '+res.error.message);return;}
+    gadmLoad();
+  });
+}
+function gadmOptDel(id){
+  var o=(GADM.optAll||[]).filter(function(x){return x.id===id;})[0];if(!o)return;
+  if(!confirm('옵션 '+o.code+(o.name?(' · '+o.name):'')+' 을(를) 삭제할까요?\n이미 이 옵션을 선택한 명단이 있으면 제출 시 오류가 발생합니다.'))return;
+  sb.from('fac_gift_options').delete().eq('id',id).then(function(res){
+    if(res.error){submitDone('삭제 오류: '+res.error.message);return;}
+    gadmLoad();
+  });
+}
+function gadmOptImg(id){
+  var o=(GADM.optAll||[]).filter(function(x){return x.id===id;})[0];if(!o)return;
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=function(){
+    var f=inp.files&&inp.files[0];if(!f)return;
+    if(f.size>5*1024*1024){submitDone('이미지는 5MB 이하만 업로드할 수 있습니다.');return;}
+    giftImgCompress(f,900,function(blob){
+      var ext='jpg';
+      var path='gift/'+GIFT.ev.id+'/'+o.code+'_'+Date.now()+'.'+ext;
+      sb.storage.from(GIMG_BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:true}).then(function(res){
+        if(res.error){submitDone('업로드 오류: '+res.error.message+'\n\ngift-images 버킷이 생성되어 있는지 확인해 주세요.');return;}
+        var old=o.image_path;
+        sb.from('fac_gift_options').update({image_path:path}).eq('id',id).then(function(r2){
+          if(r2.error){submitDone('저장 오류: '+r2.error.message);return;}
+          if(old)sb.storage.from(GIMG_BUCKET).remove([old]).then(function(){},function(){});
+          gadmLoad();
+        });
+      });
+    });
+  };
+  inp.click();
+}
+function gadmOptImgDel(id){
+  var o=(GADM.optAll||[]).filter(function(x){return x.id===id;})[0];if(!o||!o.image_path)return;
+  if(!confirm('이미지를 삭제할까요?'))return;
+  var p=o.image_path;
+  sb.from('fac_gift_options').update({image_path:null}).eq('id',id).then(function(res){
+    if(res.error){submitDone('삭제 오류: '+res.error.message);return;}
+    sb.storage.from(GIMG_BUCKET).remove([p]).then(function(){},function(){});
+    gadmLoad();
+  });
+}
+// 이미지 압축 (긴 변 기준)
+function giftImgCompress(file,max,cb){
+  var img=new Image(), url=URL.createObjectURL(file);
+  img.onload=function(){
+    var w=img.width,h=img.height,s=Math.min(1,max/Math.max(w,h));
+    var c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    c.toBlob(function(b){URL.revokeObjectURL(url);cb(b||file);},'image/jpeg',0.86);
+  };
+  img.onerror=function(){URL.revokeObjectURL(url);cb(file);};
+  img.src=url;
+}
+
 function render(v){var el=document.getElementById('view');
   if(v==='aka'){PREFILL_AKA=true;v='voice';}
   if(v==='home')el.innerHTML=homeHTML();
@@ -2305,6 +3498,7 @@ function render(v){var el=document.getElementById('view');
   else if(v==='lms'){el.innerHTML=lmsHTML();bindLms();}
   else if(v==='mylist'){el.innerHTML=mylistHTML();bindMylist();}
   else if(v==='docs'){el.innerHTML=docsHTML();bindDocs();}
+  else if(v==='gift'){el.innerHTML=giftHTML();bindGift();}
   else if(v==='info')el.innerHTML=infoHTML();
   else if(v==='admin'){
     if(CURRENT_USER&&CURRENT_USER.role==='admin'&&SB_READY){
@@ -2314,7 +3508,7 @@ function render(v){var el=document.getElementById('view');
   }
   document.querySelectorAll('.tn').forEach(function(n){n.classList.toggle('on',n.dataset.v===v);});window.scrollTo(0,0);}
 window.nav=render;
-var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["report","유지보수 접수"],["voice","건의사항"],["lms","LMS 1차 검증"],["mylist","내 접수내역"],["docs","자료실"],["info","안내"],["admin","총무기획팀"]];
+var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["report","유지보수 접수"],["voice","건의사항"],["lms","LMS 1차 검증"],["mylist","내 접수내역"],["gift","명절선물"],["docs","자료실"],["info","안내"],["admin","총무기획팀"]];
 // ===== 계정/세션 =====
 var CURRENT_USER=null; // {login_id, role, region, name, gwan_code}
 var DOMAIN="@flowedu.local";
