@@ -2606,9 +2606,15 @@ function giftToolbar(){
     +'<button class="flt" onclick="giftUploadOpen()" style="padding:6px 11px;font-size:12px"'+(lock?' disabled':'')+'>엑셀 업로드</button>'
     +'</div>';
 }
+// 총무기획팀(관리자)만 수량 직접 입력 가능 — 관계사 발주 등 1개 외 수량 대응
+function giftQtyOn(){return giftIsAdmin();}
+function giftCols(){return giftQtyOn()
+  ? '0.8fr 0.5fr 0.75fr 0.6fr 1.4fr 0.85fr 0.9fr 0.55fr 0.42fr 0.5fr'
+  : '0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr';}
 function giftHead(){
-  return '<div style="display:grid;grid-template-columns:0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
-    +'<div>건물명</div><div>층수</div><div>성함</div><div>직책</div><div>배송주소</div><div>연락처</div><div>옵션</div><div>수령</div><div></div></div>';
+  return '<div style="display:grid;grid-template-columns:'+giftCols()+';gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
+    +'<div>건물명</div><div>층수</div><div>성함</div><div>직책</div><div>배송주소</div><div>연락처</div><div>옵션</div><div>수령</div>'
+    +(giftQtyOn()?'<div>수량</div>':'')+'<div></div></div>';
 }
 function giftRowHTML(r){
   var lock=giftLocked(), i=r.id;
@@ -2632,7 +2638,11 @@ function giftRowHTML(r){
   var badge=dup?'<span style="font-size:10px;padding:1px 5px;border-radius:5px;background:var(--warn);color:#fff;margin-left:4px">중복</span>':'';
   var act=dup?'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="giftDupOpen(\''+i+'\')">상세</button>'
              :'<button class="flt" style="padding:3px 7px;font-size:10.5px" onclick="giftDelRow(\''+i+'\')"'+(lock?' disabled':'')+'>삭제</button>';
-  return '<div data-grow="'+i+'" style="display:grid;grid-template-columns:0.8fr 0.5fr 0.75fr 0.6fr 1.5fr 0.85fr 0.9fr 0.55fr 0.5fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center;background:'+bg+'">'
+  var qtyCell=dup
+    ? '<div style="font-size:11px;color:var(--mute);text-align:center">0</div>'
+    : '<input type="number" min="0" step="1" data-g="qty" data-id="'+i+'" value="'+(r.qty==null?1:r.qty)+'"'+(lock?' disabled':'')
+      +' style="width:100%;padding:5px 4px;font-size:12px;text-align:center;border:1px solid var(--line);border-radius:7px;background:transparent">';
+  return '<div data-grow="'+i+'" style="display:grid;grid-template-columns:'+giftCols()+';gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center;background:'+bg+'">'
     +'<div><select data-g="building_name" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'+bldOpts+'</select></div>'
     +'<div><select data-g="floor_no" data-id="'+i+'"'+(lock?' disabled':'')+' style="width:100%;padding:5px 6px;font-size:11.5px;border:1px solid var(--line);border-radius:7px">'+flOpts+'</select></div>'
     +'<div style="display:flex;align-items:center">'+d('person_name',r.person_name,'성함')+badge+'</div>'
@@ -2641,6 +2651,7 @@ function giftRowHTML(r){
     +'<div>'+d('phone',r.phone,'010-0000-0000')+'</div>'
     +'<div>'+optSel+'</div>'
     +'<div>'+pick+'</div>'
+    +(giftQtyOn()?('<div>'+qtyCell+'</div>'):'')
     +'<div>'+act+'</div></div>';
 }
 function giftEmptyResult(){
@@ -2691,6 +2702,23 @@ function giftBind(){
 function giftSave(id,field,val,el){
   var r=GIFT.rows.filter(function(x){return x.id===id;})[0];if(!r)return;
   if(field==='phone')val=giftPhoneFmt(val);
+  if(field==='qty'){                       // 수량은 숫자 컬럼 — 정수로 변환 후 저장
+    var q=parseInt(val,10);
+    if(isNaN(q)||q<0)q=1;
+    if(q>999)q=999;
+    if(el&&String(el.value)!==String(q))el.value=q;
+    if(Number(r.qty)===q)return;
+    var patchQ={qty:q};
+    if(el)el.style.borderColor='var(--blue)';
+    sb.from('fac_gift_entries').update(patchQ).eq('id',id).select().then(function(res){
+      if(res.error){if(el)el.style.borderColor='var(--dng)';submitDone('저장 오류: '+res.error.message);return;}
+      var nr2=(res.data||[])[0];
+      if(nr2){var ix=GIFT.rows.map(function(x){return x.id;}).indexOf(id);if(ix>=0)GIFT.rows[ix]=nr2;}
+      if(el)el.style.borderColor='var(--okln)';
+      giftRender();                        // 합계 즉시 반영
+    });
+    return;
+  }
   if(String(r[field]||'')===String(val||''))return;
   var patch={};patch[field]=val||null;
   if(field==='building_name')patch.floor_no=null;
