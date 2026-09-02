@@ -2845,7 +2845,7 @@ function giftSubmitGo(){
   var ok=document.getElementById('gs_ok');if(!ok||GIFT.busy)return;
   GIFT.busy=true;ok.disabled=true;
   var ids=GIFT.rows.map(function(r){return r.id;});
-  var total=ids.length, SIZE=100, done=0, failed=null;
+  var total=ids.length, SIZE=5, done=0, failed=null;
 
   // 한 번에 전부 업데이트하면 중복검사 트리거 때문에 DB 제한시간(timeout)을 넘김
   // → 10건씩 나눠 순차 처리 (간헐적 제출 오류의 원인 해결)
@@ -3409,16 +3409,16 @@ function gupGo(){
     return x;
   });
   // 한 번에 전부 넣으면 중복검사 트리거 때문에 DB 제한시간을 넘김 → 10건씩 순차 등록
-  var CH=100, res_rows=[], failed=null, i0=0;
+  var CH=5, res_rows=[], inserted=0, failed=null, i0=0;
   function step(){
     if(failed||i0>=payload.length){finish();return;}
     var part=payload.slice(i0,i0+CH);
     ok.textContent='등록 중... '+Math.min(i0+CH,payload.length)+'/'+payload.length;
-    sb.from('fac_gift_entries').insert(part).select().then(function(res){
+    sb.from('fac_gift_entries').insert(part).then(function(res){
       if(res.error){failed=res.error;finish();return;}
-      res_rows=res_rows.concat(res.data||[]);
+      inserted+=part.length;            // .select() 제거 — 응답 지연 방지
       i0+=CH;
-      setTimeout(step,120);
+      setTimeout(step,150);
     }).catch(function(e){failed=e;finish();});
   }
   function finish(){
@@ -3427,20 +3427,24 @@ function gupGo(){
       ok.disabled=false;ok.textContent='등록';
       var m=(failed.message||String(failed));
       var extra=/timeout/i.test(m)
-        ? '<b>등록 지연:</b> 서버 응답이 늦어 중단되었습니다. '+res_rows.length+'명까지는 등록되었습니다. 잠시 후 나머지를 다시 올려주세요.'
+        ? '<b>등록 지연:</b> 서버 응답이 늦어 중단되었습니다. '+inserted+'명까지는 등록되었습니다. 잠시 후 나머지를 다시 올려주세요.'
         : '<b>등록 실패:</b> '+docEsc(m);
       var pv=document.getElementById('gup_prev');
       if(pv)pv.innerHTML+='<div class="hint" style="margin-top:8px;color:var(--dng)">'+extra+'</div>';
       giftLoadRows();
       return;
     }
-    var n=res_rows.length, dup=res_rows.filter(function(r){return r.dup_of;}).length;
+    var n=inserted;
     closeModal();
-    submitDone('<b>'+n+'명</b> 등록되었습니다.'
-      +(dup?('<br><span style="color:var(--warn)">중복 '+dup+'명</span> — 수량 0으로 처리되어 발주에서 제외됩니다.'):'')
-      +(GUP.errs.length?('<br><span class="hint">오류 '+GUP.errs.length+'행은 등록되지 않았습니다.</span>'):'')
-      +'<br><span class="hint">확인 후 <b>명단 제출</b>을 눌러주세요.</span>');
+    // .select()를 뺐으므로 중복 수는 새로고침된 명단에서 집계
     giftLoadRows();
+    setTimeout(function(){
+      var dup=(GIFT.rows||[]).filter(function(r){return r.dup_of;}).length;
+      submitDone('<b>'+n+'명</b> 등록되었습니다.'
+        +(dup?('<br><span style="color:var(--warn)">현재 명단에 중복 '+dup+'명</span> — 수량 0으로 처리되어 발주에서 제외됩니다.'):'')
+        +(GUP.errs.length?('<br><span class="hint">오류 '+GUP.errs.length+'행은 등록되지 않았습니다.</span>'):'')
+        +'<br><span class="hint">확인 후 <b>명단 제출</b>을 눌러주세요.</span>');
+    },900);
   }
   step();
 }
