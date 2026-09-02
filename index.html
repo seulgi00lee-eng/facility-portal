@@ -665,12 +665,18 @@ var STAGES={
   buy : ['접수 확인','견적 요청','견적 확정','발주','입고·설치','완료','보류'],
   rent: ['접수 확인','견적 요청','견적 확정','발주','입고·설치','완료','보류'],
   pen : ['접수 확인','준비 중','전달 완료','보류'],
-  voice:['접수 확인','검토 중','답변 완료','보류']
+  voice:['접수 확인','검토 중','답변 완료','보류'],
+  card:['접수 확인','제작 요청','제작 중','전달 완료','보류']
 };
-var STAGE_DONE={fix:'조치 완료', buy:'완료', rent:'완료', pen:'전달 완료', voice:'답변 완료'};
+var STAGE_DONE={fix:'조치 완료', buy:'완료', rent:'완료', pen:'전달 완료', voice:'답변 완료', card:'전달 완료'};
 function stagesOf(t){return STAGES[t]||STAGES.fix;}
 function stageDone(t){return STAGE_DONE[t]||'완료';}
-function stageStatus(t,name){return (name===stageDone(t))?'done':'prog';}
+function stageStatus(t,name){
+  if(name===stageDone(t))return 'done';
+  // 명함: 단계 정비 이전에 '조치 완료'로 등록된 기존 건도 완료로 인정
+  if(t==='card'&&name==='조치 완료')return 'done';
+  return 'prog';
+}
 // 진행률 (보류는 계산 제외)
 function stageProgress(t,name){
   var list=stagesOf(t).filter(function(x){return x!=='보류';});
