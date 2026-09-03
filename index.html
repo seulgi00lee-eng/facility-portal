@@ -3100,7 +3100,8 @@ function gadmSubmitUnitGo(code,team){
       var m=res.error.message||'';
       msg.innerHTML=/timeout/i.test(m)
         ? '<b style="color:var(--dng)">서버 지연으로 일부만 처리되었습니다.</b><br>창을 닫고 <b>제출</b>을 한 번 더 눌러 남은 인원을 마저 처리해 주세요.'
-        : '<b style="color:var(--dng)">처리 실패: '+docEsc(m)+'</b>';
+        : '<b style="color:var(--dng)">처리 실패: '+docEsc(m)+'</b>'
+          +'<br><span class="hint">필수값(성함·연락처·배송주소·옵션)이 빠진 행이 있으면 제출되지 않습니다. 인원 숫자를 눌러 <b>명단</b>을 열고, 붉은 미입력 행을 삭제한 뒤 다시 시도하세요.</span>';
       gadmLoad();
       return;
     }
@@ -3133,21 +3134,63 @@ function gadmRoster(code,team,filter){
       var o=(GADM.optAll||[]).filter(function(x){return x.code===c;})[0];
       return o?(c+' · '+o.name):(c||'-');
     };
+    // 필수값(성함·연락처·배송지)이 비어 제출을 막는 행 수
+    var badN=rows.filter(function(r){
+      return !String(r.person_name||'').trim()||!String(r.phone||'').trim()||!String(r.address||'').trim();
+    }).length;
+    GADM.lastRoster={code:code,team:team,filter:filter};
     box.innerHTML='<div style="max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:9px">'
-      +'<div style="display:grid;grid-template-columns:0.65fr 0.5fr 1fr 1.4fr 0.9fr 0.45fr;gap:7px;padding:7px 10px;font-size:11px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff">'
-      +'<div>성함</div><div>직책</div><div>옵션</div><div>배송지</div><div>연락처</div><div>수량</div></div>'
+      +'<div style="display:grid;grid-template-columns:0.65fr 0.5fr 1fr 1.4fr 0.9fr 0.45fr 0.4fr;gap:7px;padding:7px 10px;font-size:11px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff">'
+      +'<div>성함</div><div>직책</div><div>옵션</div><div>배송지</div><div>연락처</div><div>수량</div><div>처리</div></div>'
       +rows.map(function(r){
         var dup=!!r.dup_of;
-        return '<div style="display:grid;grid-template-columns:0.65fr 0.5fr 1fr 1.4fr 0.9fr 0.45fr;gap:7px;padding:6px 10px;font-size:11.5px;border-bottom:1px solid var(--line);align-items:center;background:'+(dup?'var(--warnbg)':'#fff')+'">'
+        var bad=!String(r.person_name||'').trim()||!String(r.phone||'').trim()||!String(r.address||'').trim();
+        return '<div data-arow="'+r.id+'" style="display:grid;grid-template-columns:0.65fr 0.5fr 1fr 1.4fr 0.9fr 0.45fr 0.4fr;gap:7px;padding:6px 10px;font-size:11.5px;border-bottom:1px solid var(--line);align-items:center;background:'+(bad?'#fff5f5':(dup?'var(--warnbg)':'#fff'))+'">'
         +'<div style="font-weight:600">'+docEsc(r.person_name||'')
         +(dup?' <span style="font-size:9.5px;padding:1px 4px;border-radius:4px;background:var(--warn);color:#fff">중복</span>':'')+'</div>'
         +'<div style="color:var(--mute)">'+docEsc(r.job_title||'-')+'</div>'
         +'<div>'+docEsc(optName(r.option_code))+'</div>'
         +'<div style="color:var(--mute)">'+docEsc(r.address||'-')+'<br><span style="font-size:10px">'+(r.pickup_type==='campus'?'학원 수령':'자택 수령')+'</span></div>'
         +'<div style="color:var(--mute)">'+docEsc(r.phone||'-')+'</div>'
-        +'<div>'+(r.qty||0)+'</div></div>';
+        +'<div>'+(r.qty||0)+'</div>'
+        +'<div><button class="flt" style="padding:2px 6px;font-size:10px" onclick="gadmDelRow(\''+r.id+'\')">삭제</button></div></div>';
       }).join('')+'</div>'
-      +'<div class="hint" style="margin-top:8px">중복 인원은 수량 0으로 발주에서 제외됩니다.</div>';
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">'
+      +'<span class="hint">중복 인원은 수량 0으로 발주에서 제외됩니다. 미입력 행은 <b style="color:var(--dng)">붉은 배경</b>으로 표시됩니다.</span>'
+      +(badN?('<button class="flt" style="padding:5px 10px;white-space:nowrap;color:var(--dng);border-color:var(--dng)" onclick="gadmDelBad(\''+String(code).replace(/'/g,"\\'")+'\',\''+String(team||'').replace(/'/g,"\\'")+'\')">미입력 '+badN+'행 일괄 삭제</button>'):'')
+      +'</div>';
+  });
+}
+// ===== 관리자: 명단 행 삭제 =====
+function gadmReopenRoster(){
+  var L=GADM.lastRoster; if(L)gadmRoster(L.code,L.team,L.filter);
+}
+function gadmDelRow(id){
+  if(!giftIsAdmin())return;
+  if(!confirm('이 행을 삭제할까요? 되돌릴 수 없습니다.'))return;
+  sb.from('fac_gift_entries').delete().eq('id',id).then(function(res){
+    if(res.error){alert('삭제 실패: '+res.error.message);return;}
+    gadmReopenRoster(); gadmLoad();
+  });
+}
+function gadmDelBad(code,team){
+  if(!giftIsAdmin())return;
+  var eid=GIFT.ev&&GIFT.ev.id; if(!eid)return;
+  var q=sb.from('fac_gift_entries').select('id,person_name,phone,address')
+        .eq('event_id',eid).eq('campus_code',code);
+  if(team)q=q.eq('team_name',team);
+  q.then(function(res){
+    if(res.error){alert('조회 실패: '+res.error.message);return;}
+    var bad=(res.data||[]).filter(function(r){
+      return !String(r.person_name||'').trim()||!String(r.phone||'').trim()||!String(r.address||'').trim();
+    }).map(function(r){return r.id;});
+    if(!bad.length){alert('삭제할 미입력 행이 없습니다.');return;}
+    if(!confirm('미입력 '+bad.length+'행을 삭제합니다. 되돌릴 수 없습니다.\n계속할까요?'))return;
+    sb.from('fac_gift_entries').delete().in('id',bad).then(function(r2){
+      if(r2.error){alert('삭제 실패: '+r2.error.message);return;}
+      submitDone('미입력 <b>'+bad.length+'행</b>을 삭제했습니다.<br><span class="hint">이제 제출 처리를 진행할 수 있습니다.</span>');
+      gadmLoad();
+    });
   });
 }
 function gadmOption(opts,tot){
