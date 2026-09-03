@@ -2422,6 +2422,14 @@ function doDelete(){
 var GIFT={ev:null,evs:[],opts:[],rows:[],teams:[],meta:null,q:'',flt:'',busy:false,loaded:false};
 
 function giftMyCampus(){ return (GIFT.meta&&GIFT.meta.campus)||''; }
+// 본인 관 + 겸임 관 전체 — 건물·층 검증에 사용 (여러 관 인원을 한 번에 취합해 올리기 위함)
+function giftMyCampusAll(){
+  var a=(GIFT.meta&&GIFT.meta.all)||[];
+  var c=giftMyCampus(), out=[];
+  (Array.isArray(a)?a:[]).forEach(function(x){if(x&&out.indexOf(x)<0)out.push(String(x));});
+  if(c&&out.indexOf(c)<0)out.push(String(c));
+  return out.length?out:[c];
+}
 function giftIsHQ(){ return !!(GIFT.meta&&GIFT.meta.team_required); }
 function giftMyTeam(){ return (GIFT.meta&&GIFT.meta.hq_team)||''; }
 function giftLocked(){
@@ -2522,13 +2530,15 @@ function giftLoadRows(){
   return Promise.all([
     q.order('created_at',{ascending:true}),
     sb.from('fac_gift_options').select('*').eq('event_id',GIFT.ev.id).order('sort_no',{ascending:true}),
-    sb.from('fac_campus_buildings').select('building').eq('gwan_code',giftMyCampus()),
-    sb.from('fac_campus_floors').select('building,floor').eq('gwan_code',giftMyCampus())
+    sb.from('fac_campus_buildings').select('building').in('gwan_code',giftMyCampusAll()),
+    sb.from('fac_campus_floors').select('building,floor').in('gwan_code',giftMyCampusAll())
   ]).then(function(r){
     GIFT.rows=((r[0]&&r[0].data)||[]);
     GIFT.optsAll=((r[1]&&r[1].data)||[]);
     GIFT.opts=GIFT.optsAll.filter(function(o){return !o.sold_out;});
-    GIFT.blds=((r[2]&&r[2].data)||[]).map(function(x){return x.building;});
+    var _bs={}; GIFT.blds=[];
+    ((r[2]&&r[2].data)||[]).forEach(function(x){if(x.building&&!_bs[x.building]){_bs[x.building]=1;GIFT.blds.push(x.building);}});
+    GIFT.blds.sort();
     GIFT.flrs=((r[3]&&r[3].data)||[]);
     GIFT.loaded=true;
     giftRender();
@@ -3207,11 +3217,63 @@ function gadmOption(opts,tot){
     }).join('')
     +'<div style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;display:flex;justify-content:space-between;font-size:13px"><b>총 발주 수량</b><b style="font-size:17px">'+tot+'개</b></div></div>';
 }
+// 중복 재검사 — 트리거는 저장 시점에만 검사하므로, 나중에 이름·전화를 고친 건은 누락됨
+function gadmDupRescanBtn(){
+  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+    +'<span class="hint">이름·연락처를 나중에 수정한 경우 중복이 자동 표시되지 않을 수 있습니다.</span>'
+    +'<button class="flt" style="padding:6px 12px;white-space:nowrap" onclick="gadmDupRescan()">중복 재검사</button></div>';
+}
+function gadmDupRescan(){
+  if(!giftIsAdmin())return;
+  var eid=GIFT.ev&&GIFT.ev.id; if(!eid)return;
+  openModal('<div class="mh">중복 재검사</div><div class="mb"><div class="hint" style="padding:14px;text-align:center">명단 전체를 다시 검사하는 중...</div></div>');
+  sb.from('fac_gift_entries').select('id,person_name,phone,dup_ignore,dup_of,created_at')
+    .eq('event_id',eid).then(function(res){
+    var box=document.querySelector('.mb');
+    if(res.error){if(box)box.innerHTML='<div class="hint" style="color:var(--dng)">조회 실패: '+docEsc(res.error.message)+'</div>';return;}
+    var rows=(res.data||[]).filter(function(r){return !r.dup_ignore;});
+    var norm=function(v){return String(v||'').toLowerCase().replace(/\s/g,'');};
+    var dig =function(v){return String(v||'').replace(/\D/g,'');};
+    rows.sort(function(a,b){return String(a.created_at||'').localeCompare(String(b.created_at||''));});
+    var first={}, todo=[];
+    rows.forEach(function(r){
+      var nk=norm(r.person_name), pk=dig(r.phone);
+      if(!nk||pk.length<10)return;
+      var key=nk+'|'+pk;
+      if(!first[key]){first[key]=r.id;return;}
+      if(r.dup_of!==first[key])todo.push({id:r.id,org:first[key]});
+    });
+    if(!todo.length){
+      closeModal();
+      submitDone('중복 재검사 완료.<br><span class="hint">새로 발견된 중복이 없습니다.</span>');
+      return;
+    }
+    var i=0, okN=0, err=null;
+    function step(){
+      if(err||i>=todo.length){done();return;}
+      var t=todo[i];
+      var b=document.querySelector('.mb');
+      if(b)b.innerHTML='<div class="hint" style="padding:14px;text-align:center">중복 표시 중... '+(i+1)+'/'+todo.length+'</div>';
+      sb.from('fac_gift_entries').update({dup_of:t.org,qty:0,option_code:null}).eq('id',t.id).then(function(r2){
+        if(r2.error){err=r2.error;done();return;}
+        okN++;i++;setTimeout(step,120);
+      }).catch(function(e){err=e;done();});
+    }
+    function done(){
+      closeModal();
+      submitDone(err
+        ? ('중복 '+okN+'건 처리 후 중단되었습니다.<br><span class="hint">'+docEsc(err.message||String(err))+'</span>')
+        : ('중복 <b>'+okN+'명</b>을 새로 찾아 표시했습니다.<br><span class="hint">해당 인원은 수량 0으로 발주에서 제외됩니다.</span>'));
+      gadmLoad();
+    }
+    step();
+  });
+}
 function gadmDup(dups){
-  if(!dups.length)return '<div class="hint" style="padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center">중복 등록된 인원이 없습니다.</div>';
+  if(!dups.length)return gadmDupRescanBtn()+'<div class="hint" style="padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center">중복 등록된 인원이 없습니다.</div>';
   var h='<div style="display:grid;grid-template-columns:0.7fr 0.6fr 1fr 0.5fr 1.5fr 0.6fr;gap:8px;padding:8px 11px;font-size:11.5px;font-weight:600;color:var(--mute);border-bottom:1px solid var(--line)">'
     +'<div>성함</div><div>수령 관</div><div>중복 관</div><div>수령</div><div>배송지</div><div>옵션</div></div>';
-  return '<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+h
+  return gadmDupRescanBtn()+'<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden">'+h
     +dups.map(function(x){
       return '<div style="display:grid;grid-template-columns:0.7fr 0.6fr 1fr 0.5fr 1.5fr 0.6fr;gap:8px;padding:7px 11px;font-size:12px;border-bottom:1px solid var(--line);align-items:center">'
         +'<div style="font-weight:600">'+docEsc(x.person_name)+'</div>'
@@ -3312,6 +3374,10 @@ function giftUploadOpen(){
     +'<div class="hint" style="line-height:1.75;margin-bottom:10px">'
     +'<b>'+docEsc(giftMyCampus())+' · '+docEsc(giftIsHQ()?giftMyTeam():((GIFT.meta&&GIFT.meta.label)||''))+'</b> 명단으로 등록됩니다.<br>'
     +'관코드·법인명·팀명은 계정에서 자동 지정되므로 양식에 없습니다.<br>'
+    +(giftMyCampusAll().length>1
+      ? ('겸임 관 <b>'+docEsc(giftMyCampusAll().join(', '))+'</b>의 건물·층도 함께 사용할 수 있습니다. '
+        +'여러 관 인원을 <b>한 파일로 합쳐 올려도 됩니다.</b> (모두 위 관 명단으로 등록)<br>')
+      : '')
     +'<b>중복 여부는 판단하지 마세요.</b> 우리 소속 인원을 전부 넣으면 시스템이 자동으로 처리합니다.</div>'
     +'<button class="flt" onclick="gupTemplate()" style="padding:7px 13px;font-size:12px;margin-bottom:10px">양식 내려받기</button>'
     +'<div class="lbl">파일 선택 (.xlsx / .csv)</div>'
