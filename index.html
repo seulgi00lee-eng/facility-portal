@@ -145,6 +145,52 @@
   .acctbar b{color:var(--ink);font-weight:600;}
   .acctbar .logout{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-size:12px;color:var(--ink2);cursor:pointer;font-family:inherit;}
 @keyframes facspin{to{transform:rotate(360deg)}}
+
+  /* ===== 정기점검 ===== */
+  .insp-bar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+  .insp-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .insp-kpi>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+  .insp-kpi b{font-size:20px;font-weight:700;color:var(--ink)}.insp-kpi span{font-size:12px;color:var(--mute);margin-left:3px}
+  .insp-kpi em{display:block;font-style:normal;font-size:11.5px;color:var(--mute);margin-top:2px}
+  .insp-kpi .dng b{color:var(--dng)}
+  @media(max-width:760px){.insp-kpi{grid-template-columns:1fr 1fr}}
+  .insp-row{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:#fff}
+  .insp-empty{padding:22px;text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--mute);font-size:12.5px;line-height:1.7}
+  .insp-head{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+  .insp-sticky{position:sticky;top:44px;z-index:5;background:var(--bg);padding:8px 0 6px;margin-bottom:6px}
+  .insp-pbar{height:6px;border-radius:4px;background:var(--line);overflow:hidden}.insp-pbar i{display:block;height:100%;background:var(--blue);transition:width .2s}
+  .insp-zn{display:flex;gap:6px;overflow-x:auto;padding-top:8px;-webkit-overflow-scrolling:touch}.insp-zn .flt{white-space:nowrap;flex-shrink:0}
+  .insp-zc{font-size:10.5px;color:var(--mute);margin-left:2px}
+  .insp-note{background:var(--okbg);border:1px solid var(--okln);color:var(--ok);border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:8px}
+  .insp-sec{margin:18px 0 6px;scroll-margin-top:140px}
+  .insp-sec-t{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:9px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
+  .insp-it{border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:8px;background:#fff}
+  .insp-it.sm{padding:8px 10px;margin-bottom:6px;border-radius:8px}
+  .insp-it.r-양호{border-color:var(--okln)}.insp-it.r-미흡{border-color:var(--warnln);background:var(--warnbg)}.insp-it.r-불량{border-color:var(--dngln);background:var(--dngbg)}.insp-it.r-해당없음{opacity:.6}
+  .insp-it-t{font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.45}
+  .insp-it.sm .insp-it-t{font-size:12.5px}
+  .insp-no{display:inline-block;min-width:22px;color:var(--mute);font-weight:500;font-size:11.5px}
+  .insp-crit{font-size:11.5px;color:var(--mute);line-height:1.5;margin:3px 0 0 22px}
+  .insp-g{display:inline-block;font-size:10.5px;font-weight:700;border-radius:4px;padding:0 5px;line-height:16px}
+  .insp-g.gA{background:var(--dngbg);color:var(--dng)}.insp-g.gB{background:var(--warnbg);color:var(--warn)}.insp-g.gC{background:var(--bg);color:var(--mute)}
+  .insp-cat{font-size:11px;color:var(--mute);font-weight:500;border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .insp-tag{display:inline-block;font-size:10.5px;font-weight:600;border-radius:4px;padding:1px 6px}
+  .insp-tag.dng{background:var(--dngbg);color:var(--dng)}.insp-tag.warn{background:var(--warnbg);color:var(--warn)}.insp-tag.ok{background:var(--okbg);color:var(--ok)}
+  .insp-btns{display:flex;gap:6px;margin-top:8px}
+  .ib{flex:1;min-width:0;padding:11px 2px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:13px;font-weight:600;color:var(--mute);cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent}
+  .ib.sm{padding:8px 2px;font-size:12px}
+  .ib.on[data-v="양호"]{background:var(--ok);border-color:var(--ok);color:#fff}
+  .ib.on[data-v="미흡"]{background:var(--warn);border-color:var(--warn);color:#fff}
+  .ib.on[data-v="불량"]{background:var(--dng);border-color:var(--dng);color:#fff}
+  .ib.on[data-v="해당없음"]{background:var(--mute);border-color:var(--mute);color:#fff}
+  .insp-detail{margin-top:9px;display:flex;flex-direction:column;gap:7px}
+  .insp-detail select,.insp-detail textarea{width:100%;margin:0}
+  .insp-add{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .insp-space{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--bg);padding:0 10px 6px}
+  .insp-space>summary{display:flex;gap:6px;align-items:center;padding:10px 2px;cursor:pointer;font-size:13.5px;list-style:none}
+  .insp-space>summary::-webkit-details-marker{display:none}
+  .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
+  .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 </style>
 </head>
 <body>
@@ -1864,6 +1910,7 @@ function admTab(t){
   document.querySelectorAll('.admsec').forEach(function(el){el.style.display=(el.dataset.t===t)?'':'none';});
   window.scrollTo({top:0,behavior:'instant'});
   if(t==='docs')renderDocAdmin();
+  if(t==='insp')inspInit();
 }
 function admSt(v){
   ADM_ST=v;
@@ -1933,7 +1980,10 @@ function adminHTML(){
       +'<button class="flt'+(ADM_TAB==='work'?' on':'')+'" data-t="work">접수 처리 <span id="admc_work" class="hint" style="font-size:11px"></span></button>'
       +'<button class="flt'+(ADM_TAB==='docs'?' on':'')+'" data-t="docs">자료실 <span id="admc_docs" class="hint" style="font-size:11px"></span></button>'
       +'<button class="flt'+(ADM_TAB==='acct'?' on':'')+'" data-t="acct">계정 관리 <span id="admc_acct" class="hint" style="font-size:11px"></span></button>'
+      +'<button class="flt'+(ADM_TAB==='insp'?' on':'')+'" data-t="insp">정기점검</button>'
     +'</div>'
+    // ── 정기점검
+    +'<div class="admsec" data-t="insp"'+(ADM_TAB==='insp'?'':' style="display:none"')+'><div id="insp_root"></div></div>'
 
     // ── 접수 처리
     +'<div class="admsec" data-t="work"'+(ADM_TAB==='work'?'':' style="display:none"')+'>'
@@ -2286,6 +2336,7 @@ function bindAdmin(){
   loadPending();
   loadAccounts();
   loadDocs();
+  if(ADM_TAB==='insp')inspInit();
   document.querySelectorAll('.dd.adstat').forEach(function(box){
     var i=box.dataset.i;var opts=['대기','진행중','완료'];
     box.innerHTML='<div class="ddh"><span class="left"><span class="cur ph">선택</span></span><span class="chev">⌄</span></div><div class="ddbody">'+opts.map(function(o){return '<button type="button" class="optb" data-v="'+o+'">'+o+'</button>';}).join('')+'</div>';
@@ -2294,6 +2345,564 @@ function bindAdmin(){
     box.querySelectorAll('.optb').forEach(function(b){b.addEventListener('click',function(){box.querySelectorAll('.optb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');cur.className='cur sel';cur.textContent=b.dataset.v;box.classList.remove('open');box.dataset.val=b.dataset.v;});});
   });
 }
+// ===================================================================
+// ===== 정기점검 (총무기획팀 > 정기점검) =====
+// 테이블: fac_inspection_items / fac_inspections / fac_inspection_results
+// 사진: fac-docs 버킷 insp/<inspection_id>/... (기존 fixPhotoShrink·photoBoxFill 재사용)
+// ===================================================================
+var INSP_ZONES=['외부·출입구','데스크·로비','복도·계단','강의실','교무실','상담실','원장실','화장실','탕비실','창고·설비','전 구역','서류 확인'];
+var INSP_SPACE_ZONES=['강의실','교무실','원장실','상담실','데스크·로비','복도·계단','화장실','탕비실','창고·설비','외부·출입구'];
+var INSP_RESULTS=['양호','미흡','불량','해당없음'];
+var INSP_ACTIONS=['현장 즉시조치','총무팀 처리','외주·업체','캠퍼스 자체','본부 보고'];
+var INSP={ready:false,items:[],ck:[],sp:[],itemById:{},campuses:[],round:'',rounds:[],list:[],stat:{},
+  view:'home',q:'',brand:'all',cur:null,res:{},prev:{},spaces:[],photoKey:null,issues:[],hist:null};
+
+function inspH(v){return (v==null?'':String(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function inspToday(){return new Date(Date.now()+9*3600*1000).toISOString().slice(0,10);}
+function inspDefaultRound(){var d=inspToday();return d.slice(0,7)+' 전사 일제점검';}
+function inspKey(itemId,space){return itemId+'|'+(space||'');}
+function inspRoot(){return document.getElementById('insp_root');}
+function inspToast(msg,err){
+  var t=document.getElementById('insp_toast');
+  if(!t){t=document.createElement('div');t.id='insp_toast';document.body.appendChild(t);}
+  t.textContent=msg;t.className='insp-toast'+(err?' err':'')+' show';
+  clearTimeout(t._h);t._h=setTimeout(function(){t.className='insp-toast'+(err?' err':'');},err?3500:1200);
+}
+// Supabase 1,000행 제한 대응: 범위 반복 조회
+function inspFetchAll(build){
+  var out=[],step=1000;
+  function page(from){
+    return build().range(from,from+step-1).then(function(r){
+      if(r.error)throw r.error;
+      var d=r.data||[];out=out.concat(d);
+      return d.length===step?page(from+step):out;
+    });
+  }
+  return page(0);
+}
+
+// ---------- 진입 ----------
+function inspInit(){
+  var root=inspRoot();if(!root)return;
+  if(!root._bound){root._bound=true;root.addEventListener('click',inspOnClick);root.addEventListener('change',inspOnChange);}
+  if(!SB_READY){root.innerHTML='<div class="hint" style="padding:20px">서버 연결 없음</div>';return;}
+  if(INSP.ready){inspRender();return;}
+  root.innerHTML='<div class="hint" style="padding:20px">점검 항목을 불러오는 중...</div>';
+  Promise.all([
+    sb.from('fac_inspection_items').select('*').eq('active',true).order('item_type',{ascending:true}).order('no',{ascending:true}),
+    sb.from('fac_org_view').select('campus_code,region,division,brand,campus_label').eq('is_active',true).order('campus_code',{ascending:true}),
+    sb.from('fac_inspections').select('round_name,created_at').order('created_at',{ascending:false}).limit(1000)
+  ]).then(function(r){
+    if(r[0].error){root.innerHTML='<div class="insp-empty">점검 테이블이 아직 없습니다.<br>Supabase에서 <b>1_fac_inspection_schema.sql</b> → <b>2_fac_inspection_seed.sql</b> 순서로 실행해 주세요.<br><span class="hint">'+inspH(r[0].error.message)+'</span></div>';return;}
+    INSP.items=r[0].data||[];
+    INSP.itemById={};INSP.items.forEach(function(it){INSP.itemById[it.id]=it;});
+    INSP.ck=INSP.items.filter(function(x){return x.item_type==='checklist';});
+    INSP.sp=INSP.items.filter(function(x){return x.item_type==='space';});
+    INSP.campuses=((r[1]&&r[1].data)||[]).filter(function(c){return c.campus_code!=='100';});
+    var seen={};INSP.rounds=[];
+    ((r[2]&&r[2].data)||[]).forEach(function(x){if(!seen[x.round_name]){seen[x.round_name]=1;INSP.rounds.push(x.round_name);}});
+    INSP.round=INSP.rounds[0]||inspDefaultRound();
+    INSP.ready=true;
+    inspLoadRound();
+  }).catch(function(e){root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
+}
+function inspRender(){
+  if(INSP.view==='run')inspRenderRun();
+  else if(INSP.view==='issues')inspRenderIssues();
+  else if(INSP.view==='hist')inspRenderHist();
+  else inspRenderHome();
+}
+
+// ---------- 회차 현황 ----------
+function inspLoadRound(){
+  var root=inspRoot();if(root)root.innerHTML='<div class="hint" style="padding:20px">회차 현황을 불러오는 중...</div>';
+  INSP.view='home';
+  sb.from('fac_inspections').select('*').eq('round_name',INSP.round).then(function(r){
+    INSP.list=(r&&r.data)||[];
+    var ids=INSP.list.map(function(x){return x.id;});
+    INSP.stat={};
+    if(!ids.length){inspRenderHome();return;}
+    inspFetchAll(function(){return sb.from('fac_inspection_results').select('inspection_id,item_id,result').in('inspection_id',ids);}).then(function(rows){
+      rows.forEach(function(x){
+        var s=INSP.stat[x.inspection_id]||(INSP.stat[x.inspection_id]={done:0,bad:0,weak:0,a:0});
+        if(x.result)s.done++;
+        if(x.result==='불량')s.bad++;
+        if(x.result==='미흡')s.weak++;
+        var it=INSP.itemById[x.item_id];
+        if(it&&it.grade==='A'&&(x.result==='미흡'||x.result==='불량'))s.a++;
+      });
+      inspRenderHome();
+    }).catch(function(){inspRenderHome();});
+  });
+}
+function inspRenderHome(){
+  var root=inspRoot();if(!root)return;
+  var byCode={};INSP.list.forEach(function(x){byCode[x.campus_code]=x;});
+  var total=INSP.campuses.length,done=0,prog=0,aSum=0,issueSum=0;
+  INSP.list.forEach(function(x){if(x.status==='완료')done++;else prog++;var s=INSP.stat[x.id]||{};aSum+=s.a||0;issueSum+=(s.bad||0)+(s.weak||0);});
+  var brands={};INSP.campuses.forEach(function(c){if(c.brand)brands[c.brand]=1;});
+  var q=INSP.q.toLowerCase();
+  var rows=INSP.campuses.filter(function(c){
+    if(INSP.brand!=='all'&&c.brand!==INSP.brand)return false;
+    if(!q)return true;
+    return [c.campus_label,c.region,c.brand,c.campus_code].join(' ').toLowerCase().indexOf(q)>=0;
+  });
+  rows.sort(function(a,b){
+    var sa=byCode[a.campus_code],sb_=byCode[b.campus_code];
+    var ra=sa?(sa.status==='완료'?2:0):1, rb=sb_?(sb_.status==='완료'?2:0):1;
+    return ra-rb;
+  });
+  var roundOpts=INSP.rounds.slice();if(roundOpts.indexOf(INSP.round)<0)roundOpts.unshift(INSP.round);
+  var html=''
+    +'<div class="insp-bar">'
+      +'<div style="flex:1;min-width:200px"><div class="lbl">점검 회차</div>'
+        +'<select id="insp_round" style="width:100%">'+roundOpts.map(function(o){return '<option'+(o===INSP.round?' selected':'')+'>'+inspH(o)+'</option>';}).join('')+'</select></div>'
+      +'<button class="flt" data-act="newround">+ 새 회차</button>'
+      +'<button class="flt" data-act="issues">미흡·불량 모아보기</button>'
+      +'<button class="flt" data-act="csv">CSV 내려받기</button>'
+    +'</div>'
+    +'<div class="insp-kpi">'
+      +'<div><b>'+done+'</b><span>/ '+total+'</span><em>점검 완료</em></div>'
+      +'<div><b>'+prog+'</b><em>진행중</em></div>'
+      +'<div class="'+(aSum?'dng':'')+'"><b>'+aSum+'</b><em>A등급 미흡·불량</em></div>'
+      +'<div><b>'+issueSum+'</b><em>전체 미흡·불량</em></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
+      +'<input type="text" id="insp_q" placeholder="캠퍼스·지역 검색" value="'+inspH(INSP.q)+'" style="flex:1;max-width:260px;margin:0">'
+      +'<button class="flt'+(INSP.brand==='all'?' on':'')+'" data-act="brand" data-v="all">전체</button>'
+      +Object.keys(brands).sort().map(function(b){return '<button class="flt'+(INSP.brand===b?' on':'')+'" data-act="brand" data-v="'+inspH(b)+'">'+inspH(b)+'</button>';}).join('')
+    +'</div>'
+    +(rows.length?rows.map(function(c){
+      var x=byCode[c.campus_code],s=x?(INSP.stat[x.id]||{}):{};
+      var badge=!x?'<span class="badge" style="background:var(--bg);color:var(--mute)">미점검</span>'
+        :x.status==='완료'?'<span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>'
+        :'<span class="badge" style="background:var(--bluebg);color:var(--blue)">진행중</span>';
+      var meta=x?('<span>'+inspH(x.inspector_name||x.inspector_login||'')+' · '+inspH(x.inspected_at||'')+'</span>'
+        +(s.a?' <span class="insp-tag dng">A '+s.a+'</span>':'')
+        +((s.bad||0)+(s.weak||0)?' <span class="insp-tag warn">미흡·불량 '+((s.bad||0)+(s.weak||0))+'</span>':'')):'';
+      return '<div class="insp-row">'
+        +'<div style="flex:1;min-width:0"><div class="title" style="font-size:14px">'+inspH(c.campus_label||c.region)+' '+badge+'</div>'
+        +'<div class="rid">'+inspH([c.brand,c.region,c.campus_code].filter(Boolean).join(' · '))+'</div>'
+        +(meta?'<div class="rid" style="margin-top:3px">'+meta+'</div>':'')+'</div>'
+        +'<div style="display:flex;gap:6px;flex-shrink:0">'
+          +'<button class="flt" data-act="hist" data-v="'+inspH(c.campus_code)+'">이력</button>'
+          +'<button class="'+(x&&x.status==='완료'?'flt':'flt on')+'" data-act="start" data-v="'+inspH(c.campus_code)+'">'+(!x?'점검 시작':x.status==='완료'?'열기':'이어하기')+'</button>'
+        +'</div></div>';
+    }).join(''):'<div class="insp-empty">조건에 맞는 캠퍼스가 없습니다.</div>');
+  root.innerHTML=html;
+}
+function inspNewRound(){
+  var v=prompt('새 점검 회차 이름을 입력하세요.\n예: '+inspDefaultRound()+' / 2026 1분기 정기점검',inspDefaultRound());
+  if(!v)return;v=v.trim();if(!v)return;
+  if(INSP.rounds.indexOf(v)<0)INSP.rounds.unshift(v);
+  INSP.round=v;inspLoadRound();
+}
+
+// ---------- 점검 시작 / 열기 ----------
+function inspStart(code){
+  var ex=INSP.list.filter(function(x){return x.campus_code===code;})[0];
+  if(ex){inspOpen(ex.id);return;}
+  var c=INSP.campuses.filter(function(x){return x.campus_code===code;})[0]||{};
+  if(!confirm('['+INSP.round+']\n'+(c.campus_label||code)+' 점검을 시작할까요?\n점검자: '+((CURRENT_USER&&CURRENT_USER.name)||'')))return;
+  sb.from('fac_inspections').insert({
+    round_name:INSP.round,campus_code:code,campus_label:c.campus_label||null,region:c.region||null,brand:c.brand||null,
+    inspector_login:(CURRENT_USER&&CURRENT_USER.login_id)||null,inspector_name:(CURRENT_USER&&CURRENT_USER.name)||null,
+    inspected_at:inspToday()
+  }).select().then(function(r){
+    if(r.error){
+      // 다른 팀원이 먼저 시작한 경우 → 그 회차를 연다
+      sb.from('fac_inspections').select('*').eq('round_name',INSP.round).eq('campus_code',code).limit(1).then(function(r2){
+        var row=r2&&r2.data&&r2.data[0];
+        if(row){INSP.list.push(row);inspOpen(row.id);}else alert('시작하지 못했습니다: '+r.error.message);
+      });
+      return;
+    }
+    var row=r.data[0];INSP.list.push(row);inspOpen(row.id);
+  });
+}
+function inspOpen(id){
+  var root=inspRoot();if(root)root.innerHTML='<div class="hint" style="padding:20px">점검표를 불러오는 중...</div>';
+  sb.from('fac_inspections').select('*').eq('id',id).limit(1).then(function(r){
+    var cur=r&&r.data&&r.data[0];if(!cur){alert('점검 정보를 찾을 수 없습니다.');inspLoadRound();return;}
+    INSP.cur=cur;INSP.res={};INSP.prev={};INSP.spaces=[];
+    return Promise.all([
+      inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').eq('inspection_id',id);}),
+      sb.from('fac_inspections').select('id,round_name,inspected_at').eq('campus_code',cur.campus_code).neq('id',id).eq('status','완료').order('inspected_at',{ascending:false}).limit(1)
+    ]).then(function(rs){
+      var sseen={};
+      rs[0].forEach(function(x){
+        INSP.res[inspKey(x.item_id,x.space_name)]=x;
+        if(x.space_name&&!sseen[x.space_name]){sseen[x.space_name]=1;INSP.spaces.push({name:x.space_name,zone:x.space_zone||''});}
+      });
+      INSP.spaces.sort(function(a,b){return INSP_SPACE_ZONES.indexOf(a.zone)-INSP_SPACE_ZONES.indexOf(b.zone)||a.name.localeCompare(b.name,'ko');});
+      var prev=rs[1]&&rs[1].data&&rs[1].data[0];
+      if(!prev){INSP.view='run';inspRenderRun();return;}
+      INSP.prevRound=prev.round_name+' ('+prev.inspected_at+')';
+      return sb.from('fac_inspection_results').select('item_id,space_name,result').eq('inspection_id',prev.id).in('result',['미흡','불량']).then(function(p){
+        ((p&&p.data)||[]).forEach(function(x){INSP.prev[inspKey(x.item_id,x.space_name)]=x.result;});
+        INSP.view='run';inspRenderRun();
+      });
+    });
+  }).catch(function(e){alert('불러오기 실패: '+(e&&e.message||e));});
+}
+
+// ---------- 현장 입력 화면 ----------
+function inspProgress(){
+  var total=INSP.ck.length+INSP.spaces.length*INSP.sp.length,done=0,bad=0,weak=0;
+  Object.keys(INSP.res).forEach(function(k){var x=INSP.res[k];if(x.result)done++;if(x.result==='불량')bad++;if(x.result==='미흡')weak++;});
+  return {total:total,done:done,bad:bad,weak:weak,pct:total?Math.round(done*100/total):0};
+}
+function inspItemHTML(it,space,zone){
+  var k=inspKey(it.id,space),x=INSP.res[k]||{},sm=!!space;
+  var isIssue=(x.result==='미흡'||x.result==='불량');
+  var prev=INSP.prev[k];
+  var head=sm
+    ?'<div class="insp-it-t">'+inspH(it.title)+(prev?' <span class="insp-tag dng" title="직전 회차 결과">직전 '+prev+'</span>':'')+'</div>'
+    :'<div class="insp-it-t"><span class="insp-no">'+it.no+'</span>'+inspH(it.title)
+      +' <span class="insp-g g'+it.grade+'">'+it.grade+'</span>'
+      +' <span class="insp-cat">'+inspH(it.category||'')+'</span>'
+      +(prev?' <span class="insp-tag dng" title="직전 회차 결과">직전 '+prev+' · 재발 주의</span>':'')+'</div>'
+      +'<div class="insp-crit">'+inspH(it.criteria||'')+'</div>';
+  var btns='<div class="insp-btns">'+INSP_RESULTS.map(function(v){
+    return '<button class="ib'+(sm?' sm':'')+(x.result===v?' on':'')+'" data-act="res" data-k="'+inspH(k)+'" data-v="'+v+'">'+(v==='해당없음'?'해당없음':v)+'</button>';
+  }).join('')+'</div>';
+  var detail='';
+  if(isIssue){
+    var pid='ip_'+Math.random().toString(36).slice(2);
+    var paths=x.photo_paths||[];
+    if(paths.length)setTimeout(function(){photoBoxFill(pid,paths,56);},0);
+    detail='<div class="insp-detail">'
+      +'<select data-act="action" data-k="'+inspH(k)+'"><option value="">조치 구분 선택</option>'+INSP_ACTIONS.map(function(a){return '<option'+(x.action_type===a?' selected':'')+'>'+a+'</option>';}).join('')+'</select>'
+      +'<textarea data-act="note" data-k="'+inspH(k)+'" rows="2" placeholder="문제 내용 (위치·수량 — 예: 창가 쪽 LED 3개 미점등)">'+inspH(x.note||'')+'</textarea>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<button class="flt" data-act="photo" data-k="'+inspH(k)+'">📷 사진 '+(paths.length?('('+paths.length+')'):'추가')+'</button>'
+        +(paths.length?'<button class="flt" data-act="photodel" data-k="'+inspH(k)+'" style="color:var(--dng)">마지막 사진 삭제</button>':'')
+        +(x.request_no?'<span class="insp-tag ok">유지보수 '+inspH(x.request_no)+'</span>':'')
+      +'</div>'
+      +'<div id="'+pid+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'
+    +'</div>';
+  }
+  return '<div class="insp-it'+(sm?' sm':'')+(x.result?' r-'+x.result:'')+'" id="it_'+inspH(k).replace(/[^\w가-힣|]/g,'_')+'" data-k="'+inspH(k)+'" data-zone="'+inspH(zone||'')+'">'+head+btns+detail+'</div>';
+}
+function inspRenderRun(){
+  var root=inspRoot();if(!root)return;var cur=INSP.cur;
+  var groups={};INSP.ck.forEach(function(it){var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';(groups[z]=groups[z]||[]).push(it);});
+  var zones=INSP_ZONES.filter(function(z){return groups[z];});
+  var locked=cur.status==='완료';
+  var html=''
+    +'<div class="insp-head">'
+      +'<button class="flt" data-act="home">← 회차 현황</button>'
+      +'<div style="flex:1;min-width:0"><div class="title" style="font-size:15px">'+inspH(cur.campus_label||cur.campus_code)+(locked?' <span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>':'')+'</div>'
+      +'<div class="rid">'+inspH(cur.round_name)+' · '+inspH(cur.inspector_name||'')+' · '+inspH(cur.inspected_at)+(INSP.prevRound?' · 직전 점검 '+inspH(INSP.prevRound):'')+'</div></div>'
+    +'</div>'
+    +'<div class="insp-sticky">'
+      +'<div id="insp_prog"></div>'
+      +'<div class="insp-zn">'+zones.map(function(z){return '<button class="flt" data-act="jump" data-v="z_'+INSP_ZONES.indexOf(z)+'">'+inspH(z)+' <span class="insp-zc" data-zc="'+inspH(z)+'"></span></button>';}).join('')
+        +'<button class="flt" data-act="jump" data-v="z_space">공간별 세부 <span class="insp-zc" data-zc="__space"></span></button>'
+        +'<button class="flt" data-act="jump" data-v="z_done">완료</button></div>'
+    +'</div>'
+    +(locked?'<div class="insp-note">완료된 점검입니다. 수정은 가능하며, 수정 내용은 바로 저장됩니다.</div>':'')
+    +'<div class="hint" style="margin:4px 0 12px">버튼을 누르는 즉시 저장됩니다. 미흡·불량을 고르면 조치 구분·메모·사진 칸이 열립니다.</div>';
+  zones.forEach(function(z){
+    html+='<div class="insp-sec" id="z_'+INSP_ZONES.indexOf(z)+'"><div class="insp-sec-t">'+inspH(z)+' <span class="hint">'+groups[z].length+'개</span></div>'
+      +groups[z].map(function(it){return inspItemHTML(it,'',z);}).join('')+'</div>';
+  });
+  // 공간별 세부 점검
+  html+='<div class="insp-sec" id="z_space"><div class="insp-sec-t">공간별 세부 점검 <span class="hint">강의실·교무실·원장실·데스크 등 공간마다 '+INSP.sp.length+'개 항목</span></div>'
+    +'<div class="insp-add">'
+      +'<input type="text" id="insp_sp_name" placeholder="공간명 (예: 301호, 교무실)" style="flex:1;min-width:140px;margin:0">'
+      +'<select id="insp_sp_zone" style="width:130px">'+INSP_SPACE_ZONES.map(function(z){return '<option>'+z+'</option>';}).join('')+'</select>'
+      +'<button class="flt on" data-act="addspace">+ 공간 추가</button>'
+    +'</div>'
+    +(INSP.spaces.length?INSP.spaces.map(function(s){
+      var cnt=INSP.sp.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&x.result;}).length;
+      var iss=INSP.sp.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&(x.result==='미흡'||x.result==='불량');}).length;
+      return '<details class="insp-space"'+(cnt<INSP.sp.length?' open':'')+'><summary><b>'+inspH(s.name)+'</b> <span class="insp-cat">'+inspH(s.zone)+'</span>'
+        +' <span class="hint">'+cnt+'/'+INSP.sp.length+'</span>'+(iss?' <span class="insp-tag warn">미흡·불량 '+iss+'</span>':'')
+        +'<button class="flt" data-act="allok" data-v="'+inspH(s.name)+'" style="margin-left:auto">남은 항목 모두 양호</button></summary>'
+        +INSP.sp.map(function(it){return inspItemHTML(it,s.name,s.zone);}).join('')+'</details>';
+    }).join(''):'<div class="insp-empty" style="margin-top:8px">아직 추가한 공간이 없습니다. 강의실마다 공간을 추가해 점검하세요.</div>')
+    +'</div>';
+  // 완료
+  html+='<div class="insp-sec" id="z_done"><div class="insp-sec-t">점검 완료</div>'
+    +'<div class="lbl">캠퍼스 확인자 (원장·실장)</div>'
+    +'<input type="text" id="insp_confirmer" value="'+inspH(cur.campus_confirmer||'')+'" placeholder="이름" style="max-width:260px">'
+    +'<div class="lbl" style="margin-top:10px">점검 메모</div>'
+    +'<textarea id="insp_memo" rows="2" placeholder="캠퍼스 전반 의견, 원장 요청 등">'+inspH(cur.memo||'')+'</textarea>'
+    +'<button class="submit" data-act="complete" style="width:100%;margin-top:10px">'+(locked?'완료 정보 수정':'점검 완료 처리')+'</button>'
+    +'</div>';
+  root.innerHTML=html;
+  inspUpdateProg();
+}
+function inspUpdateProg(){
+  var p=inspProgress(),el=document.getElementById('insp_prog');
+  if(el)el.innerHTML='<div class="insp-pbar"><i style="width:'+p.pct+'%"></i></div>'
+    +'<div class="hint" style="margin-top:4px">'+p.done+' / '+p.total+' 항목 ('+p.pct+'%) · <span style="color:var(--warn)">미흡 '+p.weak+'</span> · <span style="color:var(--dng)">불량 '+p.bad+'</span></div>';
+  // 구역별 남은 수
+  var groups={};INSP.ck.forEach(function(it){var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';var g=groups[z]||(groups[z]={t:0,d:0});g.t++;var x=INSP.res[inspKey(it.id,'')];if(x&&x.result)g.d++;});
+  document.querySelectorAll('#insp_root .insp-zc').forEach(function(s){
+    var z=s.dataset.zc;
+    if(z==='__space'){s.textContent=INSP.spaces.length?(INSP.spaces.length+'곳'):'';return;}
+    var g=groups[z];if(!g)return;s.textContent=g.d+'/'+g.t;s.style.color=g.d===g.t?'var(--ok)':'';
+  });
+}
+function inspRefreshItem(k){
+  var el=document.querySelector('#insp_root .insp-it[data-k="'+CSS.escape(k)+'"]');
+  if(!el)return;
+  var parts=k.split('|'),it=INSP.itemById[parts[0]];if(!it)return;
+  var tmp=document.createElement('div');tmp.innerHTML=inspItemHTML(it,parts.slice(1).join('|'),el.dataset.zone);
+  el.parentNode.replaceChild(tmp.firstChild,el);
+  inspUpdateProg();
+}
+
+// ---------- 저장 ----------
+function inspSave(k,patch){
+  var parts=k.split('|'),itemId=Number(parts[0]),space=parts.slice(1).join('|');
+  var base=INSP.res[k]||{};
+  var sp=INSP.spaces.filter(function(s){return s.name===space;})[0];
+  var row={
+    inspection_id:INSP.cur.id,item_id:itemId,space_name:space,space_zone:space?((sp&&sp.zone)||base.space_zone||null):null,
+    result:base.result||null,action_type:base.action_type||null,note:base.note||null,photo_paths:base.photo_paths||[],
+    updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null,updated_at:new Date().toISOString()
+  };
+  Object.keys(patch).forEach(function(f){row[f]=patch[f];});
+  INSP.res[k]=Object.assign({},base,row);
+  return sb.from('fac_inspection_results').upsert(row,{onConflict:'inspection_id,item_id,space_name'}).select().then(function(r){
+    if(r.error){inspToast('저장 실패: '+r.error.message,true);return false;}
+    if(r.data&&r.data[0])INSP.res[k]=r.data[0];
+    inspToast('저장됨');return true;
+  });
+}
+function inspSaveMany(rows){
+  if(!rows.length)return Promise.resolve(true);
+  return sb.from('fac_inspection_results').upsert(rows,{onConflict:'inspection_id,item_id,space_name'}).select().then(function(r){
+    if(r.error){inspToast('저장 실패: '+r.error.message,true);return false;}
+    (r.data||[]).forEach(function(x){INSP.res[inspKey(x.item_id,x.space_name)]=x;});
+    inspToast('저장됨');return true;
+  });
+}
+function inspAddSpace(){
+  var n=document.getElementById('insp_sp_name'),z=document.getElementById('insp_sp_zone');
+  var name=(n&&n.value||'').trim(),zone=z&&z.value||'강의실';
+  if(!name){alert('공간명을 입력하세요. (예: 301호)');return;}
+  if(INSP.spaces.some(function(s){return s.name===name;})){alert('이미 추가된 공간입니다.');return;}
+  INSP.spaces.push({name:name,zone:zone});
+  // 공간 목록이 새로고침 후에도 남도록 빈 결과 행을 미리 저장
+  var rows=INSP.sp.map(function(it){return {inspection_id:INSP.cur.id,item_id:it.id,space_name:name,space_zone:zone,updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null};});
+  inspSaveMany(rows).then(function(){inspRenderRun();var el=document.getElementById('insp_sp_name');if(el)el.focus();});
+}
+function inspAllOk(space){
+  var rows=[];
+  INSP.sp.forEach(function(it){
+    var k=inspKey(it.id,space),x=INSP.res[k]||{};
+    if(x.result)return;
+    rows.push({inspection_id:INSP.cur.id,item_id:it.id,space_name:space,space_zone:x.space_zone||null,result:'양호',
+      action_type:null,note:null,photo_paths:x.photo_paths||[],updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null,updated_at:new Date().toISOString()});
+  });
+  if(!rows.length){inspToast('남은 항목이 없습니다.');return;}
+  inspSaveMany(rows).then(function(){inspRenderRun();});
+}
+function inspComplete(){
+  var p=inspProgress();
+  var cf=(document.getElementById('insp_confirmer')||{}).value||'';
+  var memo=(document.getElementById('insp_memo')||{}).value||'';
+  if(p.done<p.total&&INSP.cur.status!=='완료'){
+    if(!confirm('아직 '+(p.total-p.done)+'개 항목이 미입력입니다.\n그래도 완료 처리할까요?'))return;
+  }
+  sb.from('fac_inspections').update({status:'완료',completed_at:INSP.cur.completed_at||new Date().toISOString(),campus_confirmer:cf.trim()||null,memo:memo.trim()||null}).eq('id',INSP.cur.id).select().then(function(r){
+    if(r.error){alert('완료 처리 실패: '+r.error.message);return;}
+    INSP.cur=r.data[0];
+    INSP.list=INSP.list.map(function(x){return x.id===INSP.cur.id?INSP.cur:x;});
+    var aIss=Object.keys(INSP.res).filter(function(k){var x=INSP.res[k],it=INSP.itemById[x.item_id];return it&&it.grade==='A'&&(x.result==='미흡'||x.result==='불량');}).length;
+    openModal('<div class="mb" style="text-align:center;padding-top:22px"><div class="done-ic">✓</div><div style="font-size:14px;font-weight:600;margin-bottom:8px">'+inspH(INSP.cur.campus_label||'')+' 점검 완료</div>'
+      +'<div class="hint" style="font-size:12.5px;line-height:1.7">입력 '+p.done+' / '+p.total+'<br>미흡 '+p.weak+' · 불량 '+p.bad
+      +(aIss?'<br><b style="color:var(--dng)">A등급 미흡·불량 '+aIss+'건 — 당일 보고 대상</b>':'')+'</div></div>'
+      +'<div class="mf"><button class="mbtn yes" onclick="closeModal();inspLoadRound()">회차 현황으로</button></div>');
+  });
+}
+
+// ---------- 사진 ----------
+function inspPickPhoto(k){
+  INSP.photoKey=k;
+  var f=document.getElementById('insp_file');
+  if(!f){f=document.createElement('input');f.type='file';f.id='insp_file';f.accept='image/*';f.multiple=true;f.style.display='none';
+    f.addEventListener('change',inspPhotoChosen);document.body.appendChild(f);}
+  f.value='';f.click();
+}
+function inspPhotoChosen(e){
+  var files=[].slice.call(e.target.files||[]);var k=INSP.photoKey;if(!files.length||!k)return;
+  var parts=k.split('|');inspToast('사진 올리는 중... ('+files.length+'장)');
+  var jobs=files.map(function(f,i){
+    return fixPhotoShrink(f).then(function(blob){
+      var path='insp/'+INSP.cur.id+'/'+parts[0]+'_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,6)+'.jpg';
+      return sb.storage.from(DOC_BUCKET).upload(path,blob,{upsert:false,contentType:'image/jpeg'}).then(function(up){return up&&up.error?null:path;});
+    }).catch(function(){return null;});
+  });
+  Promise.all(jobs).then(function(paths){
+    var ok=paths.filter(Boolean);
+    if(!ok.length){inspToast('사진 업로드 실패',true);return;}
+    var cur=(INSP.res[k]&&INSP.res[k].photo_paths)||[];
+    inspSave(k,{photo_paths:cur.concat(ok)}).then(function(){inspRefreshItem(k);if(ok.length<files.length)inspToast((files.length-ok.length)+'장 업로드 실패',true);});
+  });
+}
+function inspPhotoDel(k){
+  var cur=((INSP.res[k]&&INSP.res[k].photo_paths)||[]).slice();if(!cur.length)return;
+  if(!confirm('마지막 사진을 삭제할까요?'))return;
+  var last=cur.pop();
+  inspSave(k,{photo_paths:cur}).then(function(){sb.storage.from(DOC_BUCKET).remove([last]).then(function(){},function(){});inspRefreshItem(k);});
+}
+
+// ---------- 미흡·불량 모아보기 + 유지보수 전환 ----------
+function inspLoadIssues(){
+  var root=inspRoot();if(root)root.innerHTML='<div class="hint" style="padding:20px">불러오는 중...</div>';
+  var ids=INSP.list.map(function(x){return x.id;});
+  INSP.view='issues';
+  if(!ids.length){INSP.issues=[];inspRenderIssues();return;}
+  inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').in('inspection_id',ids).in('result',['미흡','불량']);}).then(function(rows){
+    var byId={};INSP.list.forEach(function(x){byId[x.id]=x;});
+    rows.forEach(function(x){x._insp=byId[x.inspection_id]||{};x._item=INSP.itemById[x.item_id]||{};});
+    var gr={A:0,B:1,C:2};
+    rows.sort(function(a,b){
+      return (a.request_no?1:0)-(b.request_no?1:0)
+        ||(a.result==='불량'?0:1)-(b.result==='불량'?0:1)
+        ||(gr[a._item.grade]==null?3:gr[a._item.grade])-(gr[b._item.grade]==null?3:gr[b._item.grade])
+        ||String(a._insp.campus_label||'').localeCompare(String(b._insp.campus_label||''),'ko');
+    });
+    INSP.issues=rows;inspRenderIssues();
+  }).catch(function(e){if(root)root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
+}
+function inspRenderIssues(){
+  var root=inspRoot();if(!root)return;
+  var rows=INSP.issues||[];
+  var open=rows.filter(function(x){return !x.request_no;}).length;
+  root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
+    +'<div style="flex:1"><div class="title" style="font-size:15px">미흡·불량 모아보기</div><div class="rid">'+inspH(INSP.round)+' · 전체 '+rows.length+'건 · 미전환 '+open+'건</div></div></div>'
+    +'<div class="hint" style="margin-bottom:12px;line-height:1.6">[유지보수 접수로 전환]을 누르면 <b>접수 처리</b> 목록에 정기점검 출처로 등록되어 기존 진행 이력·완료 처리 흐름으로 관리됩니다. (현장 알림은 발송하지 않음)</div>'
+    +(rows.length?rows.map(function(x,i){
+      var it=x._item,ins=x._insp,pid='iss_'+i;
+      if((x.photo_paths||[]).length)setTimeout(function(){photoBoxFill(pid,x.photo_paths,56);},0);
+      return '<div class="card"><div style="padding:12px 15px">'
+        +'<div style="display:flex;gap:8px;align-items:flex-start"><div style="flex:1;min-width:0">'
+          +'<div class="title" style="font-size:13.5px">'+inspH(ins.campus_label||'')+' · '+inspH(it.title||'')+(x.space_name?' <span class="insp-cat">'+inspH(x.space_name)+'</span>':'')+'</div>'
+          +'<div class="rid">'+(it.grade?'<span class="insp-g g'+it.grade+'">'+it.grade+'</span> ':'')+inspH(it.category||'공간')+' · '+inspH(x.space_zone||it.zone||'')+(x.action_type?' · '+inspH(x.action_type):'')+'</div>'
+        +'</div><span class="badge" style="'+(x.result==='불량'?'background:var(--dngbg);color:var(--dng)':'background:var(--warnbg);color:var(--warn)')+'">'+x.result+'</span></div>'
+        +(x.note?'<div style="font-size:12.5px;margin-top:8px;line-height:1.55">'+inspH(x.note)+'</div>':'')
+        +'<div id="'+pid+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'
+        +'<div style="margin-top:9px">'+(x.request_no?'<span class="insp-tag ok">유지보수 접수 '+inspH(x.request_no)+'</span>'
+          :'<button class="flt on" data-act="toreq" data-v="'+x.id+'">유지보수 접수로 전환</button>')+'</div>'
+        +'</div></div>';
+    }).join(''):'<div class="insp-empty">이 회차에 미흡·불량 항목이 없습니다.</div>');
+}
+function inspToRequest(resId){
+  var x=(INSP.issues||[]).filter(function(r){return r.id===resId;})[0];if(!x)return;
+  var it=x._item||{},ins=x._insp||{};
+  if(!confirm((ins.campus_label||'')+' · '+(it.title||'')+'\n유지보수 접수로 전환할까요?'))return;
+  var detail='[정기점검 '+(ins.round_name||'')+'] '+(it.title||'')+(x.space_name?' / '+x.space_name:'')+' — '+x.result+(x.note?'\n'+x.note:'');
+  var row={type:'fix',campus:ins.region||ins.campus_label||'',status:'wait',
+    applicant:staffLabel()+' (정기점검)',apply_date:inspToday(),
+    detail:detail,location:x.space_name||x.space_zone||it.zone||null,
+    photos:(x.photo_paths&&x.photo_paths.length)?x.photo_paths:null,
+    applicant_login:(CURRENT_USER&&CURRENT_USER.login_id)||null};
+  sb.from('fac_requests').insert(row).select('id,record_no').then(function(r){
+    if(r.error){alert('전환 실패: '+r.error.message);return;}
+    var rec=r.data[0];
+    sb.from('fac_inspection_results').update({request_id:rec.id,request_no:rec.record_no||null}).eq('id',x.id).then(function(){
+      x.request_id=rec.id;x.request_no=rec.record_no||'접수됨';inspRenderIssues();inspToast('유지보수 접수 '+(rec.record_no||'')+' 등록');
+    });
+  });
+}
+
+// ---------- 캠퍼스 이력 ----------
+function inspLoadHist(code){
+  var root=inspRoot();if(root)root.innerHTML='<div class="hint" style="padding:20px">불러오는 중...</div>';
+  var c=INSP.campuses.filter(function(x){return x.campus_code===code;})[0]||{campus_code:code};
+  sb.from('fac_inspections').select('*').eq('campus_code',code).order('inspected_at',{ascending:false}).then(function(r){
+    var list=(r&&r.data)||[];var ids=list.map(function(x){return x.id;});
+    var done=function(rows){
+      var st={},cnt={};
+      rows.forEach(function(x){var s=st[x.inspection_id]||(st[x.inspection_id]={bad:0,weak:0});if(x.result==='불량')s.bad++;else s.weak++;
+        var key=x.item_id+'|'+(x.space_name||'');cnt[key]=(cnt[key]||0)+1;});
+      var rep=Object.keys(cnt).filter(function(k){return cnt[k]>=2;}).map(function(k){var p=k.split('|');return {it:INSP.itemById[p[0]]||{},space:p.slice(1).join('|'),n:cnt[k]};}).sort(function(a,b){return b.n-a.n;});
+      INSP.hist={c:c,list:list,st:st,rep:rep};INSP.view='hist';inspRenderHist();
+    };
+    if(!ids.length){done([]);return;}
+    inspFetchAll(function(){return sb.from('fac_inspection_results').select('inspection_id,item_id,space_name,result').in('inspection_id',ids).in('result',['미흡','불량']);}).then(done).catch(function(){done([]);});
+  });
+}
+function inspRenderHist(){
+  var root=inspRoot();if(!root||!INSP.hist)return;var h=INSP.hist;
+  root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
+    +'<div style="flex:1"><div class="title" style="font-size:15px">'+inspH(h.c.campus_label||h.c.campus_code)+' 점검 이력</div><div class="rid">'+inspH([h.c.brand,h.c.region].filter(Boolean).join(' · '))+' · 누적 '+h.list.length+'회</div></div></div>'
+    +(h.rep.length?'<div class="insp-sec"><div class="insp-sec-t">반복 지적 항목 <span class="hint">2회 이상 미흡·불량 — 근본 조치 필요</span></div>'
+      +h.rep.map(function(r){return '<div class="insp-row"><div style="flex:1">'+inspH(r.it.title||'')+(r.space?' <span class="insp-cat">'+inspH(r.space)+'</span>':'')+'</div><span class="insp-tag dng">'+r.n+'회</span></div>';}).join('')+'</div>':'')
+    +'<div class="insp-sec"><div class="insp-sec-t">회차별</div>'
+    +(h.list.length?h.list.map(function(x){var s=h.st[x.id]||{bad:0,weak:0};
+      return '<div class="insp-row"><div style="flex:1;min-width:0"><div class="title" style="font-size:13.5px">'+inspH(x.round_name)+' <span class="hint">'+inspH(x.status)+'</span></div>'
+        +'<div class="rid">'+inspH(x.inspected_at)+' · '+inspH(x.inspector_name||'')+(x.campus_confirmer?' · 확인 '+inspH(x.campus_confirmer):'')+' · 미흡 '+s.weak+' · 불량 '+s.bad+'</div></div>'
+        +'<button class="flt" data-act="open" data-v="'+x.id+'">열기</button></div>';
+    }).join(''):'<div class="insp-empty">아직 점검 이력이 없습니다.</div>')+'</div>';
+}
+
+// ---------- CSV ----------
+function inspCsv(){
+  var ids=INSP.list.map(function(x){return x.id;});
+  if(!ids.length){alert('이 회차에 점검 기록이 없습니다.');return;}
+  inspToast('CSV 만드는 중...');
+  inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').in('inspection_id',ids);}).then(function(rows){
+    var byId={};INSP.list.forEach(function(x){byId[x.id]=x;});
+    var head=['회차','캠퍼스','브랜드','지역','점검일','점검자','상태','유형','No','구분','구역','등급','점검항목','공간명','결과','조치구분','문제내용','사진수','유지보수 접수번호'];
+    var q=function(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+    var lines=[head.join(',')];
+    rows.forEach(function(x){var ins=byId[x.inspection_id]||{},it=INSP.itemById[x.item_id]||{};
+      lines.push([ins.round_name,ins.campus_label,ins.brand,ins.region,ins.inspected_at,ins.inspector_name,ins.status,
+        it.item_type==='space'?'공간별':'점검표',it.no,it.category,x.space_zone||it.zone,it.grade,it.title,x.space_name,x.result,x.action_type,x.note,(x.photo_paths||[]).length,x.request_no].map(q).join(','));});
+    var blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='정기점검_'+INSP.round.replace(/\s+/g,'_')+'.csv';
+    document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
+  }).catch(function(e){alert('CSV 생성 실패: '+(e&&e.message||e));});
+}
+
+// ---------- 이벤트 ----------
+function inspOnClick(e){
+  var b=e.target.closest('[data-act]');if(!b||!inspRoot().contains(b))return;
+  var act=b.dataset.act,v=b.dataset.v,k=b.dataset.k;
+  if(b.tagName==='SELECT'||b.tagName==='TEXTAREA')return;
+  if(act==='res'){
+    var x=INSP.res[k]||{};var nv=(x.result===v)?null:v;   // 같은 버튼 다시 누르면 해제
+    var patch={result:nv};
+    if(nv!=='미흡'&&nv!=='불량'){patch.action_type=null;}
+    var pr=inspSave(k,patch);   // inspSave가 화면 상태를 먼저 갱신(낙관적 반영)
+    inspRefreshItem(k);
+    pr.then(function(ok){if(!ok){INSP.res[k]=x;}inspRefreshItem(k);});
+  }
+  else if(act==='photo')inspPickPhoto(k);
+  else if(act==='photodel')inspPhotoDel(k);
+  else if(act==='addspace')inspAddSpace();
+  else if(act==='allok'){e.preventDefault();inspAllOk(v);}
+  else if(act==='complete')inspComplete();
+  else if(act==='jump'){var t=document.getElementById(v);if(t){var y=t.getBoundingClientRect().top+window.scrollY-130;window.scrollTo({top:y,behavior:'smooth'});}}
+  else if(act==='home'){inspLoadRound();window.scrollTo({top:0});}
+  else if(act==='start')inspStart(v);
+  else if(act==='open')inspOpen(v);
+  else if(act==='hist')inspLoadHist(v);
+  else if(act==='issues')inspLoadIssues();
+  else if(act==='toreq')inspToRequest(v);
+  else if(act==='csv')inspCsv();
+  else if(act==='newround')inspNewRound();
+  else if(act==='brand'){INSP.brand=v;inspRenderHome();}
+}
+function inspOnChange(e){
+  var t=e.target;
+  if(t.id==='insp_round'){INSP.round=t.value;inspLoadRound();return;}
+  var act=t.dataset&&t.dataset.act,k=t.dataset&&t.dataset.k;
+  if(act==='action')inspSave(k,{action_type:t.value||null});
+  else if(act==='note')inspSave(k,{note:t.value.trim()||null});
+}
+document.addEventListener('input',function(e){
+  if(e.target&&e.target.id==='insp_q'){INSP.q=e.target.value.trim();
+    clearTimeout(INSP._qh);INSP._qh=setTimeout(function(){var pos=e.target.selectionStart;inspRenderHome();var q=document.getElementById('insp_q');if(q){q.focus();try{q.setSelectionRange(pos,pos);}catch(_){}}},250);}
+});
+
 function maskEmail(e){if(!e)return '';var p=e.split('@');return p[0].slice(0,2)+'***@'+(p[1]||'');}
 
 // ===== 진행/답변 알림 페이로드 =====
