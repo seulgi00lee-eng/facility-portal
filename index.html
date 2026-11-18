@@ -197,6 +197,8 @@
   .insp-spwrap{margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:12px;background:#fff}
   .insp-sub{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px}
   .insp-spwrap .insp-add{margin:4px 0 0}
+  .insp-bld{margin-bottom:16px}
+  .insp-bld-t{font-size:14px;color:var(--ink);margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--ink);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 </style>
@@ -2399,19 +2401,45 @@ function inspInit(){
   Promise.all([
     sb.from('fac_inspection_items').select('*').order('item_type',{ascending:true}).order('no',{ascending:true}),
     sb.from('fac_org_view').select('campus_code,region,division,brand,campus_label').eq('is_active',true).order('campus_code',{ascending:true}),
-    sb.from('fac_inspections').select('round_name,created_at').order('created_at',{ascending:false}).limit(1000)
+    sb.from('fac_inspections').select('round_name,created_at').order('created_at',{ascending:false}).limit(1000),
+    sb.from('fac_campus_floors').select('*')
   ]).then(function(r){
     if(r[0].error){root.innerHTML='<div class="insp-empty">점검 테이블이 아직 없습니다.<br>Supabase에서 <b>1_fac_inspection_schema.sql</b> → <b>2_fac_inspection_seed.sql</b> 순서로 실행해 주세요.<br><span class="hint">'+inspH(r[0].error.message)+'</span></div>';return;}
     INSP.items=r[0].data||[];
     INSP.itemById={};INSP.items.forEach(function(it){INSP.itemById[it.id]=it;});
     inspSplitItems();
     INSP.campuses=((r[1]&&r[1].data)||[]).filter(function(c){return c.campus_code!=='100';});
+    inspBuildLocs((r[3]&&r[3].data)||[]);
     var seen={};INSP.rounds=[];
     ((r[2]&&r[2].data)||[]).forEach(function(x){if(!seen[x.round_name]){seen[x.round_name]=1;INSP.rounds.push(x.round_name);}});
     INSP.round=INSP.rounds[0]||inspDefaultRound();
     INSP.ready=true;
     inspLoadRound();
   }).catch(function(e){root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
+}
+// 점검 단위 = 건물 + 층 (같은 층의 여러 관은 한 번에 점검)
+function inspFloorNum(f){var t=String(f||'');var m=t.match(/(B|b|지하)\s*(\d+)/);if(m)return -Number(m[2]);m=t.match(/(\d+)/);return m?Number(m[1]):999;}
+function inspBuildLocs(floors){
+  var byCode={};INSP.campuses.forEach(function(c){byCode[c.campus_code]=c;});
+  var map={},covered={};
+  floors.forEach(function(f){
+    var code=String(f.gwan_code||'').trim(),c=byCode[code];if(!c||!f.building||!f.floor)return;
+    var b=String(f.building).trim(),fl=String(f.floor).trim(),key='B:'+b+'|'+fl;
+    var L=map[key]||(map[key]={key:key,building:b,floor:fl,region:f.region||c.region||'',codes:[],camps:[]});
+    if(L.codes.indexOf(code)<0){L.codes.push(code);L.camps.push(c);}
+    covered[code]=1;
+  });
+  var locs=Object.keys(map).map(function(k){return map[k];});
+  // 건물·층 정보가 없는 관은 관 단위로 남김
+  INSP.campuses.forEach(function(c){if(covered[c.campus_code])return;
+    locs.push({key:c.campus_code,building:'건물·층 미등록',floor:c.campus_label||c.campus_code,region:c.region||'',codes:[c.campus_code],camps:[c],legacy:true});});
+  locs.forEach(function(L){
+    L.title=L.legacy?L.floor:(L.building+' '+L.floor);
+    var seen={};L.campText=L.camps.map(function(c){var t=[c.brand,c.region].filter(Boolean).join(' ')||c.campus_label;if(seen[t])return null;seen[t]=1;return t;}).filter(Boolean).join(' · ');
+    L.brands=L.camps.map(function(c){return c.brand;}).filter(Boolean);
+  });
+  locs.sort(function(a,b){return (a.legacy?1:0)-(b.legacy?1:0)||String(a.region).localeCompare(String(b.region),'ko')||a.building.localeCompare(b.building,'ko')||inspFloorNum(a.floor)-inspFloorNum(b.floor);});
+  INSP.locs=locs;INSP.locByKey={};locs.forEach(function(L){INSP.locByKey[L.key]=L;});
 }
 function inspSplitItems(){
   INSP.ck=INSP.items.filter(function(x){return x.item_type==='checklist'&&x.active!==false;});
@@ -2449,22 +2477,44 @@ function inspLoadRound(){
 }
 function inspRenderHome(){
   var root=inspRoot();if(!root)return;
-  var byCode={};INSP.list.forEach(function(x){byCode[x.campus_code]=x;});
-  var total=INSP.campuses.length,done=0,prog=0,aSum=0,issueSum=0;
+  var byKey={};INSP.list.forEach(function(x){byKey[x.campus_code]=x;});
+  var locs=INSP.locs||[];
+  var total=locs.length,done=0,prog=0,aSum=0,issueSum=0;
   INSP.list.forEach(function(x){if(x.status==='완료')done++;else prog++;var s=INSP.stat[x.id]||{};aSum+=s.a||0;issueSum+=(s.bad||0)+(s.weak||0);});
   var brands={};INSP.campuses.forEach(function(c){if(c.brand)brands[c.brand]=1;});
   var q=INSP.q.toLowerCase();
-  var rows=INSP.campuses.filter(function(c){
-    if(INSP.brand!=='all'&&c.brand!==INSP.brand)return false;
+  var rows=locs.filter(function(L){
+    if(INSP.brand!=='all'&&L.brands.indexOf(INSP.brand)<0)return false;
     if(!q)return true;
-    return [c.campus_label,c.region,c.brand,c.campus_code].join(' ').toLowerCase().indexOf(q)>=0;
+    return [L.building,L.floor,L.region,L.campText,L.codes.join(' '),L.camps.map(function(c){return c.campus_label;}).join(' ')].join(' ').toLowerCase().indexOf(q)>=0;
   });
-  rows.sort(function(a,b){
-    var sa=byCode[a.campus_code],sb_=byCode[b.campus_code];
-    var ra=sa?(sa.status==='완료'?2:0):1, rb=sb_?(sb_.status==='완료'?2:0):1;
-    return ra-rb;
-  });
+  // 건물별 묶기
+  var groups=[],gi={};
+  rows.forEach(function(L){var gk=L.legacy?'__legacy':(L.region+'|'+L.building);
+    if(gi[gk]==null){gi[gk]=groups.length;groups.push({k:gk,building:L.building,region:L.region,legacy:!!L.legacy,locs:[]});}
+    groups[gi[gk]].locs.push(L);});
+  // 이전 방식(관 단위)으로 시작된 기록
+  var orphan=INSP.list.filter(function(x){return !INSP.locByKey[x.campus_code];});
   var roundOpts=INSP.rounds.slice();if(roundOpts.indexOf(INSP.round)<0)roundOpts.unshift(INSP.round);
+  function rowHTML(L,x){
+    var s=x?(INSP.stat[x.id]||{}):{};
+    var badge=!x?'<span class="badge" style="background:var(--bg);color:var(--mute)">미점검</span>'
+      :x.status==='완료'?'<span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>'
+      :'<span class="badge" style="background:var(--bluebg);color:var(--blue)">진행중</span>';
+    var meta=x?('<span>시작 '+inspH(x.inspector_name||x.inspector_login||'')+' · '+inspH(x.inspected_at||'')+'</span>'
+      +(s.a?' <span class="insp-tag dng">A '+s.a+'</span>':'')
+      +((s.bad||0)+(s.weak||0)?' <span class="insp-tag warn">미흡·불량 '+((s.bad||0)+(s.weak||0))+'</span>':'')):'';
+    var key=L?L.key:x.campus_code;
+    return '<div class="insp-row">'
+      +'<div style="flex:1;min-width:0"><div class="title" style="font-size:14px">'+inspH(L?(L.legacy?L.title:L.floor):(x.campus_label||x.campus_code))+' '+badge+'</div>'
+      +'<div class="rid">'+inspH(L?L.campText:(x.region||''))+(L&&L.codes.length?' <span class="hint">('+inspH(L.codes.join(', '))+')</span>':'')+'</div>'
+      +(meta?'<div class="rid" style="margin-top:3px">'+meta+'</div>':'')+'</div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'
+        +'<button class="flt" data-act="hist" data-v="'+inspH(key)+'">이력</button>'
+        +(x?'<button class="flt" data-act="edit" data-v="'+x.id+'">수정</button>':'')
+        +'<button class="'+(x&&x.status==='완료'?'flt':'flt on')+'" data-act="start" data-v="'+inspH(key)+'">'+(!x?'점검 시작':x.status==='완료'?'열기':'이어하기')+'</button>'
+      +'</div></div>';
+  }
   var html=''
     +'<div class="insp-bar">'
       +'<div style="flex:1;min-width:200px"><div class="lbl">점검 회차</div>'
@@ -2474,34 +2524,65 @@ function inspRenderHome(){
       +'<button class="flt" data-act="csv">CSV 내려받기</button>'
     +'</div>'
     +'<div class="insp-kpi">'
-      +'<div><b>'+done+'</b><span>/ '+total+'</span><em>점검 완료</em></div>'
+      +'<div><b>'+done+'</b><span>/ '+total+'</span><em>점검 완료 (건물·층)</em></div>'
       +'<div><b>'+prog+'</b><em>진행중</em></div>'
       +'<div class="'+(aSum?'dng':'')+'"><b>'+aSum+'</b><em>A등급 미흡·불량</em></div>'
       +'<div><b>'+issueSum+'</b><em>전체 미흡·불량</em></div>'
     +'</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
-      +'<input type="text" id="insp_q" placeholder="캠퍼스·지역 검색" value="'+inspH(INSP.q)+'" style="flex:1;max-width:260px;margin:0">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'
+      +'<input type="text" id="insp_q" placeholder="건물·층·캠퍼스 검색" value="'+inspH(INSP.q)+'" style="flex:1;max-width:260px;margin:0">'
       +'<button class="flt'+(INSP.brand==='all'?' on':'')+'" data-act="brand" data-v="all">전체</button>'
       +Object.keys(brands).sort().map(function(b){return '<button class="flt'+(INSP.brand===b?' on':'')+'" data-act="brand" data-v="'+inspH(b)+'">'+inspH(b)+'</button>';}).join('')
     +'</div>'
-    +(rows.length?rows.map(function(c){
-      var x=byCode[c.campus_code],s=x?(INSP.stat[x.id]||{}):{};
-      var badge=!x?'<span class="badge" style="background:var(--bg);color:var(--mute)">미점검</span>'
-        :x.status==='완료'?'<span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>'
-        :'<span class="badge" style="background:var(--bluebg);color:var(--blue)">진행중</span>';
-      var meta=x?('<span>'+inspH(x.inspector_name||x.inspector_login||'')+' · '+inspH(x.inspected_at||'')+'</span>'
-        +(s.a?' <span class="insp-tag dng">A '+s.a+'</span>':'')
-        +((s.bad||0)+(s.weak||0)?' <span class="insp-tag warn">미흡·불량 '+((s.bad||0)+(s.weak||0))+'</span>':'')):'';
-      return '<div class="insp-row">'
-        +'<div style="flex:1;min-width:0"><div class="title" style="font-size:14px">'+inspH(c.campus_label||c.region)+' '+badge+'</div>'
-        +'<div class="rid">'+inspH([c.brand,c.region,c.campus_code].filter(Boolean).join(' · '))+'</div>'
-        +(meta?'<div class="rid" style="margin-top:3px">'+meta+'</div>':'')+'</div>'
-        +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<button class="flt" data-act="hist" data-v="'+inspH(c.campus_code)+'">이력</button>'
-          +'<button class="'+(x&&x.status==='완료'?'flt':'flt on')+'" data-act="start" data-v="'+inspH(c.campus_code)+'">'+(!x?'점검 시작':x.status==='완료'?'열기':'이어하기')+'</button>'
-        +'</div></div>';
-    }).join(''):'<div class="insp-empty">조건에 맞는 캠퍼스가 없습니다.</div>');
+    +'<div class="hint" style="margin-bottom:12px">건물·층 단위로 점검합니다. 같은 층의 여러 관은 한 번에 점검되며, 진행 중인 점검은 <b>총무기획팀 누구나 이어서</b> 입력할 수 있습니다.</div>'
+    +(groups.length?groups.map(function(g){
+      var dn=g.locs.filter(function(L){var x=byKey[L.key];return x&&x.status==='완료';}).length;
+      return '<div class="insp-bld"><div class="insp-bld-t"><b>'+inspH(g.building)+'</b>'+(g.region&&!g.legacy?' <span class="insp-cat">'+inspH(g.region)+'</span>':'')
+        +' <span class="hint">'+g.locs.length+(g.legacy?'곳':'개 층')+' · 완료 '+dn+'</span></div>'
+        +g.locs.map(function(L){return rowHTML(L,byKey[L.key]);}).join('')+'</div>';
+    }).join(''):'<div class="insp-empty">조건에 맞는 건물·층이 없습니다.</div>')
+    +(orphan.length?'<div class="insp-bld"><div class="insp-bld-t"><b>이전 방식(관 단위) 기록</b> <span class="hint">필요 없으면 [수정] → 삭제</span></div>'
+      +orphan.map(function(x){return rowHTML(null,x);}).join('')+'</div>':'');
   root.innerHTML=html;
+}
+// ---------- 점검 정보 수정 / 삭제 ----------
+function inspEdit(id){
+  var x=INSP.list.filter(function(r){return r.id===id;})[0];if(!x)return;
+  INSP.editId=id;
+  var fld=function(lbl,html){return '<div style="margin-bottom:10px"><div class="lbl">'+lbl+'</div>'+html+'</div>';};
+  openModal('<div class="mb" style="padding-top:18px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">점검 정보 수정 · '+inspH(x.campus_label||'')+'</div>'
+    +fld('점검일','<input type="date" id="ie_date" value="'+inspH(x.inspected_at||'')+'" style="width:100%">')
+    +fld('점검자','<input type="text" id="ie_name" value="'+inspH(x.inspector_name||'')+'" style="width:100%" placeholder="여러 명이면 쉼표로 (예: 이슬기, 김영진)">')
+    +fld('캠퍼스 확인자 (원장·실장)','<input type="text" id="ie_conf" value="'+inspH(x.campus_confirmer||'')+'" style="width:100%">')
+    +fld('상태','<select id="ie_status" style="width:100%"><option'+(x.status==='진행중'?' selected':'')+'>진행중</option><option'+(x.status==='완료'?' selected':'')+'>완료</option></select>')
+    +fld('메모','<textarea id="ie_memo" rows="2" style="width:100%">'+inspH(x.memo||'')+'</textarea>')
+    +'<button class="flt" style="color:var(--dng);border-color:var(--dngln)" onclick="inspDeleteInspection(INSP.editId)">이 점검 기록 삭제</button>'
+    +'</div><div class="mf"><button class="mbtn" onclick="closeModal()">취소</button><button class="mbtn yes" onclick="inspEditSave(INSP.editId)">저장</button></div>');
+}
+function inspEditSave(id){
+  var g=function(i){var e=document.getElementById(i);return e?e.value.trim():'';};
+  var st=g('ie_status')||'진행중';
+  var x=INSP.list.filter(function(r){return r.id===id;})[0]||{};
+  var patch={inspected_at:g('ie_date')||x.inspected_at,inspector_name:g('ie_name')||null,campus_confirmer:g('ie_conf')||null,memo:g('ie_memo')||null,status:st,
+    completed_at:st==='완료'?(x.completed_at||new Date().toISOString()):null};
+  sb.from('fac_inspections').update(patch).eq('id',id).select().then(function(r){
+    if(r.error){alert('저장 실패: '+r.error.message);return;}
+    closeModal();inspToast('수정됨');
+    if(INSP.cur&&INSP.cur.id===id)INSP.cur=r.data[0];
+    inspLoadRound();
+  });
+}
+function inspDeleteInspection(id){
+  var x=INSP.list.filter(function(r){return r.id===id;})[0]||{};
+  if(!confirm('「'+(x.campus_label||'')+'」 점검 기록을 삭제할까요?\n입력한 결과와 사진이 모두 삭제되며 되돌릴 수 없습니다.\n(유지보수로 전환한 접수 건은 그대로 남습니다)'))return;
+  inspFetchAll(function(){return sb.from('fac_inspection_results').select('photo_paths').eq('inspection_id',id);}).then(function(rows){
+    var paths=[];rows.forEach(function(r){(r.photo_paths||[]).forEach(function(p){paths.push(p);});});
+    return sb.from('fac_inspections').delete().eq('id',id).then(function(r){
+      if(r.error){alert('삭제 실패: '+r.error.message);return;}
+      if(paths.length)sb.storage.from(DOC_BUCKET).remove(paths).then(function(){},function(){});
+      closeModal();inspToast('점검 기록 삭제됨');inspLoadRound();
+    });
+  }).catch(function(e){alert('삭제 실패: '+(e&&e.message||e));});
 }
 function inspNewRound(){
   var v=prompt('새 점검 회차 이름을 입력하세요.\n예: '+inspDefaultRound()+' / 2026 1분기 정기점검',inspDefaultRound());
@@ -2514,10 +2595,11 @@ function inspNewRound(){
 function inspStart(code){
   var ex=INSP.list.filter(function(x){return x.campus_code===code;})[0];
   if(ex){inspOpen(ex.id);return;}
-  var c=INSP.campuses.filter(function(x){return x.campus_code===code;})[0]||{};
-  if(!confirm('['+INSP.round+']\n'+(c.campus_label||code)+' 점검을 시작할까요?\n점검자: '+((CURRENT_USER&&CURRENT_USER.name)||'')))return;
+  var L=INSP.locByKey[code]||{title:code,campText:'',region:'',brands:[]};
+  if(!confirm('['+INSP.round+']\n'+L.title+(L.campText?'\n('+L.campText+')':'')+'\n점검을 시작할까요?'))return;
+  var br={};(L.brands||[]).forEach(function(b){br[b]=1;});
   sb.from('fac_inspections').insert({
-    round_name:INSP.round,campus_code:code,campus_label:c.campus_label||null,region:c.region||null,brand:c.brand||null,
+    round_name:INSP.round,campus_code:code,campus_label:L.title||null,region:L.region||null,brand:Object.keys(br).join(', ')||null,
     inspector_login:(CURRENT_USER&&CURRENT_USER.login_id)||null,inspector_name:(CURRENT_USER&&CURRENT_USER.name)||null,
     inspected_at:inspToday()
   }).select().then(function(r){
@@ -2621,7 +2703,8 @@ function inspRenderRun(){
     +'<div class="insp-head">'
       +'<button class="flt" data-act="home">← 회차 현황</button>'
       +'<div style="flex:1;min-width:0"><div class="title" style="font-size:15px">'+inspH(cur.campus_label||cur.campus_code)+(locked?' <span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>':'')+'</div>'
-      +'<div class="rid">'+inspH(cur.round_name)+' · '+inspH(cur.inspector_name||'')+' · '+inspH(cur.inspected_at)+(INSP.prevRound?' · 직전 점검 '+inspH(INSP.prevRound):'')+'</div></div>'
+      +'<div class="rid">'+inspH((INSP.locByKey[cur.campus_code]||{}).campText||cur.brand||'')+'</div>'
+      +'<div class="rid">'+inspH(cur.round_name)+' · 시작 '+inspH(cur.inspector_name||'')+' · '+inspH(cur.inspected_at)+(INSP.prevRound?' · 직전 점검 '+inspH(INSP.prevRound):'')+'</div></div>'
     +'</div>'
     +'<div class="insp-sticky">'
       +'<div id="insp_prog"></div>'
@@ -2883,7 +2966,7 @@ function inspToRequest(resId){
   var detail='[정기점검 '+(ins.round_name||'')+'] '+(it.title||'')+(x.space_name?' / '+x.space_name:'')+' — '+x.result+(x.note?'\n'+x.note:'');
   var row={type:'fix',campus:ins.region||ins.campus_label||'',status:'wait',
     applicant:staffLabel()+' (정기점검)',apply_date:inspToday(),
-    detail:detail,location:x.space_name||x.space_zone||it.zone||null,
+    detail:detail,location:[ins.campus_label,x.space_name||x.space_zone||it.zone].filter(Boolean).join(' ')||null,
     photos:(x.photo_paths&&x.photo_paths.length)?x.photo_paths:null,
     applicant_login:(CURRENT_USER&&CURRENT_USER.login_id)||null};
   sb.from('fac_requests').insert(row).select('id,record_no').then(function(r){
@@ -2898,7 +2981,8 @@ function inspToRequest(resId){
 // ---------- 캠퍼스 이력 ----------
 function inspLoadHist(code){
   var root=inspRoot();if(root)root.innerHTML='<div class="hint" style="padding:20px">불러오는 중...</div>';
-  var c=INSP.campuses.filter(function(x){return x.campus_code===code;})[0]||{campus_code:code};
+  var L=INSP.locByKey[code];
+  var c=L?{campus_label:L.title,brand:L.campText,region:L.region,campus_code:code}:{campus_label:code,campus_code:code};
   sb.from('fac_inspections').select('*').eq('campus_code',code).order('inspected_at',{ascending:false}).then(function(r){
     var list=(r&&r.data)||[];var ids=list.map(function(x){return x.id;});
     var done=function(rows){
@@ -2970,6 +3054,7 @@ function inspOnClick(e){
   else if(act==='jump'){var t=document.getElementById(v);if(t){var y=t.getBoundingClientRect().top+window.scrollY-130;window.scrollTo({top:y,behavior:'smooth'});}}
   else if(act==='home'){inspLoadRound();window.scrollTo({top:0});}
   else if(act==='start')inspStart(v);
+  else if(act==='edit')inspEdit(v);
   else if(act==='open')inspOpen(v);
   else if(act==='hist')inspLoadHist(v);
   else if(act==='issues')inspLoadIssues();
