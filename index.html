@@ -241,6 +241,34 @@
   }
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
+
+  /* ===== 모바일 공통 (760px 이하에서만 적용 · 데스크톱 영향 없음) ===== */
+  @media(max-width:760px){
+    .hd{padding-top:16px}
+    .hd h1{font-size:18px}
+    .hd p{font-size:12.5px}
+    #acctbar,.acctbar{position:static!important;margin-top:10px;gap:6px}
+    .acctbar span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .acctbar .logout{padding:5px 10px;white-space:nowrap;flex-shrink:0}
+    .tabs{gap:0;margin:12px -18px 0;padding:0 8px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .tabs::-webkit-scrollbar{display:none}
+    .tn{flex-shrink:0;white-space:nowrap;padding:10px 10px 12px}
+    #adm_tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    #adm_tabs::-webkit-scrollbar{display:none}
+    #adm_tabs .flt{flex-shrink:0;white-space:nowrap}
+    .view{padding-top:18px;padding-bottom:24px}
+    .hd{display:flex;flex-direction:column}
+    #acctbar{order:2}
+    .tabs{order:3}
+    input,select,textarea{font-size:16px}
+    .lbl{flex-wrap:wrap}
+    .filt{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .filt::-webkit-scrollbar{display:none}
+    .filt .flt{flex-shrink:0;white-space:nowrap}
+    .flt{white-space:nowrap}
+    .mgrid3{grid-template-columns:1fr!important}
+    #adm_q{flex:1 1 100%!important;max-width:none!important}
+  }
 </style>
 </head>
 <body>
@@ -649,7 +677,7 @@ function mylistHTML(){
   var reqOpts='<option value="">요청구분 전체</option>'+META.reqtype.o.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');
   return '<div class="filt"><button class="flt on" data-f="all">전체</button><button class="flt" data-f="fix">유지보수</button><button class="flt" data-f="buy">구매</button><button class="flt" data-f="rent">렌탈</button><button class="flt" data-f="pen">볼펜</button><button class="flt" data-f="card">명함</button><button class="flt" data-f="voice">건의</button></div>'
   +'<div style="border:1px solid var(--line);border-radius:8px;padding:14px 15px;margin-bottom:14px;max-width:680px"><div class="lbl" style="margin-bottom:9px">접수 정보로 조회 <span class="hint" style="font-weight:400">— 이름을 몰라도 캠퍼스·건물·요청구분으로 이미 접수된 건을 확인해 이중 접수를 막을 수 있습니다.</span></div>'
-  +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px"><select id="q_campus" onchange="applyQuery()">'+campusOpts+'</select><select id="q_building" onchange="applyQuery()">'+bldOpts+'</select><select id="q_req" onchange="applyQuery()">'+reqOpts+'</select></div>'
+  +'<div class="mgrid3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px"><select id="q_campus" onchange="applyQuery()">'+campusOpts+'</select><select id="q_building" onchange="applyQuery()">'+bldOpts+'</select><select id="q_req" onchange="applyQuery()">'+reqOpts+'</select></div>'
   +'<div style="display:flex;gap:9px"><input type="text" id="q_name" placeholder="신청자 이름 (선택)" style="flex:1" oninput="applyQuery()"><button class="flt" onclick="resetQuery()">초기화</button></div></div>'
   +'<div id="ml_sum" style="margin-bottom:10px"></div><div class="hint" id="ml_count" style="margin-bottom:12px"></div><div id="mlcards"></div>';
 }
@@ -4609,7 +4637,9 @@ function render(v){var el=document.getElementById('view');
       Promise.all([sb.from('fac_requests').select('*').order('created_at',{ascending:false}).limit(200),sb.from('fac_voices').select('*').order('created_at',{ascending:false}).limit(200)]).then(function(rs){var reqs=(rs[0]&&rs[0].data)||[];var voices=(rs[1]&&rs[1].data)||[];SAMPLE=reqs.map(mapReq).concat(voices.map(mapVoice));el.innerHTML=adminHTML();bindAdmin();}).catch(function(){el.innerHTML=adminHTML();bindAdmin();});
     } else { el.innerHTML=adminHTML();bindAdmin(); }
   }
-  document.querySelectorAll('.tn').forEach(function(n){n.classList.toggle('on',n.dataset.v===v);});window.scrollTo(0,0);}
+  document.querySelectorAll('.tn').forEach(function(n){n.classList.toggle('on',n.dataset.v===v);});tabIntoView();window.scrollTo(0,0);}
+// 모바일: 가로 스크롤 탭에서 선택된 탭이 보이도록
+function tabIntoView(){var t=document.getElementById('tabs'),on=t&&t.querySelector('.tn.on');if(!on||t.scrollWidth<=t.clientWidth)return;t.scrollLeft=on.offsetLeft-(t.clientWidth-on.offsetWidth)/2;}
 window.nav=render;
 var TABS=[["home","홈"],["guide","1차 대응"],["quote","견적 신청"],["report","유지보수 접수"],["voice","건의사항"],["lms","LMS 1차 검증"],["mylist","내 접수내역"],["gift","명절선물"],["docs","자료실"],["info","안내"],["admin","총무기획팀"]];
 // ===== 계정/세션 =====
