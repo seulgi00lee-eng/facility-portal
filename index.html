@@ -199,6 +199,7 @@
   .insp-spwrap .insp-add{margin:4px 0 0}
   .insp-bld{margin-bottom:16px}
   .insp-bld-t{font-size:14px;color:var(--ink);margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--ink);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .insp-off>summary{cursor:pointer;font-size:12.5px;color:var(--mute);padding:6px 2px}
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 </style>
@@ -2733,10 +2734,12 @@ function inspRenderRun(){
   var off=INSP.items.filter(function(x){return x.active===false;});
   if(hid.length||off.length){
     html+='<div class="insp-sec" id="z_restore"><div class="insp-sec-t">삭제한 항목 <span class="hint">필요하면 복원</span></div>'
+      +(hid.length?'':'<div class="hint" style="margin-bottom:6px">이번 점검에서 삭제한 항목이 없습니다.</div>')
       +hid.map(function(k){var x=INSP.res[k],it=INSP.itemById[x.item_id]||{};
         return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title||'')+(x.space_name?' <span class="insp-cat">'+inspH(x.space_name)+'</span>':'')+' <span class="hint">이번 점검에서 제외</span></div><button class="flt" data-act="unhide" data-k="'+inspH(k)+'">복원</button></div>';}).join('')
-      +off.map(function(it){
-        return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title)+' <span class="hint">점검표에서 삭제 (전 캠퍼스)</span></div><button class="flt" data-act="reactivate" data-v="'+it.id+'">복원</button></div>';}).join('')
+      +(off.length?'<details class="insp-off"><summary>점검표에서 제외된 항목 '+off.length+'개 <span class="hint">(교육청 점검 등 · 전 캠퍼스 공통)</span></summary>'
+        +off.map(function(it){
+        return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title)+' <span class="insp-cat">'+inspH(it.category||'')+'</span></div><button class="flt" data-act="reactivate" data-v="'+it.id+'">복원</button></div>';}).join('')+'</details>':'')
       +'</div>';
   }
   // 완료
