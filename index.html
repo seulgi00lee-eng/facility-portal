@@ -201,6 +201,44 @@
   .insp-bld-t{font-size:14px;color:var(--ink);margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--ink);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .insp-off>summary{cursor:pointer;font-size:12.5px;color:var(--mute);padding:6px 2px}
   .insp-crit.sm{margin:2px 0 0;font-size:11px}
+  body.insp-run #adm_tabs{position:static!important}
+  body.insp-run .insp-toast{bottom:96px}
+  body.insp-run .insp-sticky{top:0}
+  .insp-actbar{position:sticky;bottom:0;z-index:7;margin:16px 0 0;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 80%,rgba(245,245,247,0))}
+  .insp-actbar-in{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:var(--shadow-h)}
+  .insp-actprog{flex:1;min-width:0;font-size:12px;color:var(--mute);padding-left:6px;line-height:1.35}
+  .insp-actprog b{display:block;font-size:16px;color:var(--ink)}
+  .insp-abtn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;color:var(--ink);white-space:nowrap}
+  .insp-abtn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+  .insp-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .insp-filter input{flex:1;max-width:260px;margin:0}
+  .insp-brands{display:flex;gap:6px;flex-wrap:wrap}
+  @media(max-width:760px){
+    #insp_root input,#insp_root select,#insp_root textarea{font-size:16px}
+    .insp-filter input{max-width:none;flex-basis:100%}
+    .insp-brands{flex-wrap:nowrap;overflow-x:auto;width:100%;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+    .insp-brands .flt{flex-shrink:0;white-space:nowrap}
+    .insp-bar>div:first-child{flex-basis:100%}
+    .insp-bar .flt{flex:1;padding:10px 6px;white-space:nowrap}
+    .insp-row{flex-wrap:wrap;padding:12px}
+    .insp-row>div:last-child{width:100%;justify-content:stretch!important}
+    .insp-row>div:last-child .flt{flex:1;padding:10px 6px}
+    .insp-head{flex-wrap:wrap}
+    .insp-it{padding:11px 10px}
+    .insp-crit{margin-left:0}
+    .ib{padding:13px 2px;font-size:14px;border-radius:10px}
+    .ib.sm{padding:11px 2px;font-size:13px}
+    .insp-zn .flt{padding:8px 12px}
+    .insp-space{padding:0 8px 6px}
+    .insp-space>summary{flex-wrap:wrap}
+    .insp-space>summary>span:last-child{width:100%;margin-left:0!important}
+    .insp-space>summary>span:last-child .flt{flex:1;padding:9px 6px}
+    .insp-add .flt{padding:10px 12px}
+    .insp-spwrap{padding:8px}
+    .insp-abtn{padding:13px 14px}
+    .insp-kpi b{font-size:18px}
+    .insp-detail .flt{padding:10px 12px}
+  }
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 </style>
@@ -1922,7 +1960,7 @@ function admTab(t){
   document.querySelectorAll('.admsec').forEach(function(el){el.style.display=(el.dataset.t===t)?'':'none';});
   window.scrollTo({top:0,behavior:'instant'});
   if(t==='docs')renderDocAdmin();
-  if(t==='insp')inspInit();
+  if(t==='insp')inspInit();else document.body.classList.remove('insp-run');
 }
 function admSt(v){
   ADM_ST=v;
@@ -2454,6 +2492,7 @@ function inspSpFor(zone){
   });
 }
 function inspHidden(k){var x=INSP.res[k];return !!(x&&x.hidden);}
+function inspLeaveRun(){document.body.classList.remove('insp-run');}
 function inspRender(){
   if(INSP.view==='run')inspRenderRun();
   else if(INSP.view==='issues')inspRenderIssues();
@@ -2484,7 +2523,7 @@ function inspLoadRound(){
   });
 }
 function inspRenderHome(){
-  var root=inspRoot();if(!root)return;
+  var root=inspRoot();if(!root)return;inspLeaveRun();
   var byKey={};INSP.list.forEach(function(x){byKey[x.campus_code]=x;});
   var locs=INSP.locs||[];
   var total=locs.length,done=0,prog=0,aSum=0,issueSum=0;
@@ -2537,11 +2576,11 @@ function inspRenderHome(){
       +'<div class="'+(aSum?'dng':'')+'"><b>'+aSum+'</b><em>A등급 미흡·불량</em></div>'
       +'<div><b>'+issueSum+'</b><em>전체 미흡·불량</em></div>'
     +'</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'
-      +'<input type="text" id="insp_q" placeholder="건물·층·캠퍼스 검색" value="'+inspH(INSP.q)+'" style="flex:1;max-width:260px;margin:0">'
-      +'<button class="flt'+(INSP.brand==='all'?' on':'')+'" data-act="brand" data-v="all">전체</button>'
+    +'<div class="insp-filter">'
+      +'<input type="text" id="insp_q" placeholder="건물·층·캠퍼스 검색" value="'+inspH(INSP.q)+'">'
+      +'<div class="insp-brands"><button class="flt'+(INSP.brand==='all'?' on':'')+'" data-act="brand" data-v="all">전체</button>'
       +Object.keys(brands).sort().map(function(b){return '<button class="flt'+(INSP.brand===b?' on':'')+'" data-act="brand" data-v="'+inspH(b)+'">'+inspH(b)+'</button>';}).join('')
-    +'</div>'
+    +'</div></div>'
     +'<div class="hint" style="margin-bottom:12px">건물·층 단위로 점검합니다. 같은 층의 여러 관은 한 번에 점검되며, 진행 중인 점검은 <b>총무기획팀 누구나 이어서</b> 입력할 수 있습니다.</div>'
     +(groups.length?groups.map(function(g){
       var dn=g.locs.filter(function(L){var x=byKey[L.key];return x&&x.status==='완료';}).length;
@@ -2718,7 +2757,7 @@ function inspRenderRun(){
     +'<div class="insp-sticky">'
       +'<div id="insp_prog"></div>'
       +'<div class="insp-zn">'+zones.map(function(z){return '<button class="flt" data-act="jump" data-v="z_'+INSP_ZONES.indexOf(z)+'">'+inspH(z)+' <span class="insp-zc" data-zc="'+inspH(z)+'"></span></button>';}).join('')
-        +'<button class="flt" data-act="jump" data-v="z_done">완료</button></div>'
+        +'<button class="flt" data-act="jump" data-v="z_done">확인자·메모</button></div>'
     +'</div>'
     +(locked?'<div class="insp-note">완료된 점검입니다. 수정은 가능하며, 수정 내용은 바로 저장됩니다.</div>':'')
     +'<div class="hint" style="margin:4px 0 12px">버튼을 누르는 즉시 저장됩니다. 미흡·불량을 고르면 조치 구분·메모·사진 칸이 열립니다. 불필요한 항목은 오른쪽 위 <b>삭제</b>로 뺄 수 있습니다.</div>';
@@ -2753,18 +2792,26 @@ function inspRenderRun(){
       +'</div>';
   }
   // 완료
-  html+='<div class="insp-sec" id="z_done"><div class="insp-sec-t">점검 완료</div>'
+  html+='<div class="insp-sec" id="z_done"><div class="insp-sec-t">확인자·메모</div>'
     +'<div class="lbl">캠퍼스 확인자 (원장·실장)</div>'
     +'<input type="text" id="insp_confirmer" value="'+inspH(cur.campus_confirmer||'')+'" placeholder="이름" style="max-width:260px">'
     +'<div class="lbl" style="margin-top:10px">점검 메모</div>'
     +'<textarea id="insp_memo" rows="2" placeholder="캠퍼스 전반 의견, 원장 요청 등">'+inspH(cur.memo||'')+'</textarea>'
-    +'<button class="submit" data-act="complete" style="width:100%;margin-top:10px">'+(locked?'완료 정보 수정':'점검 완료 처리')+'</button>'
-    +'</div>';
+    +'<div class="hint" style="margin-top:8px;line-height:1.6">항목은 누를 때마다 자동 저장됩니다. 모든 항목을 채우지 않아도 <b>임시저장</b>하거나 <b>점검 완료</b>할 수 있습니다.</div>'
+    +'</div>'
+    +'<div class="insp-actbar"><div class="insp-actbar-in">'
+      +'<div id="insp_actprog" class="insp-actprog"></div>'
+      +(locked
+        ?'<button class="insp-abtn" data-act="tempsave">목록으로</button><button class="insp-abtn pri" data-act="complete">완료 정보 저장</button>'
+        :'<button class="insp-abtn" data-act="tempsave">임시저장</button><button class="insp-abtn pri" data-act="complete">점검 완료</button>')
+    +'</div></div>';
   root.innerHTML=html;
+  document.body.classList.add('insp-run');
   inspUpdateProg();
 }
 function inspUpdateProg(){
-  var p=inspProgress(),el=document.getElementById('insp_prog');
+  var p=inspProgress(),el=document.getElementById('insp_prog'),ap=document.getElementById('insp_actprog');
+  if(ap)ap.innerHTML='<b>'+p.pct+'%</b><span>'+p.done+'/'+p.total+(p.bad||p.weak?' · <em style="color:var(--dng);font-style:normal">미흡·불량 '+(p.bad+p.weak)+'</em>':'')+'</span>';
   if(el)el.innerHTML='<div class="insp-pbar"><i style="width:'+p.pct+'%"></i></div>'
     +'<div class="hint" style="margin-top:4px">'+p.done+' / '+p.total+' 항목 ('+p.pct+'%) · <span style="color:var(--warn)">미흡 '+p.weak+'</span> · <span style="color:var(--dng)">불량 '+p.bad+'</span></div>';
   var groups={};
@@ -2891,22 +2938,35 @@ function inspAllOk(space){
   if(!rows.length){inspToast('남은 항목이 없습니다.');return;}
   var y=window.scrollY;inspSaveMany(rows).then(function(){inspRenderRun();window.scrollTo({top:y});});
 }
+function inspFormVals(){
+  var cf=(document.getElementById('insp_confirmer')||{}).value||'',memo=(document.getElementById('insp_memo')||{}).value||'';
+  return {campus_confirmer:cf.trim()||null,memo:memo.trim()||null};
+}
+// 임시저장: 항목 결과는 이미 자동 저장됨 → 확인자·메모만 저장하고 '진행중' 유지
+function inspTempSave(){
+  var patch=inspFormVals();
+  sb.from('fac_inspections').update(patch).eq('id',INSP.cur.id).select().then(function(r){
+    if(r.error){inspToast('저장 실패: '+r.error.message,true);return;}
+    INSP.cur=r.data[0];INSP.list=INSP.list.map(function(x){return x.id===INSP.cur.id?INSP.cur:x;});
+    var p=inspProgress();
+    inspToast(INSP.cur.status==='완료'?'저장됨':('임시저장됨 · '+p.done+'/'+p.total+' — 언제든 [이어하기]'));
+    inspLoadRound();window.scrollTo({top:0});
+  });
+}
+// 점검 완료: 미입력 항목이 있어도 완료 가능
 function inspComplete(){
-  var p=inspProgress();
-  var cf=(document.getElementById('insp_confirmer')||{}).value||'';
-  var memo=(document.getElementById('insp_memo')||{}).value||'';
-  if(p.done<p.total&&INSP.cur.status!=='완료'){
-    if(!confirm('아직 '+(p.total-p.done)+'개 항목이 미입력입니다.\n그래도 완료 처리할까요?'))return;
-  }
-  sb.from('fac_inspections').update({status:'완료',completed_at:INSP.cur.completed_at||new Date().toISOString(),campus_confirmer:cf.trim()||null,memo:memo.trim()||null}).eq('id',INSP.cur.id).select().then(function(r){
+  var p=inspProgress(),patch=inspFormVals();
+  patch.status='완료';patch.completed_at=INSP.cur.completed_at||new Date().toISOString();
+  sb.from('fac_inspections').update(patch).eq('id',INSP.cur.id).select().then(function(r){
     if(r.error){alert('완료 처리 실패: '+r.error.message);return;}
     INSP.cur=r.data[0];
     INSP.list=INSP.list.map(function(x){return x.id===INSP.cur.id?INSP.cur:x;});
     var aIss=Object.keys(INSP.res).filter(function(k){var x=INSP.res[k],it=INSP.itemById[x.item_id];return it&&it.grade==='A'&&(x.result==='미흡'||x.result==='불량');}).length;
     openModal('<div class="mb" style="text-align:center;padding-top:22px"><div class="done-ic">✓</div><div style="font-size:14px;font-weight:600;margin-bottom:8px">'+inspH(INSP.cur.campus_label||'')+' 점검 완료</div>'
-      +'<div class="hint" style="font-size:12.5px;line-height:1.7">입력 '+p.done+' / '+p.total+'<br>미흡 '+p.weak+' · 불량 '+p.bad
-      +(aIss?'<br><b style="color:var(--dng)">A등급 미흡·불량 '+aIss+'건 — 당일 보고 대상</b>':'')+'</div></div>'
-      +'<div class="mf"><button class="mbtn yes" onclick="closeModal();inspLoadRound()">회차 현황으로</button></div>');
+      +'<div class="hint" style="font-size:12.5px;line-height:1.7">입력 '+p.done+' / '+p.total+(p.done<p.total?' (미입력 '+(p.total-p.done)+'개)':'')+'<br>미흡 '+p.weak+' · 불량 '+p.bad
+      +(aIss?'<br><b style="color:var(--dng)">A등급 미흡·불량 '+aIss+'건 — 당일 보고 대상</b>':'')
+      +'<br><span style="font-size:11.5px">완료 후에도 [열기]로 수정할 수 있습니다.</span></div></div>'
+      +'<div class="mf"><button class="mbtn yes" onclick="closeModal();inspLoadRound();window.scrollTo({top:0})">회차 현황으로</button></div>');
   });
 }
 
@@ -2961,7 +3021,7 @@ function inspLoadIssues(){
   }).catch(function(e){if(root)root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
 }
 function inspRenderIssues(){
-  var root=inspRoot();if(!root)return;
+  var root=inspRoot();if(!root)return;inspLeaveRun();
   var rows=INSP.issues||[];
   var open=rows.filter(function(x){return !x.request_no;}).length;
   root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
@@ -3020,7 +3080,7 @@ function inspLoadHist(code){
   });
 }
 function inspRenderHist(){
-  var root=inspRoot();if(!root||!INSP.hist)return;var h=INSP.hist;
+  var root=inspRoot();if(!root||!INSP.hist)return;inspLeaveRun();var h=INSP.hist;
   root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
     +'<div style="flex:1"><div class="title" style="font-size:15px">'+inspH(h.c.campus_label||h.c.campus_code)+' 점검 이력</div><div class="rid">'+inspH([h.c.brand,h.c.region].filter(Boolean).join(' · '))+' · 누적 '+h.list.length+'회</div></div></div>'
     +(h.rep.length?'<div class="insp-sec"><div class="insp-sec-t">반복 지적 항목 <span class="hint">2회 이상 미흡·불량 — 근본 조치 필요</span></div>'
@@ -3074,6 +3134,7 @@ function inspOnClick(e){
   else if(act==='delspace'){e.preventDefault();inspDelSpace(v);}
   else if(act==='allok'){e.preventDefault();inspAllOk(v);}
   else if(act==='complete')inspComplete();
+  else if(act==='tempsave')inspTempSave();
   else if(act==='jump'){var t=document.getElementById(v);if(t){var y=t.getBoundingClientRect().top+window.scrollY-130;window.scrollTo({top:y,behavior:'smooth'});}}
   else if(act==='home'){inspLoadRound();window.scrollTo({top:0});}
   else if(act==='start')inspStart(v);
