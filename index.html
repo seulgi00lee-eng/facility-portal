@@ -239,6 +239,13 @@
     .insp-kpi b{font-size:18px}
     .insp-detail .flt{padding:10px 12px}
   }
+  .insp-pri{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:2px 8px;white-space:nowrap}
+  .insp-prirow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+  .insp-prirow select{width:auto;min-width:150px;margin:0;padding:5px 8px;font-size:12.5px}
+  .insp-pristat{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+  .insp-pristat>div{border:1px solid var(--line);border-radius:10px;padding:8px 9px;background:#fff;border-width:2px}
+  .insp-pristat b{font-size:18px;display:block}.insp-pristat span{font-size:11.5px;font-weight:600;color:var(--ink)}.insp-pristat em{display:block;font-style:normal;font-size:10.5px;color:var(--mute)}
+  @media(max-width:760px){.insp-pristat{grid-template-columns:repeat(3,1fr)}}
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 
@@ -2520,6 +2527,13 @@ var INSP_ZONES=['외부·출입구','데스크·로비','복도·계단','강의
 var INSP_SPACE_ZONES=['강의실','교무실','원장실','상담실','데스크·로비','복도·계단','화장실','탕비실','창고·설비','외부·출입구'];
 var INSP_RESULTS=['양호','미흡','불량','해당없음'];
 var INSP_ACTIONS=['현장 즉시조치','총무팀 처리','외주·업체','캠퍼스 자체','본부 보고'];
+// 우선순위 1~5위 (비용 대비 위험도 기준)
+var INSP_PRI={1:['즉시 조치','당일~3일','화재·감전·추락 등 인명 위험'],2:['긴급','1주 내','사고로 이어질 수 있는 결함'],3:['조기 보수','1개월 내','다침·침입 위험 또는 운영 차질'],4:['계획 보수','분기 예산 반영','기능 저하·노후'],5:['개선 검토','예산 여유 시','미관·환경 개선']};
+var INSP_PRI_COLOR={1:['#c72c22','#fdeeed'],2:['#c25e00','#fff1e5'],3:['#b06f00','#fff6e6'],4:['#0071e3','#eef1f8'],5:['#6e6e73','#f2f2f4']};
+// 자동 산정: 위험등급(A·B·C) × 결과(불량·미흡). 담당자가 직접 정한 값(priority)이 있으면 그 값 우선
+function inspAutoPri(x,it){var g=(it&&it.grade)||'C';var m={A:{'불량':1,'미흡':2},B:{'불량':3,'미흡':4},C:{'불량':4,'미흡':5}};return (m[g]||m.C)[x.result]||5;}
+function inspPri(x,it){return x.priority||inspAutoPri(x,it||INSP.itemById[x.item_id]);}
+function inspPriBadge(p){var c=INSP_PRI_COLOR[p]||INSP_PRI_COLOR[5];return '<span class="insp-pri" style="color:'+c[0]+';background:'+c[1]+'">'+p+'위 · '+INSP_PRI[p][0]+'</span>';}
 var INSP={ready:false,items:[],ck:[],sp:[],itemById:{},campuses:[],round:'',rounds:[],list:[],stat:{},
   view:'home',q:'',brand:'all',cur:null,res:{},prev:{},spaces:[],photoKey:null,issues:[],hist:null};
 
@@ -2684,6 +2698,7 @@ function inspRenderHome(){
         +'<select id="insp_round" style="width:100%">'+roundOpts.map(function(o){return '<option'+(o===INSP.round?' selected':'')+'>'+inspH(o)+'</option>';}).join('')+'</select></div>'
       +'<button class="flt" data-act="newround">+ 새 회차</button>'
       +'<button class="flt" data-act="issues">미흡·불량 모아보기</button>'
+      +'<button class="flt on" data-act="report">보고서</button>'
       +'<button class="flt" data-act="csv">CSV 내려받기</button>'
     +'</div>'
     +'<div class="insp-kpi">'
@@ -3125,24 +3140,28 @@ function inspLoadIssues(){
   if(!ids.length){INSP.issues=[];inspRenderIssues();return;}
   inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').in('inspection_id',ids).in('result',['미흡','불량']);}).then(function(rows){
     var byId={};INSP.list.forEach(function(x){byId[x.id]=x;});
+    rows=rows.filter(function(x){return !x.hidden;});
     rows.forEach(function(x){x._insp=byId[x.inspection_id]||{};x._item=INSP.itemById[x.item_id]||{};});
-    var gr={A:0,B:1,C:2};
-    rows.sort(function(a,b){
-      return (a.request_no?1:0)-(b.request_no?1:0)
-        ||(a.result==='불량'?0:1)-(b.result==='불량'?0:1)
-        ||(gr[a._item.grade]==null?3:gr[a._item.grade])-(gr[b._item.grade]==null?3:gr[b._item.grade])
-        ||String(a._insp.campus_label||'').localeCompare(String(b._insp.campus_label||''),'ko');
-    });
+    inspSortIssues(rows);
     INSP.issues=rows;inspRenderIssues();
   }).catch(function(e){if(root)root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
+}
+function inspSortIssues(rows){
+  rows.sort(function(a,b){
+    return inspPri(a,a._item)-inspPri(b,b._item)
+      ||(a.result==='불량'?0:1)-(b.result==='불량'?0:1)
+      ||String(a._insp.campus_label||'').localeCompare(String(b._insp.campus_label||''),'ko',{numeric:true});
+  });
 }
 function inspRenderIssues(){
   var root=inspRoot();if(!root)return;inspLeaveRun();
   var rows=INSP.issues||[];
   var open=rows.filter(function(x){return !x.request_no;}).length;
+  var pc={1:0,2:0,3:0,4:0,5:0};rows.forEach(function(x){pc[inspPri(x,x._item)]++;});
   root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
     +'<div style="flex:1"><div class="title" style="font-size:15px">미흡·불량 모아보기</div><div class="rid">'+inspH(INSP.round)+' · 전체 '+rows.length+'건 · 미전환 '+open+'건</div></div></div>'
-    +'<div class="hint" style="margin-bottom:12px;line-height:1.6">[유지보수 접수로 전환]을 누르면 <b>접수 처리</b> 목록에 정기점검 출처로 등록되어 기존 진행 이력·완료 처리 흐름으로 관리됩니다. (현장 알림은 발송하지 않음)</div>'
+    +'<div class="insp-pristat">'+[1,2,3,4,5].map(function(p){var c=INSP_PRI_COLOR[p];return '<div style="border-color:'+c[1]+'"><b style="color:'+c[0]+'">'+pc[p]+'</b><span>'+p+'위 '+INSP_PRI[p][0]+'</span><em>'+INSP_PRI[p][1]+'</em></div>';}).join('')+'</div>'
+    +'<div class="hint" style="margin-bottom:12px;line-height:1.6">우선순위는 <b>위험등급 × 결과</b>로 자동 산정되며, 현장 판단에 따라 항목마다 바꿀 수 있습니다. [유지보수 접수로 전환]을 누르면 <b>접수 처리</b> 목록에 정기점검 출처로 등록되어 기존 진행 이력·완료 처리 흐름으로 관리됩니다. (현장 알림은 발송하지 않음)</div>'
     +(rows.length?rows.map(function(x,i){
       var it=x._item,ins=x._insp,pid='iss_'+i;
       if((x.photo_paths||[]).length)setTimeout(function(){photoBoxFill(pid,x.photo_paths,56);},0);
@@ -3151,12 +3170,23 @@ function inspRenderIssues(){
           +'<div class="title" style="font-size:13.5px">'+inspH(ins.campus_label||'')+' · '+inspH(it.title||'')+(x.space_name?' <span class="insp-cat">'+inspH(x.space_name)+'</span>':'')+'</div>'
           +'<div class="rid">'+(it.grade?'<span class="insp-g g'+it.grade+'">'+it.grade+'</span> ':'')+inspH(it.category||'공간')+' · '+inspH(x.space_zone||it.zone||'')+(x.action_type?' · '+inspH(x.action_type):'')+'</div>'
         +'</div><span class="badge" style="'+(x.result==='불량'?'background:var(--dngbg);color:var(--dng)':'background:var(--warnbg);color:var(--warn)')+'">'+x.result+'</span></div>'
+        +'<div class="insp-prirow">'+inspPriBadge(inspPri(x,it))
+          +'<select data-act="pri" data-v="'+x.id+'"><option value="">자동 ('+inspAutoPri(x,it)+'위)</option>'
+          +[1,2,3,4,5].map(function(p){return '<option value="'+p+'"'+(x.priority===p?' selected':'')+'>'+p+'위 · '+INSP_PRI[p][0]+'</option>';}).join('')+'</select>'
+          +(x.priority?'<span class="hint">직접 조정</span>':'')+'</div>'
         +(x.note?'<div style="font-size:12.5px;margin-top:8px;line-height:1.55">'+inspH(x.note)+'</div>':'')
         +'<div id="'+pid+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'
         +'<div style="margin-top:9px">'+(x.request_no?'<span class="insp-tag ok">유지보수 접수 '+inspH(x.request_no)+'</span>'
           :'<button class="flt on" data-act="toreq" data-v="'+x.id+'">유지보수 접수로 전환</button>')+'</div>'
         +'</div></div>';
     }).join(''):'<div class="insp-empty">이 회차에 미흡·불량 항목이 없습니다.</div>');
+}
+function inspSetPri(id,p){
+  var x=(INSP.issues||[]).filter(function(r){return r.id===id;})[0];if(!x)return;
+  sb.from('fac_inspection_results').update({priority:p}).eq('id',id).then(function(r){
+    if(r.error){inspToast('저장 실패: '+r.error.message+(/priority/.test(r.error.message)?' (SQL 9 실행 필요)':''),true);inspRenderIssues();return;}
+    x.priority=p;var y=window.scrollY;inspSortIssues(INSP.issues);inspRenderIssues();window.scrollTo({top:y});inspToast('우선순위 '+(p?p+'위로 지정':'자동으로 되돌림'));
+  });
 }
 function inspToRequest(resId){
   var x=(INSP.issues||[]).filter(function(r){return r.id===resId;})[0];if(!x)return;
@@ -3209,6 +3239,122 @@ function inspRenderHist(){
     }).join(''):'<div class="insp-empty">아직 점검 이력이 없습니다.</div>')+'</div>';
 }
 
+// ---------- 대표 보고서 (건물별 · 우선순위) ----------
+function inspBldOf(x){var L=INSP.locByKey[x.campus_code];return L?(L.legacy?'건물·층 미등록':L.building):'기타(이전 방식)';}
+function inspReportOpen(){
+  if(!INSP.list.length){alert('이 회차에 점검 기록이 없습니다.');return;}
+  var blds=[];INSP.list.forEach(function(x){var b=inspBldOf(x);if(blds.indexOf(b)<0)blds.push(b);});
+  blds.sort(function(a,b){return a.localeCompare(b,'ko');});
+  openModal('<div class="mb" style="padding-top:18px"><div style="font-size:14px;font-weight:600;margin-bottom:4px">점검 결과 보고서</div>'
+    +'<div class="hint" style="margin-bottom:12px">'+inspH(INSP.round)+' · 점검 '+INSP.list.length+'곳</div>'
+    +'<div class="lbl">범위</div><select id="rp_scope" style="width:100%;margin-bottom:10px"><option value="">전체 건물 ('+blds.length+'개)</option>'
+    +blds.map(function(b){return '<option>'+inspH(b)+'</option>';}).join('')+'</select>'
+    +'<div class="lbl">포함할 우선순위</div><select id="rp_pri" style="width:100%;margin-bottom:10px"><option value="5">1~5위 전체</option><option value="3">1~3위 (조기 보수까지)</option><option value="2">1~2위 (즉시·긴급만)</option></select>'
+    +'<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="rp_photo" checked style="width:auto"> 현장 사진 포함 (항목당 최대 2장)</label>'
+    +'<div class="hint" style="margin-top:10px;line-height:1.6">새 창에서 보고서가 열리면 <b>[PDF로 저장]</b>을 누르세요. 인쇄 창의 대상에서 <b>PDF로 저장</b>을 고르면 파일로 내려받아집니다.</div>'
+    +'</div><div class="mf"><button class="mbtn" onclick="closeModal()">취소</button><button class="mbtn yes" onclick="inspReportGo()">보고서 열기</button></div>');
+}
+function inspReportGo(){
+  var scope=(document.getElementById('rp_scope')||{}).value||'';
+  var maxPri=Number((document.getElementById('rp_pri')||{}).value||5);
+  var withPhoto=!!(document.getElementById('rp_photo')||{}).checked;
+  closeModal();
+  var w=window.open('','_blank');
+  if(!w){alert('팝업이 차단되었습니다. 브라우저 주소창 옆 팝업 허용 후 다시 눌러 주세요.');return;}
+  w.document.write('<meta charset="utf-8"><title>보고서 생성 중</title><p style="font-family:sans-serif;padding:40px;color:#666">보고서를 만드는 중입니다...</p>');
+  var insps=INSP.list.filter(function(x){return !scope||inspBldOf(x)===scope;});
+  var ids=insps.map(function(x){return x.id;});
+  inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').in('inspection_id',ids).in('result',['미흡','불량']);}).then(function(rows){
+    var byId={};insps.forEach(function(x){byId[x.id]=x;});
+    rows=rows.filter(function(x){return !x.hidden;});
+    rows.forEach(function(x){x._insp=byId[x.inspection_id]||{};x._item=INSP.itemById[x.item_id]||{};x._pri=inspPri(x,x._item);});
+    inspSortIssues(rows);
+    var paths=[];
+    if(withPhoto)rows.forEach(function(x){if(x._pri<=maxPri)(x.photo_paths||[]).slice(0,2).forEach(function(p){paths.push(p);});});
+    var urlP=paths.length?inspSignAll(paths):Promise.resolve({});
+    return urlP.then(function(urls){w.document.open();w.document.write(inspReportHTML(insps,rows,scope,maxPri,urls));w.document.close();});
+  }).catch(function(e){w.document.body.innerHTML='<p style="font-family:sans-serif;padding:40px;color:#c72c22">보고서 생성 실패: '+inspH(e&&e.message||e)+'</p>';});
+}
+function inspSignAll(paths){
+  var out={},chunks=[];for(var i=0;i<paths.length;i+=100)chunks.push(paths.slice(i,i+100));
+  return Promise.all(chunks.map(function(c){
+    return sb.storage.from(DOC_BUCKET).createSignedUrls(c,3600).then(function(r){((r&&r.data)||[]).forEach(function(d){if(d&&d.signedUrl)out[d.path]=d.signedUrl;});},function(){});
+  })).then(function(){return out;});
+}
+function inspReportHTML(insps,rows,scope,maxPri,urls){
+  var E=inspH,today=inspToday();
+  var shown=rows.filter(function(x){return x._pri<=maxPri;});
+  var pc={1:0,2:0,3:0,4:0,5:0},pt={1:{},2:{},3:{},4:{},5:{}};
+  rows.forEach(function(x){pc[x._pri]++;var t=x._item.title||'';pt[x._pri][t]=(pt[x._pri][t]||0)+1;});
+  var done=insps.filter(function(x){return x.status==='완료';}).length;
+  var locTotal=scope?(INSP.locs||[]).filter(function(L){return (L.legacy?'건물·층 미등록':L.building)===scope;}).length:(INSP.locs||[]).length;
+  var urgent=rows.filter(function(x){return x._pri<=2;});
+  var conv=rows.filter(function(x){return x.request_no;}).length;
+  var badge=function(p){var c=INSP_PRI_COLOR[p];return '<span class="pri" style="color:'+c[0]+';background:'+c[1]+'">'+p+'위</span>';};
+  var loc=function(x){var L=INSP.locByKey[x._insp.campus_code];return L&&!L.legacy?L.floor:(x._insp.campus_label||'');};
+  var where=function(x){return [x.space_name,x.space_zone||x._item.zone].filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;}).join(' · ');};
+  var photos=function(x){var ps=(x.photo_paths||[]).slice(0,2).map(function(p){return urls[p];}).filter(Boolean);return ps.length?'<div class="ph">'+ps.map(function(u){return '<img src="'+E(u)+'">';}).join('')+'</div>':'';};
+  var row=function(x,withBld){
+    return '<tr><td class="c">'+badge(x._pri)+'</td>'
+      +(withBld?'<td>'+E(inspBldOf(x._insp))+'<br><span class="m">'+E(loc(x))+'</span></td>':'<td>'+E(loc(x))+'</td>')
+      +'<td>'+E(where(x))+'</td>'
+      +'<td><b>'+E(x._item.title||'')+'</b></td>'
+      +'<td class="c"><span class="'+(x.result==='불량'?'bad':'weak')+'">'+E(x.result)+'</span></td>'
+      +'<td>'+E(x.note||'')+photos(x)+'</td>'
+      +'<td>'+E(x.action_type||'-')+(x.request_no?'<br><span class="m">접수 '+E(x.request_no)+'</span>':'')+'</td></tr>';
+  };
+  var thead=function(withBld){return '<thead><tr><th style="width:52px">순위</th><th style="width:'+(withBld?'110':'70')+'px">'+(withBld?'건물·층':'층')+'</th><th style="width:90px">위치</th><th style="width:120px">항목</th><th style="width:44px">결과</th><th>내용</th><th style="width:88px">조치</th></tr></thead>';};
+  // 건물별
+  var bOrder=[];insps.forEach(function(x){var b=inspBldOf(x);if(bOrder.indexOf(b)<0)bOrder.push(b);});
+  bOrder.sort(function(a,b){return a.localeCompare(b,'ko');});
+  var bSec=bOrder.map(function(b){
+    var bi=insps.filter(function(x){return inspBldOf(x)===b;});
+    bi.sort(function(p,q){var Lp=INSP.locByKey[p.campus_code],Lq=INSP.locByKey[q.campus_code];return inspFloorNum(Lp&&Lp.floor)-inspFloorNum(Lq&&Lq.floor);});
+    var br=shown.filter(function(x){return inspBldOf(x._insp)===b;});
+    var bpc={1:0,2:0,3:0,4:0,5:0};rows.filter(function(x){return inspBldOf(x._insp)===b;}).forEach(function(x){bpc[x._pri]++;});
+    return '<section class="bld"><h2>'+E(b)+'</h2>'
+      +'<div class="bsum">'+[1,2,3,4,5].map(function(p){return bpc[p]?badge(p)+' '+bpc[p]+'건':'';}).filter(Boolean).join(' &nbsp; ')+(Object.keys(bpc).every(function(k){return !bpc[k];})?'<span class="m">미흡·불량 없음</span>':'')+'</div>'
+      +'<table class="fl"><thead><tr><th>층</th><th>캠퍼스</th><th>점검일</th><th>점검자</th><th>확인자</th><th>상태</th><th>미흡</th><th>불량</th></tr></thead><tbody>'
+      +bi.map(function(x){var L=INSP.locByKey[x.campus_code]||{},st=INSP.stat[x.id]||{};
+        return '<tr><td>'+E(L.legacy?(x.campus_label||''):(L.floor||x.campus_label||''))+'</td><td>'+E(L.campText||x.brand||'')+'</td><td>'+E(x.inspected_at||'')+'</td><td>'+E(x.inspector_name||'')+'</td><td>'+E(x.campus_confirmer||'-')+'</td><td>'+E(x.status)+'</td><td class="c">'+(st.weak||0)+'</td><td class="c">'+(st.bad||0)+'</td></tr>';}).join('')
+      +'</tbody></table>'
+      +(br.length?'<table>'+thead(false)+'<tbody>'+br.map(function(x){return row(x,false);}).join('')+'</tbody></table>':'<p class="m">보고 범위('+maxPri+'위 이내)에 해당하는 항목이 없습니다.</p>')
+      +'</section>';
+  }).join('');
+  var top3=function(p){var o=pt[p];return Object.keys(o).sort(function(a,b){return o[b]-o[a];}).slice(0,3).map(function(t){return E(t)+(o[t]>1?' '+o[t]:'');}).join(', ');};
+  var title=INSP.round+' 시설 정기점검 결과 보고'+(scope?' — '+scope:'');
+  return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+E((INSP.round+'_시설점검보고'+(scope?'_'+scope:'')).replace(/\s+/g,'_'))+'</title>'
+    +'<style>'
+    +'@page{size:A4;margin:14mm 12mm}*{box-sizing:border-box}body{font-family:-apple-system,"Noto Sans KR","Malgun Gothic",sans-serif;color:#1d1d1f;font-size:11.5px;line-height:1.5;margin:0;background:#f5f5f7}'
+    +'.bar{position:sticky;top:0;background:#1d1d1f;color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;z-index:5}.bar button{border:0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer}.bar .p{background:#0071e3;color:#fff}.bar span{font-size:12px;opacity:.75;flex:1}'
+    +'.doc{max-width:900px;margin:16px auto;background:#fff;padding:28px 30px;border-radius:10px}'
+    +'h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid #1d1d1f}h3{font-size:13px;margin:18px 0 8px}'
+    +'.meta{color:#6e6e73;font-size:11.5px;margin-bottom:16px}.m{color:#6e6e73;font-size:10.5px}'
+    +'.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 6px}.kpi div{border:1px solid #e8e8ed;border-radius:8px;padding:9px 11px}.kpi b{font-size:19px;display:block}.kpi span{color:#6e6e73;font-size:10.5px}'
+    +'table{width:100%;border-collapse:collapse;margin:6px 0 10px;table-layout:fixed}th,td{border:1px solid #e3e3e8;padding:5px 6px;vertical-align:top;text-align:left;word-break:keep-all;overflow-wrap:anywhere}th{background:#f5f5f7;font-size:10.5px;color:#444}td.c,th.c{text-align:center}'
+    +'.pri{display:inline-block;font-weight:700;font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap}.bad{color:#c72c22;font-weight:700}.weak{color:#b06f00;font-weight:700}'
+    +'.ph{display:flex;gap:4px;margin-top:4px}.ph img{width:88px;height:66px;object-fit:cover;border-radius:4px;border:1px solid #e3e3e8}'
+    +'.bsum{margin:-2px 0 8px;font-size:11px}.fl td,.fl th{font-size:10.5px}.note{background:#f5f5f7;border-radius:8px;padding:10px 12px;font-size:10.5px;color:#444;margin-top:14px}'
+    +'.bld{break-before:page;page-break-before:always}.bld:first-of-type{break-before:auto;page-break-before:auto}tr{break-inside:avoid;page-break-inside:avoid}'
+    +'@media print{body{background:#fff}.bar{display:none}.doc{margin:0;padding:0;max-width:none;border-radius:0}}'
+    +'@media(max-width:700px){.doc{padding:16px;margin:0;border-radius:0}.kpi{grid-template-columns:1fr 1fr}}'
+    +'</style></head><body>'
+    +'<div class="bar"><span>인쇄 창의 대상에서 \'PDF로 저장\'을 고르면 파일로 저장됩니다.</span><button class="p" onclick="window.print()">PDF로 저장 · 인쇄</button><button onclick="window.close()">닫기</button></div>'
+    +'<div class="doc">'
+    +'<h1>'+E(title)+'</h1><div class="meta">보고일 '+E(today)+' · 경영관리본부 총무기획팀 · 점검 기준: 시설관리 점검표 (교육청 점검 항목 별도)</div>'
+    +'<h2>1. 요약</h2>'
+    +'<div class="kpi"><div><b>'+done+' / '+locTotal+'</b><span>점검 완료 (건물·층)</span></div><div><b>'+rows.length+'</b><span>미흡·불량 전체</span></div>'
+    +'<div><b style="color:#c72c22">'+urgent.length+'</b><span>즉시·긴급 (1~2위)</span></div><div><b>'+conv+'</b><span>유지보수 접수 완료</span></div></div>'
+    +'<h3>우선순위별 현황</h3><table><thead><tr><th style="width:60px">순위</th><th style="width:80px">구분</th><th style="width:90px">조치 기한</th><th style="width:150px">기준</th><th class="c" style="width:44px">건수</th><th>주요 항목</th></tr></thead><tbody>'
+    +[1,2,3,4,5].map(function(p){return '<tr><td class="c">'+badge(p)+'</td><td><b>'+INSP_PRI[p][0]+'</b></td><td>'+INSP_PRI[p][1]+'</td><td class="m">'+INSP_PRI[p][2]+'</td><td class="c"><b>'+pc[p]+'</b></td><td>'+(top3(p)||'-')+'</td></tr>';}).join('')
+    +'</tbody></table>'
+    +'<h3>즉시·긴급 조치 대상 (1~2위)</h3>'
+    +(urgent.length?'<table>'+thead(true)+'<tbody>'+urgent.map(function(x){return row(x,true);}).join('')+'</tbody></table>':'<p class="m">해당 항목이 없습니다.</p>')
+    +'<div class="note"><b>우선순위 산정 기준</b> — 위험등급(A 화재·감전·인명 / B 다침·침입·피난 / C 환경·미관) × 결과(불량·미흡). A불량 1위 · A미흡 2위 · B불량 3위 · B미흡·C불량 4위 · C미흡 5위. 현장 판단으로 조정한 항목은 조정값을 따릅니다. 1~2위는 비용과 무관하게 우선 조치, 3위 이하는 예산 계획에 따라 순차 집행을 권고합니다.</div>'
+    +'<h2 style="margin-top:26px">2. 건물별 상세</h2>'+bSec
+    +'</div></body></html>';
+}
+
 // ---------- CSV ----------
 function inspCsv(){
   var ids=INSP.list.map(function(x){return x.id;});
@@ -3216,12 +3362,12 @@ function inspCsv(){
   inspToast('CSV 만드는 중...');
   inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').in('inspection_id',ids);}).then(function(rows){
     var byId={};INSP.list.forEach(function(x){byId[x.id]=x;});
-    var head=['회차','캠퍼스','브랜드','지역','점검일','점검자','상태','유형','No','구분','구역','등급','점검항목','공간명','결과','조치구분','문제내용','사진수','유지보수 접수번호'];
+    var head=['회차','건물·층','브랜드','지역','점검일','점검자','상태','유형','No','구분','구역','등급','점검항목','공간명','결과','우선순위','조치구분','문제내용','사진수','유지보수 접수번호'];
     var q=function(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
     var lines=[head.join(',')];
     rows.forEach(function(x){var ins=byId[x.inspection_id]||{},it=INSP.itemById[x.item_id]||{};
       lines.push([ins.round_name,ins.campus_label,ins.brand,ins.region,ins.inspected_at,ins.inspector_name,ins.status,
-        it.item_type==='space'?'공간별':'점검표',it.no,it.category,x.space_zone||it.zone,it.grade,it.title,x.space_name,x.result,x.action_type,x.note,(x.photo_paths||[]).length,x.request_no].map(q).join(','));});
+        it.item_type==='space'?'공간별':'점검표',it.no,it.category,x.space_zone||it.zone,it.grade,it.title,x.space_name,x.result,(x.result==='미흡'||x.result==='불량')?inspPri(x,it):'',x.action_type,x.note,(x.photo_paths||[]).length,x.request_no].map(q).join(','));});
     var blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='정기점검_'+INSP.round.replace(/\s+/g,'_')+'.csv';
     document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
@@ -3260,6 +3406,7 @@ function inspOnClick(e){
   else if(act==='issues')inspLoadIssues();
   else if(act==='toreq')inspToRequest(v);
   else if(act==='csv')inspCsv();
+  else if(act==='report')inspReportOpen();
   else if(act==='newround')inspNewRound();
   else if(act==='brand'){INSP.brand=v;inspRenderHome();}
 }
@@ -3267,6 +3414,7 @@ function inspOnChange(e){
   var t=e.target;
   if(t.id==='insp_round'){INSP.round=t.value;inspLoadRound();return;}
   var act=t.dataset&&t.dataset.act,k=t.dataset&&t.dataset.k;
+  if(act==='pri'){inspSetPri(t.dataset.v,t.value?Number(t.value):null);return;}
   if(act==='action')inspSave(k,{action_type:t.value||null});
   else if(act==='note')inspSave(k,{note:t.value.trim()||null});
 }
