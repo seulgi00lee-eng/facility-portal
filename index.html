@@ -189,6 +189,16 @@
   .insp-space{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--bg);padding:0 10px 6px}
   .insp-space>summary{display:flex;gap:6px;align-items:center;padding:10px 2px;cursor:pointer;font-size:13.5px;list-style:none}
   .insp-space>summary::-webkit-details-marker{display:none}
+  .insp-it{position:relative}
+  .insp-del{position:absolute;top:8px;right:8px;border:1px solid var(--line);background:#fff;color:var(--mute);font-size:11px;border-radius:6px;padding:2px 7px;cursor:pointer;font-family:inherit}
+  .insp-del:hover{color:var(--dng);border-color:var(--dngln)}
+  .insp-it-t{padding-right:44px}
+  .insp-it.sm .insp-del{top:6px;right:6px;padding:1px 6px}
+  .insp-spwrap{margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:12px;background:#fff}
+  .insp-sub{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px}
+  .insp-spwrap .insp-add{margin:4px 0 0}
+  .insp-bld{margin-bottom:16px}
+  .insp-bld-t{font-size:14px;color:var(--ink);margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--ink);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 </style>
@@ -2389,16 +2399,17 @@ function inspInit(){
   if(INSP.ready){inspRender();return;}
   root.innerHTML='<div class="hint" style="padding:20px">점검 항목을 불러오는 중...</div>';
   Promise.all([
-    sb.from('fac_inspection_items').select('*').eq('active',true).order('item_type',{ascending:true}).order('no',{ascending:true}),
+    sb.from('fac_inspection_items').select('*').order('item_type',{ascending:true}).order('no',{ascending:true}),
     sb.from('fac_org_view').select('campus_code,region,division,brand,campus_label').eq('is_active',true).order('campus_code',{ascending:true}),
-    sb.from('fac_inspections').select('round_name,created_at').order('created_at',{ascending:false}).limit(1000)
+    sb.from('fac_inspections').select('round_name,created_at').order('created_at',{ascending:false}).limit(1000),
+    sb.from('fac_campus_floors').select('*')
   ]).then(function(r){
     if(r[0].error){root.innerHTML='<div class="insp-empty">점검 테이블이 아직 없습니다.<br>Supabase에서 <b>1_fac_inspection_schema.sql</b> → <b>2_fac_inspection_seed.sql</b> 순서로 실행해 주세요.<br><span class="hint">'+inspH(r[0].error.message)+'</span></div>';return;}
     INSP.items=r[0].data||[];
     INSP.itemById={};INSP.items.forEach(function(it){INSP.itemById[it.id]=it;});
-    INSP.ck=INSP.items.filter(function(x){return x.item_type==='checklist';});
-    INSP.sp=INSP.items.filter(function(x){return x.item_type==='space';});
+    inspSplitItems();
     INSP.campuses=((r[1]&&r[1].data)||[]).filter(function(c){return c.campus_code!=='100';});
+    inspBuildLocs((r[3]&&r[3].data)||[]);
     var seen={};INSP.rounds=[];
     ((r[2]&&r[2].data)||[]).forEach(function(x){if(!seen[x.round_name]){seen[x.round_name]=1;INSP.rounds.push(x.round_name);}});
     INSP.round=INSP.rounds[0]||inspDefaultRound();
@@ -2406,6 +2417,35 @@ function inspInit(){
     inspLoadRound();
   }).catch(function(e){root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
 }
+// 점검 단위 = 건물 + 층 (같은 층의 여러 관은 한 번에 점검)
+function inspFloorNum(f){var t=String(f||'');var m=t.match(/(B|b|지하)\s*(\d+)/);if(m)return -Number(m[2]);m=t.match(/(\d+)/);return m?Number(m[1]):999;}
+function inspBuildLocs(floors){
+  var byCode={};INSP.campuses.forEach(function(c){byCode[c.campus_code]=c;});
+  var map={},covered={};
+  floors.forEach(function(f){
+    var code=String(f.gwan_code||'').trim(),c=byCode[code];if(!c||!f.building||!f.floor)return;
+    var b=String(f.building).trim(),fl=String(f.floor).trim(),key='B:'+b+'|'+fl;
+    var L=map[key]||(map[key]={key:key,building:b,floor:fl,region:f.region||c.region||'',codes:[],camps:[]});
+    if(L.codes.indexOf(code)<0){L.codes.push(code);L.camps.push(c);}
+    covered[code]=1;
+  });
+  var locs=Object.keys(map).map(function(k){return map[k];});
+  // 건물·층 정보가 없는 관은 관 단위로 남김
+  INSP.campuses.forEach(function(c){if(covered[c.campus_code])return;
+    locs.push({key:c.campus_code,building:'건물·층 미등록',floor:c.campus_label||c.campus_code,region:c.region||'',codes:[c.campus_code],camps:[c],legacy:true});});
+  locs.forEach(function(L){
+    L.title=L.legacy?L.floor:(L.building+' '+L.floor);
+    var seen={};L.campText=L.camps.map(function(c){var t=[c.brand,c.region].filter(Boolean).join(' ')||c.campus_label;if(seen[t])return null;seen[t]=1;return t;}).filter(Boolean).join(' · ');
+    L.brands=L.camps.map(function(c){return c.brand;}).filter(Boolean);
+  });
+  locs.sort(function(a,b){return (a.legacy?1:0)-(b.legacy?1:0)||String(a.region).localeCompare(String(b.region),'ko')||a.building.localeCompare(b.building,'ko')||inspFloorNum(a.floor)-inspFloorNum(b.floor);});
+  INSP.locs=locs;INSP.locByKey={};locs.forEach(function(L){INSP.locByKey[L.key]=L;});
+}
+function inspSplitItems(){
+  INSP.ck=INSP.items.filter(function(x){return x.item_type==='checklist'&&x.active!==false;});
+  INSP.sp=INSP.items.filter(function(x){return x.item_type==='space'&&x.active!==false;});
+}
+function inspHidden(k){var x=INSP.res[k];return !!(x&&x.hidden);}
 function inspRender(){
   if(INSP.view==='run')inspRenderRun();
   else if(INSP.view==='issues')inspRenderIssues();
@@ -2437,22 +2477,44 @@ function inspLoadRound(){
 }
 function inspRenderHome(){
   var root=inspRoot();if(!root)return;
-  var byCode={};INSP.list.forEach(function(x){byCode[x.campus_code]=x;});
-  var total=INSP.campuses.length,done=0,prog=0,aSum=0,issueSum=0;
+  var byKey={};INSP.list.forEach(function(x){byKey[x.campus_code]=x;});
+  var locs=INSP.locs||[];
+  var total=locs.length,done=0,prog=0,aSum=0,issueSum=0;
   INSP.list.forEach(function(x){if(x.status==='완료')done++;else prog++;var s=INSP.stat[x.id]||{};aSum+=s.a||0;issueSum+=(s.bad||0)+(s.weak||0);});
   var brands={};INSP.campuses.forEach(function(c){if(c.brand)brands[c.brand]=1;});
   var q=INSP.q.toLowerCase();
-  var rows=INSP.campuses.filter(function(c){
-    if(INSP.brand!=='all'&&c.brand!==INSP.brand)return false;
+  var rows=locs.filter(function(L){
+    if(INSP.brand!=='all'&&L.brands.indexOf(INSP.brand)<0)return false;
     if(!q)return true;
-    return [c.campus_label,c.region,c.brand,c.campus_code].join(' ').toLowerCase().indexOf(q)>=0;
+    return [L.building,L.floor,L.region,L.campText,L.codes.join(' '),L.camps.map(function(c){return c.campus_label;}).join(' ')].join(' ').toLowerCase().indexOf(q)>=0;
   });
-  rows.sort(function(a,b){
-    var sa=byCode[a.campus_code],sb_=byCode[b.campus_code];
-    var ra=sa?(sa.status==='완료'?2:0):1, rb=sb_?(sb_.status==='완료'?2:0):1;
-    return ra-rb;
-  });
+  // 건물별 묶기
+  var groups=[],gi={};
+  rows.forEach(function(L){var gk=L.legacy?'__legacy':(L.region+'|'+L.building);
+    if(gi[gk]==null){gi[gk]=groups.length;groups.push({k:gk,building:L.building,region:L.region,legacy:!!L.legacy,locs:[]});}
+    groups[gi[gk]].locs.push(L);});
+  // 이전 방식(관 단위)으로 시작된 기록
+  var orphan=INSP.list.filter(function(x){return !INSP.locByKey[x.campus_code];});
   var roundOpts=INSP.rounds.slice();if(roundOpts.indexOf(INSP.round)<0)roundOpts.unshift(INSP.round);
+  function rowHTML(L,x){
+    var s=x?(INSP.stat[x.id]||{}):{};
+    var badge=!x?'<span class="badge" style="background:var(--bg);color:var(--mute)">미점검</span>'
+      :x.status==='완료'?'<span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>'
+      :'<span class="badge" style="background:var(--bluebg);color:var(--blue)">진행중</span>';
+    var meta=x?('<span>시작 '+inspH(x.inspector_name||x.inspector_login||'')+' · '+inspH(x.inspected_at||'')+'</span>'
+      +(s.a?' <span class="insp-tag dng">A '+s.a+'</span>':'')
+      +((s.bad||0)+(s.weak||0)?' <span class="insp-tag warn">미흡·불량 '+((s.bad||0)+(s.weak||0))+'</span>':'')):'';
+    var key=L?L.key:x.campus_code;
+    return '<div class="insp-row">'
+      +'<div style="flex:1;min-width:0"><div class="title" style="font-size:14px">'+inspH(L?(L.legacy?L.title:L.floor):(x.campus_label||x.campus_code))+' '+badge+'</div>'
+      +'<div class="rid">'+inspH(L?L.campText:(x.region||''))+(L&&L.codes.length?' <span class="hint">('+inspH(L.codes.join(', '))+')</span>':'')+'</div>'
+      +(meta?'<div class="rid" style="margin-top:3px">'+meta+'</div>':'')+'</div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'
+        +'<button class="flt" data-act="hist" data-v="'+inspH(key)+'">이력</button>'
+        +(x?'<button class="flt" data-act="edit" data-v="'+x.id+'">수정</button>':'')
+        +'<button class="'+(x&&x.status==='완료'?'flt':'flt on')+'" data-act="start" data-v="'+inspH(key)+'">'+(!x?'점검 시작':x.status==='완료'?'열기':'이어하기')+'</button>'
+      +'</div></div>';
+  }
   var html=''
     +'<div class="insp-bar">'
       +'<div style="flex:1;min-width:200px"><div class="lbl">점검 회차</div>'
@@ -2462,34 +2524,65 @@ function inspRenderHome(){
       +'<button class="flt" data-act="csv">CSV 내려받기</button>'
     +'</div>'
     +'<div class="insp-kpi">'
-      +'<div><b>'+done+'</b><span>/ '+total+'</span><em>점검 완료</em></div>'
+      +'<div><b>'+done+'</b><span>/ '+total+'</span><em>점검 완료 (건물·층)</em></div>'
       +'<div><b>'+prog+'</b><em>진행중</em></div>'
       +'<div class="'+(aSum?'dng':'')+'"><b>'+aSum+'</b><em>A등급 미흡·불량</em></div>'
       +'<div><b>'+issueSum+'</b><em>전체 미흡·불량</em></div>'
     +'</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
-      +'<input type="text" id="insp_q" placeholder="캠퍼스·지역 검색" value="'+inspH(INSP.q)+'" style="flex:1;max-width:260px;margin:0">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'
+      +'<input type="text" id="insp_q" placeholder="건물·층·캠퍼스 검색" value="'+inspH(INSP.q)+'" style="flex:1;max-width:260px;margin:0">'
       +'<button class="flt'+(INSP.brand==='all'?' on':'')+'" data-act="brand" data-v="all">전체</button>'
       +Object.keys(brands).sort().map(function(b){return '<button class="flt'+(INSP.brand===b?' on':'')+'" data-act="brand" data-v="'+inspH(b)+'">'+inspH(b)+'</button>';}).join('')
     +'</div>'
-    +(rows.length?rows.map(function(c){
-      var x=byCode[c.campus_code],s=x?(INSP.stat[x.id]||{}):{};
-      var badge=!x?'<span class="badge" style="background:var(--bg);color:var(--mute)">미점검</span>'
-        :x.status==='완료'?'<span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>'
-        :'<span class="badge" style="background:var(--bluebg);color:var(--blue)">진행중</span>';
-      var meta=x?('<span>'+inspH(x.inspector_name||x.inspector_login||'')+' · '+inspH(x.inspected_at||'')+'</span>'
-        +(s.a?' <span class="insp-tag dng">A '+s.a+'</span>':'')
-        +((s.bad||0)+(s.weak||0)?' <span class="insp-tag warn">미흡·불량 '+((s.bad||0)+(s.weak||0))+'</span>':'')):'';
-      return '<div class="insp-row">'
-        +'<div style="flex:1;min-width:0"><div class="title" style="font-size:14px">'+inspH(c.campus_label||c.region)+' '+badge+'</div>'
-        +'<div class="rid">'+inspH([c.brand,c.region,c.campus_code].filter(Boolean).join(' · '))+'</div>'
-        +(meta?'<div class="rid" style="margin-top:3px">'+meta+'</div>':'')+'</div>'
-        +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<button class="flt" data-act="hist" data-v="'+inspH(c.campus_code)+'">이력</button>'
-          +'<button class="'+(x&&x.status==='완료'?'flt':'flt on')+'" data-act="start" data-v="'+inspH(c.campus_code)+'">'+(!x?'점검 시작':x.status==='완료'?'열기':'이어하기')+'</button>'
-        +'</div></div>';
-    }).join(''):'<div class="insp-empty">조건에 맞는 캠퍼스가 없습니다.</div>');
+    +'<div class="hint" style="margin-bottom:12px">건물·층 단위로 점검합니다. 같은 층의 여러 관은 한 번에 점검되며, 진행 중인 점검은 <b>총무기획팀 누구나 이어서</b> 입력할 수 있습니다.</div>'
+    +(groups.length?groups.map(function(g){
+      var dn=g.locs.filter(function(L){var x=byKey[L.key];return x&&x.status==='완료';}).length;
+      return '<div class="insp-bld"><div class="insp-bld-t"><b>'+inspH(g.building)+'</b>'+(g.region&&!g.legacy?' <span class="insp-cat">'+inspH(g.region)+'</span>':'')
+        +' <span class="hint">'+g.locs.length+(g.legacy?'곳':'개 층')+' · 완료 '+dn+'</span></div>'
+        +g.locs.map(function(L){return rowHTML(L,byKey[L.key]);}).join('')+'</div>';
+    }).join(''):'<div class="insp-empty">조건에 맞는 건물·층이 없습니다.</div>')
+    +(orphan.length?'<div class="insp-bld"><div class="insp-bld-t"><b>이전 방식(관 단위) 기록</b> <span class="hint">필요 없으면 [수정] → 삭제</span></div>'
+      +orphan.map(function(x){return rowHTML(null,x);}).join('')+'</div>':'');
   root.innerHTML=html;
+}
+// ---------- 점검 정보 수정 / 삭제 ----------
+function inspEdit(id){
+  var x=INSP.list.filter(function(r){return r.id===id;})[0];if(!x)return;
+  INSP.editId=id;
+  var fld=function(lbl,html){return '<div style="margin-bottom:10px"><div class="lbl">'+lbl+'</div>'+html+'</div>';};
+  openModal('<div class="mb" style="padding-top:18px"><div style="font-size:14px;font-weight:600;margin-bottom:12px">점검 정보 수정 · '+inspH(x.campus_label||'')+'</div>'
+    +fld('점검일','<input type="date" id="ie_date" value="'+inspH(x.inspected_at||'')+'" style="width:100%">')
+    +fld('점검자','<input type="text" id="ie_name" value="'+inspH(x.inspector_name||'')+'" style="width:100%" placeholder="여러 명이면 쉼표로 (예: 이슬기, 김영진)">')
+    +fld('캠퍼스 확인자 (원장·실장)','<input type="text" id="ie_conf" value="'+inspH(x.campus_confirmer||'')+'" style="width:100%">')
+    +fld('상태','<select id="ie_status" style="width:100%"><option'+(x.status==='진행중'?' selected':'')+'>진행중</option><option'+(x.status==='완료'?' selected':'')+'>완료</option></select>')
+    +fld('메모','<textarea id="ie_memo" rows="2" style="width:100%">'+inspH(x.memo||'')+'</textarea>')
+    +'<button class="flt" style="color:var(--dng);border-color:var(--dngln)" onclick="inspDeleteInspection(INSP.editId)">이 점검 기록 삭제</button>'
+    +'</div><div class="mf"><button class="mbtn" onclick="closeModal()">취소</button><button class="mbtn yes" onclick="inspEditSave(INSP.editId)">저장</button></div>');
+}
+function inspEditSave(id){
+  var g=function(i){var e=document.getElementById(i);return e?e.value.trim():'';};
+  var st=g('ie_status')||'진행중';
+  var x=INSP.list.filter(function(r){return r.id===id;})[0]||{};
+  var patch={inspected_at:g('ie_date')||x.inspected_at,inspector_name:g('ie_name')||null,campus_confirmer:g('ie_conf')||null,memo:g('ie_memo')||null,status:st,
+    completed_at:st==='완료'?(x.completed_at||new Date().toISOString()):null};
+  sb.from('fac_inspections').update(patch).eq('id',id).select().then(function(r){
+    if(r.error){alert('저장 실패: '+r.error.message);return;}
+    closeModal();inspToast('수정됨');
+    if(INSP.cur&&INSP.cur.id===id)INSP.cur=r.data[0];
+    inspLoadRound();
+  });
+}
+function inspDeleteInspection(id){
+  var x=INSP.list.filter(function(r){return r.id===id;})[0]||{};
+  if(!confirm('「'+(x.campus_label||'')+'」 점검 기록을 삭제할까요?\n입력한 결과와 사진이 모두 삭제되며 되돌릴 수 없습니다.\n(유지보수로 전환한 접수 건은 그대로 남습니다)'))return;
+  inspFetchAll(function(){return sb.from('fac_inspection_results').select('photo_paths').eq('inspection_id',id);}).then(function(rows){
+    var paths=[];rows.forEach(function(r){(r.photo_paths||[]).forEach(function(p){paths.push(p);});});
+    return sb.from('fac_inspections').delete().eq('id',id).then(function(r){
+      if(r.error){alert('삭제 실패: '+r.error.message);return;}
+      if(paths.length)sb.storage.from(DOC_BUCKET).remove(paths).then(function(){},function(){});
+      closeModal();inspToast('점검 기록 삭제됨');inspLoadRound();
+    });
+  }).catch(function(e){alert('삭제 실패: '+(e&&e.message||e));});
 }
 function inspNewRound(){
   var v=prompt('새 점검 회차 이름을 입력하세요.\n예: '+inspDefaultRound()+' / 2026 1분기 정기점검',inspDefaultRound());
@@ -2502,10 +2595,11 @@ function inspNewRound(){
 function inspStart(code){
   var ex=INSP.list.filter(function(x){return x.campus_code===code;})[0];
   if(ex){inspOpen(ex.id);return;}
-  var c=INSP.campuses.filter(function(x){return x.campus_code===code;})[0]||{};
-  if(!confirm('['+INSP.round+']\n'+(c.campus_label||code)+' 점검을 시작할까요?\n점검자: '+((CURRENT_USER&&CURRENT_USER.name)||'')))return;
+  var L=INSP.locByKey[code]||{title:code,campText:'',region:'',brands:[]};
+  if(!confirm('['+INSP.round+']\n'+L.title+(L.campText?'\n('+L.campText+')':'')+'\n점검을 시작할까요?'))return;
+  var br={};(L.brands||[]).forEach(function(b){br[b]=1;});
   sb.from('fac_inspections').insert({
-    round_name:INSP.round,campus_code:code,campus_label:c.campus_label||null,region:c.region||null,brand:c.brand||null,
+    round_name:INSP.round,campus_code:code,campus_label:L.title||null,region:L.region||null,brand:Object.keys(br).join(', ')||null,
     inspector_login:(CURRENT_USER&&CURRENT_USER.login_id)||null,inspector_name:(CURRENT_USER&&CURRENT_USER.name)||null,
     inspected_at:inspToday()
   }).select().then(function(r){
@@ -2548,8 +2642,11 @@ function inspOpen(id){
 
 // ---------- 현장 입력 화면 ----------
 function inspProgress(){
-  var total=INSP.ck.length+INSP.spaces.length*INSP.sp.length,done=0,bad=0,weak=0;
-  Object.keys(INSP.res).forEach(function(k){var x=INSP.res[k];if(x.result)done++;if(x.result==='불량')bad++;if(x.result==='미흡')weak++;});
+  var keys=[];
+  INSP.ck.forEach(function(it){keys.push(inspKey(it.id,''));});
+  INSP.spaces.forEach(function(s){INSP.sp.forEach(function(it){keys.push(inspKey(it.id,s.name));});});
+  var total=0,done=0,bad=0,weak=0;
+  keys.forEach(function(k){if(inspHidden(k))return;total++;var x=INSP.res[k];if(!x)return;if(x.result)done++;if(x.result==='불량')bad++;if(x.result==='미흡')weak++;});
   return {total:total,done:done,bad:bad,weak:weak,pct:total?Math.round(done*100/total):0};
 }
 function inspItemHTML(it,space,zone){
@@ -2582,47 +2679,66 @@ function inspItemHTML(it,space,zone){
       +'<div id="'+pid+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'
     +'</div>';
   }
-  return '<div class="insp-it'+(sm?' sm':'')+(x.result?' r-'+x.result:'')+'" id="it_'+inspH(k).replace(/[^\w가-힣|]/g,'_')+'" data-k="'+inspH(k)+'" data-zone="'+inspH(zone||'')+'">'+head+btns+detail+'</div>';
+  var delBtn='<button class="insp-del" data-act="del" data-k="'+inspH(k)+'" title="삭제">삭제</button>';
+  return '<div class="insp-it'+(sm?' sm':'')+(x.result?' r-'+x.result:'')+'" id="it_'+inspH(k).replace(/[^\w가-힣|]/g,'_')+'" data-k="'+inspH(k)+'" data-zone="'+inspH(zone||'')+'">'+delBtn+head+btns+detail+'</div>';
+}
+function inspSpaceHTML(s){
+  var vis=INSP.sp.filter(function(it){return !inspHidden(inspKey(it.id,s.name));});
+  var cnt=vis.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&x.result;}).length;
+  var iss=vis.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&(x.result==='미흡'||x.result==='불량');}).length;
+  return '<details class="insp-space"'+(cnt<vis.length?' open':'')+'><summary><b>'+inspH(s.name)+'</b>'
+    +' <span class="hint">'+cnt+'/'+vis.length+'</span>'+(iss?' <span class="insp-tag warn">미흡·불량 '+iss+'</span>':'')
+    +'<span style="margin-left:auto;display:flex;gap:5px"><button class="flt" data-act="allok" data-v="'+inspH(s.name)+'">남은 항목 양호</button>'
+    +'<button class="flt" data-act="delspace" data-v="'+inspH(s.name)+'" style="color:var(--dng)">공간 삭제</button></span></summary>'
+    +vis.map(function(it){return inspItemHTML(it,s.name,s.zone);}).join('')+'</details>';
 }
 function inspRenderRun(){
   var root=inspRoot();if(!root)return;var cur=INSP.cur;
-  var groups={};INSP.ck.forEach(function(it){var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';(groups[z]=groups[z]||[]).push(it);});
-  var zones=INSP_ZONES.filter(function(z){return groups[z];});
+  var groups={};INSP.ck.forEach(function(it){
+    if(inspHidden(inspKey(it.id,'')))return;
+    var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';(groups[z]=groups[z]||[]).push(it);});
+  var zones=INSP_ZONES.filter(function(z){return groups[z]||INSP_SPACE_ZONES.indexOf(z)>=0;});
   var locked=cur.status==='완료';
   var html=''
     +'<div class="insp-head">'
       +'<button class="flt" data-act="home">← 회차 현황</button>'
       +'<div style="flex:1;min-width:0"><div class="title" style="font-size:15px">'+inspH(cur.campus_label||cur.campus_code)+(locked?' <span class="badge" style="background:var(--okbg);color:var(--ok)">완료</span>':'')+'</div>'
-      +'<div class="rid">'+inspH(cur.round_name)+' · '+inspH(cur.inspector_name||'')+' · '+inspH(cur.inspected_at)+(INSP.prevRound?' · 직전 점검 '+inspH(INSP.prevRound):'')+'</div></div>'
+      +'<div class="rid">'+inspH((INSP.locByKey[cur.campus_code]||{}).campText||cur.brand||'')+'</div>'
+      +'<div class="rid">'+inspH(cur.round_name)+' · 시작 '+inspH(cur.inspector_name||'')+' · '+inspH(cur.inspected_at)+(INSP.prevRound?' · 직전 점검 '+inspH(INSP.prevRound):'')+'</div></div>'
     +'</div>'
     +'<div class="insp-sticky">'
       +'<div id="insp_prog"></div>'
       +'<div class="insp-zn">'+zones.map(function(z){return '<button class="flt" data-act="jump" data-v="z_'+INSP_ZONES.indexOf(z)+'">'+inspH(z)+' <span class="insp-zc" data-zc="'+inspH(z)+'"></span></button>';}).join('')
-        +'<button class="flt" data-act="jump" data-v="z_space">공간별 세부 <span class="insp-zc" data-zc="__space"></span></button>'
         +'<button class="flt" data-act="jump" data-v="z_done">완료</button></div>'
     +'</div>'
     +(locked?'<div class="insp-note">완료된 점검입니다. 수정은 가능하며, 수정 내용은 바로 저장됩니다.</div>':'')
-    +'<div class="hint" style="margin:4px 0 12px">버튼을 누르는 즉시 저장됩니다. 미흡·불량을 고르면 조치 구분·메모·사진 칸이 열립니다.</div>';
+    +'<div class="hint" style="margin:4px 0 12px">버튼을 누르는 즉시 저장됩니다. 미흡·불량을 고르면 조치 구분·메모·사진 칸이 열립니다. 불필요한 항목은 오른쪽 위 <b>삭제</b>로 뺄 수 있습니다.</div>';
   zones.forEach(function(z){
-    html+='<div class="insp-sec" id="z_'+INSP_ZONES.indexOf(z)+'"><div class="insp-sec-t">'+inspH(z)+' <span class="hint">'+groups[z].length+'개</span></div>'
-      +groups[z].map(function(it){return inspItemHTML(it,'',z);}).join('')+'</div>';
+    var zi=INSP_ZONES.indexOf(z),items=groups[z]||[],isSpace=INSP_SPACE_ZONES.indexOf(z)>=0;
+    var sps=INSP.spaces.filter(function(s){return s.zone===z;});
+    html+='<div class="insp-sec" id="z_'+zi+'"><div class="insp-sec-t">'+inspH(z)+' <span class="hint">'+(items.length?('공통 '+items.length+'개'):'')+(isSpace?((items.length?' · ':'')+'공간 '+sps.length+'곳'):'')+'</span></div>'
+      +items.map(function(it){return inspItemHTML(it,'',z);}).join('');
+    if(isSpace){
+      var hasSame=sps.some(function(s){return s.name===z;});
+      var ph=z==='강의실'?'강의실명 (예: 301호)':('공간명 (예: '+z+')');
+      html+='<div class="insp-spwrap"><div class="insp-sub">'+inspH(z)+'별 세부 점검 <span class="hint">벽지·바닥·천장·문·콘센트·멀티탭·LED 등 '+INSP.sp.length+'개</span></div>'
+        +sps.map(inspSpaceHTML).join('')
+        +'<div class="insp-add"><input type="text" id="insp_sp_'+zi+'" placeholder="'+inspH(ph)+'" value="'+(['교무실','원장실','상담실','데스크·로비'].indexOf(z)>=0&&!hasSame&&!sps.length?inspH(z):'')+'" style="flex:1;min-width:140px;margin:0">'
+        +'<button class="flt on" data-act="addspace" data-v="'+zi+'">+ '+(z==='강의실'?'강의실':'공간')+' 추가</button></div></div>';
+    }
+    html+='</div>';
   });
-  // 공간별 세부 점검
-  html+='<div class="insp-sec" id="z_space"><div class="insp-sec-t">공간별 세부 점검 <span class="hint">강의실·교무실·원장실·데스크 등 공간마다 '+INSP.sp.length+'개 항목</span></div>'
-    +'<div class="insp-add">'
-      +'<input type="text" id="insp_sp_name" placeholder="공간명 (예: 301호, 교무실)" style="flex:1;min-width:140px;margin:0">'
-      +'<select id="insp_sp_zone" style="width:130px">'+INSP_SPACE_ZONES.map(function(z){return '<option>'+z+'</option>';}).join('')+'</select>'
-      +'<button class="flt on" data-act="addspace">+ 공간 추가</button>'
-    +'</div>'
-    +(INSP.spaces.length?INSP.spaces.map(function(s){
-      var cnt=INSP.sp.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&x.result;}).length;
-      var iss=INSP.sp.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&(x.result==='미흡'||x.result==='불량');}).length;
-      return '<details class="insp-space"'+(cnt<INSP.sp.length?' open':'')+'><summary><b>'+inspH(s.name)+'</b> <span class="insp-cat">'+inspH(s.zone)+'</span>'
-        +' <span class="hint">'+cnt+'/'+INSP.sp.length+'</span>'+(iss?' <span class="insp-tag warn">미흡·불량 '+iss+'</span>':'')
-        +'<button class="flt" data-act="allok" data-v="'+inspH(s.name)+'" style="margin-left:auto">남은 항목 모두 양호</button></summary>'
-        +INSP.sp.map(function(it){return inspItemHTML(it,s.name,s.zone);}).join('')+'</details>';
-    }).join(''):'<div class="insp-empty" style="margin-top:8px">아직 추가한 공간이 없습니다. 강의실마다 공간을 추가해 점검하세요.</div>')
-    +'</div>';
+  // 삭제한 항목 복원
+  var hid=Object.keys(INSP.res).filter(function(k){return INSP.res[k].hidden;});
+  var off=INSP.items.filter(function(x){return x.active===false;});
+  if(hid.length||off.length){
+    html+='<div class="insp-sec" id="z_restore"><div class="insp-sec-t">삭제한 항목 <span class="hint">필요하면 복원</span></div>'
+      +hid.map(function(k){var x=INSP.res[k],it=INSP.itemById[x.item_id]||{};
+        return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title||'')+(x.space_name?' <span class="insp-cat">'+inspH(x.space_name)+'</span>':'')+' <span class="hint">이번 점검에서 제외</span></div><button class="flt" data-act="unhide" data-k="'+inspH(k)+'">복원</button></div>';}).join('')
+      +off.map(function(it){
+        return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title)+' <span class="hint">점검표에서 삭제 (전 캠퍼스)</span></div><button class="flt" data-act="reactivate" data-v="'+it.id+'">복원</button></div>';}).join('')
+      +'</div>';
+  }
   // 완료
   html+='<div class="insp-sec" id="z_done"><div class="insp-sec-t">점검 완료</div>'
     +'<div class="lbl">캠퍼스 확인자 (원장·실장)</div>'
@@ -2638,12 +2754,11 @@ function inspUpdateProg(){
   var p=inspProgress(),el=document.getElementById('insp_prog');
   if(el)el.innerHTML='<div class="insp-pbar"><i style="width:'+p.pct+'%"></i></div>'
     +'<div class="hint" style="margin-top:4px">'+p.done+' / '+p.total+' 항목 ('+p.pct+'%) · <span style="color:var(--warn)">미흡 '+p.weak+'</span> · <span style="color:var(--dng)">불량 '+p.bad+'</span></div>';
-  // 구역별 남은 수
-  var groups={};INSP.ck.forEach(function(it){var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';var g=groups[z]||(groups[z]={t:0,d:0});g.t++;var x=INSP.res[inspKey(it.id,'')];if(x&&x.result)g.d++;});
-  document.querySelectorAll('#insp_root .insp-zc').forEach(function(s){
-    var z=s.dataset.zc;
-    if(z==='__space'){s.textContent=INSP.spaces.length?(INSP.spaces.length+'곳'):'';return;}
-    var g=groups[z];if(!g)return;s.textContent=g.d+'/'+g.t;s.style.color=g.d===g.t?'var(--ok)':'';
+  var groups={};
+  INSP.ck.forEach(function(it){var k=inspKey(it.id,'');if(inspHidden(k))return;var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';var g=groups[z]||(groups[z]={t:0,d:0});g.t++;var x=INSP.res[k];if(x&&x.result)g.d++;});
+  INSP.spaces.forEach(function(s){INSP.sp.forEach(function(it){var k=inspKey(it.id,s.name);if(inspHidden(k))return;var g=groups[s.zone]||(groups[s.zone]={t:0,d:0});g.t++;var x=INSP.res[k];if(x&&x.result)g.d++;});});
+  document.querySelectorAll('#insp_root .insp-zc').forEach(function(sp){
+    var g=groups[sp.dataset.zc];if(!g){sp.textContent='';return;}sp.textContent=g.d+'/'+g.t;sp.style.color=g.d===g.t?'var(--ok)':'';
   });
 }
 function inspRefreshItem(k){
@@ -2681,26 +2796,77 @@ function inspSaveMany(rows){
     inspToast('저장됨');return true;
   });
 }
-function inspAddSpace(){
-  var n=document.getElementById('insp_sp_name'),z=document.getElementById('insp_sp_zone');
-  var name=(n&&n.value||'').trim(),zone=z&&z.value||'강의실';
-  if(!name){alert('공간명을 입력하세요. (예: 301호)');return;}
-  if(INSP.spaces.some(function(s){return s.name===name;})){alert('이미 추가된 공간입니다.');return;}
+function inspAddSpace(zi){
+  var zone=INSP_ZONES[Number(zi)]||'강의실',n=document.getElementById('insp_sp_'+zi);
+  var name=(n&&n.value||'').trim();
+  if(!name){alert('공간명을 입력하세요. (예: 301호)');if(n)n.focus();return;}
+  if(INSP.spaces.some(function(s){return s.name===name;})){alert('이미 추가된 공간입니다: '+name);return;}
   INSP.spaces.push({name:name,zone:zone});
   // 공간 목록이 새로고침 후에도 남도록 빈 결과 행을 미리 저장
   var rows=INSP.sp.map(function(it){return {inspection_id:INSP.cur.id,item_id:it.id,space_name:name,space_zone:zone,updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null};});
-  inspSaveMany(rows).then(function(){inspRenderRun();var el=document.getElementById('insp_sp_name');if(el)el.focus();});
+  var y=window.scrollY;
+  inspSaveMany(rows).then(function(){inspRenderRun();window.scrollTo({top:y});var el=document.getElementById('insp_sp_'+zi);if(el&&zone==='강의실')el.focus();});
+}
+// ---------- 삭제 / 복원 ----------
+function inspDelMenu(k){
+  var parts=k.split('|'),it=INSP.itemById[parts[0]]||{},space=parts.slice(1).join('|');
+  var label=(it.title||'')+(space?' ('+space+')':'');
+  INSP.delKey=k;
+  openModal('<div class="mb" style="padding-top:20px"><div style="font-size:14px;font-weight:600;margin-bottom:6px">항목 삭제</div>'
+    +'<div class="hint" style="margin-bottom:14px">'+inspH(label)+'</div>'
+    +'<button class="submit" style="width:100%;margin-bottom:8px" onclick="closeModal();inspHide(INSP.delKey)">이번 점검에서만 삭제</button>'
+    +'<button class="submit" style="width:100%;margin-bottom:6px;background:var(--dng)" onclick="closeModal();inspDeactivate(INSP.delKey)">점검표에서 삭제 (모든 캠퍼스·다음 회차부터 제외)</button>'
+    +'<div class="hint" style="line-height:1.5">삭제한 항목은 화면 아래 <b>삭제한 항목</b>에서 언제든 복원할 수 있습니다.</div></div>'
+    +'<div class="mf"><button class="mbtn" onclick="closeModal()">취소</button></div>');
+}
+function inspKeepScroll(fn){var y=window.scrollY;return Promise.resolve(fn()).then(function(){inspRenderRun();window.scrollTo({top:y});});}
+function inspHide(k){
+  inspKeepScroll(function(){return inspSave(k,{hidden:true,result:null,action_type:null});});
+}
+function inspUnhide(k){
+  inspKeepScroll(function(){return inspSave(k,{hidden:false});});
+}
+function inspDeactivate(k){
+  var it=INSP.itemById[k.split('|')[0]];if(!it)return;
+  if(!confirm('「'+it.title+'」을(를) 점검표에서 삭제할까요?\n모든 캠퍼스 점검에서 빠집니다. (복원 가능, 입력된 기록은 보존)'))return;
+  inspKeepScroll(function(){
+    return sb.from('fac_inspection_items').update({active:false}).eq('id',it.id).then(function(r){
+      if(r.error){inspToast('삭제 실패: '+r.error.message,true);return;}
+      it.active=false;inspSplitItems();inspToast('점검표에서 삭제됨');
+    });
+  });
+}
+function inspReactivate(id){
+  var it=INSP.itemById[id];if(!it)return;
+  inspKeepScroll(function(){
+    return sb.from('fac_inspection_items').update({active:true}).eq('id',it.id).then(function(r){
+      if(r.error){inspToast('복원 실패: '+r.error.message,true);return;}
+      it.active=true;inspSplitItems();inspToast('복원됨');
+    });
+  });
+}
+function inspDelSpace(name){
+  var n=INSP.sp.filter(function(it){var x=INSP.res[inspKey(it.id,name)];return x&&x.result;}).length;
+  if(!confirm('「'+name+'」 공간을 삭제할까요?'+(n?'\n입력한 '+n+'개 항목 결과도 함께 삭제됩니다.':'')))return;
+  inspKeepScroll(function(){
+    return sb.from('fac_inspection_results').delete().eq('inspection_id',INSP.cur.id).eq('space_name',name).then(function(r){
+      if(r.error){inspToast('삭제 실패: '+r.error.message,true);return;}
+      Object.keys(INSP.res).forEach(function(k){if(INSP.res[k].space_name===name)delete INSP.res[k];});
+      INSP.spaces=INSP.spaces.filter(function(s){return s.name!==name;});
+      inspToast('공간 삭제됨');
+    });
+  });
 }
 function inspAllOk(space){
   var rows=[];
   INSP.sp.forEach(function(it){
     var k=inspKey(it.id,space),x=INSP.res[k]||{};
-    if(x.result)return;
+    if(x.result||x.hidden)return;
     rows.push({inspection_id:INSP.cur.id,item_id:it.id,space_name:space,space_zone:x.space_zone||null,result:'양호',
       action_type:null,note:null,photo_paths:x.photo_paths||[],updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null,updated_at:new Date().toISOString()});
   });
   if(!rows.length){inspToast('남은 항목이 없습니다.');return;}
-  inspSaveMany(rows).then(function(){inspRenderRun();});
+  var y=window.scrollY;inspSaveMany(rows).then(function(){inspRenderRun();window.scrollTo({top:y});});
 }
 function inspComplete(){
   var p=inspProgress();
@@ -2800,7 +2966,7 @@ function inspToRequest(resId){
   var detail='[정기점검 '+(ins.round_name||'')+'] '+(it.title||'')+(x.space_name?' / '+x.space_name:'')+' — '+x.result+(x.note?'\n'+x.note:'');
   var row={type:'fix',campus:ins.region||ins.campus_label||'',status:'wait',
     applicant:staffLabel()+' (정기점검)',apply_date:inspToday(),
-    detail:detail,location:x.space_name||x.space_zone||it.zone||null,
+    detail:detail,location:[ins.campus_label,x.space_name||x.space_zone||it.zone].filter(Boolean).join(' ')||null,
     photos:(x.photo_paths&&x.photo_paths.length)?x.photo_paths:null,
     applicant_login:(CURRENT_USER&&CURRENT_USER.login_id)||null};
   sb.from('fac_requests').insert(row).select('id,record_no').then(function(r){
@@ -2815,7 +2981,8 @@ function inspToRequest(resId){
 // ---------- 캠퍼스 이력 ----------
 function inspLoadHist(code){
   var root=inspRoot();if(root)root.innerHTML='<div class="hint" style="padding:20px">불러오는 중...</div>';
-  var c=INSP.campuses.filter(function(x){return x.campus_code===code;})[0]||{campus_code:code};
+  var L=INSP.locByKey[code];
+  var c=L?{campus_label:L.title,brand:L.campText,region:L.region,campus_code:code}:{campus_label:code,campus_code:code};
   sb.from('fac_inspections').select('*').eq('campus_code',code).order('inspected_at',{ascending:false}).then(function(r){
     var list=(r&&r.data)||[];var ids=list.map(function(x){return x.id;});
     var done=function(rows){
@@ -2877,12 +3044,17 @@ function inspOnClick(e){
   }
   else if(act==='photo')inspPickPhoto(k);
   else if(act==='photodel')inspPhotoDel(k);
-  else if(act==='addspace')inspAddSpace();
+  else if(act==='addspace')inspAddSpace(v);
+  else if(act==='del')inspDelMenu(k);
+  else if(act==='unhide')inspUnhide(k);
+  else if(act==='reactivate')inspReactivate(v);
+  else if(act==='delspace'){e.preventDefault();inspDelSpace(v);}
   else if(act==='allok'){e.preventDefault();inspAllOk(v);}
   else if(act==='complete')inspComplete();
   else if(act==='jump'){var t=document.getElementById(v);if(t){var y=t.getBoundingClientRect().top+window.scrollY-130;window.scrollTo({top:y,behavior:'smooth'});}}
   else if(act==='home'){inspLoadRound();window.scrollTo({top:0});}
   else if(act==='start')inspStart(v);
+  else if(act==='edit')inspEdit(v);
   else if(act==='open')inspOpen(v);
   else if(act==='hist')inspLoadHist(v);
   else if(act==='issues')inspLoadIssues();
@@ -2898,6 +3070,9 @@ function inspOnChange(e){
   if(act==='action')inspSave(k,{action_type:t.value||null});
   else if(act==='note')inspSave(k,{note:t.value.trim()||null});
 }
+document.addEventListener('keydown',function(e){
+  var t=e.target;if(e.key==='Enter'&&t&&t.id&&t.id.indexOf('insp_sp_')===0){e.preventDefault();inspAddSpace(t.id.slice(8));}
+});
 document.addEventListener('input',function(e){
   if(e.target&&e.target.id==='insp_q'){INSP.q=e.target.value.trim();
     clearTimeout(INSP._qh);INSP._qh=setTimeout(function(){var pos=e.target.selectionStart;inspRenderHome();var q=document.getElementById('insp_q');if(q){q.focus();try{q.setSelectionRange(pos,pos);}catch(_){}}},250);}
