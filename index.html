@@ -246,6 +246,18 @@
   .insp-pristat>div{border:1px solid var(--line);border-radius:10px;padding:8px 9px;background:#fff;border-width:2px}
   .insp-pristat b{font-size:18px;display:block}.insp-pristat span{font-size:11.5px;font-weight:600;color:var(--ink)}.insp-pristat em{display:block;font-style:normal;font-size:10.5px;color:var(--mute)}
   @media(max-width:760px){.insp-pristat{grid-template-columns:repeat(3,1fr)}}
+  .insp-pristat em.won{color:var(--ink);font-weight:600;margin-top:2px}
+  .insp-budget{font-size:12.5px;color:var(--mute);margin:-4px 0 10px;line-height:1.6}.insp-budget b{color:var(--ink)}
+  .insp-cost{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;gap:7px;background:var(--bg)}
+  .insp-cost select,.insp-cost input,.insp-cost textarea{margin:0;font-size:13px}
+  .insp-cost-r{display:flex;gap:7px;flex-wrap:wrap}.insp-cost-r>select{flex:1;min-width:150px}.insp-cost-r>input{flex:1;min-width:140px}
+  .insp-cost-r.num label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--mute);flex:1;min-width:120px;white-space:nowrap}
+  .insp-cost-r.num input{width:100%;min-width:0;text-align:right}.insp-cost-r.num span{font-size:12px;color:var(--mute);white-space:nowrap}
+  .insp-cost-r.num .tot{color:var(--ink);font-weight:600}
+  .insp-pb{max-height:58vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .insp-pb-r{display:grid;grid-template-columns:1fr 64px 110px;gap:6px;align-items:center;padding:7px 9px;border-bottom:1px solid var(--line2)}
+  .insp-pb-r.used{background:var(--warnbg)}.insp-pb-r .t{font-size:12.5px;font-weight:600}.insp-pb-r .t span{display:block;font-size:11px;color:var(--mute);font-weight:400}
+  .insp-pb-r input{margin:0;padding:6px 8px;font-size:12.5px}.insp-pb-r input[data-pb="unit_price"]{text-align:right}
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 
@@ -2531,6 +2543,20 @@ var INSP_ACTIONS=['현장 즉시조치','총무팀 처리','외주·업체','캠
 var INSP_PRI={1:['즉시 조치','당일~3일','화재·감전·추락 등 인명 위험'],2:['긴급','1주 내','사고로 이어질 수 있는 결함'],3:['조기 보수','1개월 내','다침·침입 위험 또는 운영 차질'],4:['계획 보수','분기 예산 반영','기능 저하·노후'],5:['개선 검토','예산 여유 시','미관·환경 개선']};
 var INSP_PRI_COLOR={1:['#c72c22','#fdeeed'],2:['#c25e00','#fff1e5'],3:['#b06f00','#fff6e6'],4:['#0071e3','#eef1f8'],5:['#6e6e73','#f2f2f4']};
 // 자동 산정: 위험등급(A·B·C) × 결과(불량·미흡). 담당자가 직접 정한 값(priority)이 있으면 그 값 우선
+// 처리 주체 표시명 (저장값은 기존과 동일)
+var INSP_ACTION_LABEL={'총무팀 처리':'총무기획팀 자체 처리','외주·업체':'외부 업체','현장 즉시조치':'현장 즉시조치(완료)','캠퍼스 자체':'캠퍼스 자체','본부 보고':'본부 보고(결정 필요)'};
+var INSP_ACTION_ORDER=['총무팀 처리','외주·업체','현장 즉시조치','캠퍼스 자체','본부 보고'];
+function inspActLabel(a){return INSP_ACTION_LABEL[a]||a||'';}
+function inspWon(n){return (Math.round(n||0)).toLocaleString('ko-KR')+'원';}
+function inspCost(x){if(x.est_cost!=null)return Number(x.est_cost);if(x.qty!=null&&x.unit_price!=null)return Math.round(Number(x.qty)*Number(x.unit_price));return null;}
+// 예산 집계: 순위별·처리주체별 합계, 미산정 건수
+function inspBudget(rows){
+  var b={total:0,none:0,pri:{1:0,2:0,3:0,4:0,5:0},act:{}};
+  rows.forEach(function(x){var c=inspCost(x),p=x._pri||inspPri(x,x._item);
+    if(c==null){b.none++;return;}
+    b.total+=c;b.pri[p]+=c;var a=x.action_type||'미정';b.act[a]=(b.act[a]||0)+c;});
+  return b;
+}
 function inspAutoPri(x,it){var g=(it&&it.grade)||'C';var m={A:{'불량':1,'미흡':2},B:{'불량':3,'미흡':4},C:{'불량':4,'미흡':5}};return (m[g]||m.C)[x.result]||5;}
 function inspPri(x,it){return x.priority||inspAutoPri(x,it||INSP.itemById[x.item_id]);}
 function inspPriBadge(p){var c=INSP_PRI_COLOR[p]||INSP_PRI_COLOR[5];return '<span class="insp-pri" style="color:'+c[0]+';background:'+c[1]+'">'+p+'위 · '+INSP_PRI[p][0]+'</span>';}
@@ -3153,14 +3179,23 @@ function inspSortIssues(rows){
       ||String(a._insp.campus_label||'').localeCompare(String(b._insp.campus_label||''),'ko',{numeric:true});
   });
 }
+function inspIssueStatsHTML(rows){
+  var pc={1:0,2:0,3:0,4:0,5:0};rows.forEach(function(x){x._pri=inspPri(x,x._item);pc[x._pri]++;});
+  var bg=inspBudget(rows);
+  return '<div class="insp-pristat">'+[1,2,3,4,5].map(function(p){var c=INSP_PRI_COLOR[p];return '<div style="border-color:'+c[1]+'"><b style="color:'+c[0]+'">'+pc[p]+'</b><span>'+p+'위 '+INSP_PRI[p][0]+'</span><em>'+INSP_PRI[p][1]+'</em><em class="won">'+(bg.pri[p]?inspWon(bg.pri[p]):'-')+'</em></div>';}).join('')+'</div>'
+    +'<div class="insp-budget"><b>예상 소요 예산 '+inspWon(bg.total)+'</b>'
+    +INSP_ACTION_ORDER.filter(function(a){return bg.act[a];}).map(function(a){return ' · '+inspH(inspActLabel(a))+' '+inspWon(bg.act[a]);}).join('')
+    +(bg.act['미정']?' · 처리주체 미정 '+inspWon(bg.act['미정']):'')
+    +(bg.none?' <span style="color:var(--warn)">· 비용 미산정 '+bg.none+'건</span>':'')+'</div>';
+}
 function inspRenderIssues(){
   var root=inspRoot();if(!root)return;inspLeaveRun();
   var rows=INSP.issues||[];
   var open=rows.filter(function(x){return !x.request_no;}).length;
-  var pc={1:0,2:0,3:0,4:0,5:0};rows.forEach(function(x){pc[inspPri(x,x._item)]++;});
   root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
     +'<div style="flex:1"><div class="title" style="font-size:15px">미흡·불량 모아보기</div><div class="rid">'+inspH(INSP.round)+' · 전체 '+rows.length+'건 · 미전환 '+open+'건</div></div></div>'
-    +'<div class="insp-pristat">'+[1,2,3,4,5].map(function(p){var c=INSP_PRI_COLOR[p];return '<div style="border-color:'+c[1]+'"><b style="color:'+c[0]+'">'+pc[p]+'</b><span>'+p+'위 '+INSP_PRI[p][0]+'</span><em>'+INSP_PRI[p][1]+'</em></div>';}).join('')+'</div>'
+    +'<div id="insp_istat">'+inspIssueStatsHTML(rows)+'</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:10px"><button class="flt" data-act="pricebook">단가표 관리</button></div>'
     +'<div class="hint" style="margin-bottom:12px;line-height:1.6">우선순위는 <b>위험등급 × 결과</b>로 자동 산정되며, 현장 판단에 따라 항목마다 바꿀 수 있습니다. [유지보수 접수로 전환]을 누르면 <b>접수 처리</b> 목록에 정기점검 출처로 등록되어 기존 진행 이력·완료 처리 흐름으로 관리됩니다. (현장 알림은 발송하지 않음)</div>'
     +(rows.length?rows.map(function(x,i){
       var it=x._item,ins=x._insp,pid='iss_'+i;
@@ -3174,6 +3209,7 @@ function inspRenderIssues(){
           +'<select data-act="pri" data-v="'+x.id+'"><option value="">자동 ('+inspAutoPri(x,it)+'위)</option>'
           +[1,2,3,4,5].map(function(p){return '<option value="'+p+'"'+(x.priority===p?' selected':'')+'>'+p+'위 · '+INSP_PRI[p][0]+'</option>';}).join('')+'</select>'
           +(x.priority?'<span class="hint">직접 조정</span>':'')+'</div>'
+        +inspCostHTML(x,it)
         +(x.note?'<div style="font-size:12.5px;margin-top:8px;line-height:1.55">'+inspH(x.note)+'</div>':'')
         +'<div id="'+pid+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'
         +'<div style="margin-top:9px">'+(x.request_no?'<span class="insp-tag ok">유지보수 접수 '+inspH(x.request_no)+'</span>'
@@ -3181,11 +3217,73 @@ function inspRenderIssues(){
         +'</div></div>';
     }).join(''):'<div class="insp-empty">이 회차에 미흡·불량 항목이 없습니다.</div>');
 }
+function inspCostHTML(x,it){
+  var id=x.id,c=inspCost(x),dp=(it&&it.unit_price!=null)?it.unit_price:null,unit=(it&&it.unit)||'식';
+  var f=function(fld,val,ph,extra){return '<input data-act="cost" data-f="'+fld+'" data-v="'+id+'" value="'+(val==null?'':inspH(val))+'" placeholder="'+inspH(ph)+'" '+(extra||'')+'>';};
+  return '<div class="insp-cost" data-cid="'+id+'">'
+    +'<div class="insp-cost-r">'
+      +'<select data-act="cost" data-f="action_type" data-v="'+id+'"><option value="">처리 주체 선택</option>'
+        +INSP_ACTION_ORDER.map(function(a){return '<option value="'+inspH(a)+'"'+(x.action_type===a?' selected':'')+'>'+inspH(inspActLabel(a))+'</option>';}).join('')+'</select>'
+      +f('vendor',x.vendor,x.action_type==='외주·업체'?'업체명':'업체명 (외부 업체일 때)')
+    +'</div>'
+    +'<textarea data-act="cost" data-f="action_plan" data-v="'+id+'" rows="2" placeholder="조치 방안 (예: KC 인증 멀티탭으로 교체, 연쇄 연결 해소)">'+inspH(x.action_plan||'')+'</textarea>'
+    +'<div class="insp-cost-r num">'
+      +'<label>수량'+f('qty',x.qty,'0','inputmode="decimal"')+'<span>'+inspH(unit)+'</span></label>'
+      +'<label>단가'+f('unit_price',x.unit_price,dp!=null?String(dp):'원','inputmode="numeric"')+'<span>원</span></label>'
+      +'<label class="tot">예상 비용'+f('est_cost',x.est_cost!=null?x.est_cost:(c!=null?c:''),'자동 계산','inputmode="numeric"')+'<span>원</span></label>'
+    +'</div></div>';
+}
+function inspNum(v){v=String(v==null?'':v).replace(/[^\d.]/g,'');return v===''?null:Number(v);}
+function inspSetCost(id,fld,val){
+  var x=(INSP.issues||[]).filter(function(r){return r.id===id;})[0];if(!x)return;
+  var it=x._item||{},patch={};
+  if(fld==='qty'||fld==='unit_price'){
+    patch[fld]=inspNum(val);
+    var q=fld==='qty'?patch.qty:x.qty,u=fld==='unit_price'?patch.unit_price:x.unit_price;
+    if(u==null&&it.unit_price!=null&&q!=null){u=it.unit_price;patch.unit_price=u;}   // 단가표 기본 단가 자동 적용
+    patch.est_cost=(q!=null&&u!=null)?Math.round(q*u):null;
+  }else if(fld==='est_cost'){patch.est_cost=inspNum(val);}
+  else{patch[fld]=String(val||'').trim()||null;}
+  sb.from('fac_inspection_results').update(patch).eq('id',id).then(function(r){
+    if(r.error){inspToast('저장 실패: '+r.error.message+(/action_plan|vendor|qty|unit_price|est_cost/.test(r.error.message)?' (SQL 10 실행 필요)':''),true);return;}
+    Object.keys(patch).forEach(function(k){x[k]=patch[k];});
+    var box=document.querySelector('.insp-cost[data-cid="'+id+'"]');
+    if(box){
+      if(patch.unit_price!==undefined){var ui=box.querySelector('[data-f="unit_price"]');if(ui&&document.activeElement!==ui)ui.value=x.unit_price==null?'':x.unit_price;}
+      var ei=box.querySelector('[data-f="est_cost"]');if(ei&&document.activeElement!==ei){var c=inspCost(x);ei.value=c==null?'':c;}
+      if(fld==='action_type'){var vi=box.querySelector('[data-f="vendor"]');if(vi)vi.placeholder=x.action_type==='외주·업체'?'업체명':'업체명 (외부 업체일 때)';}
+    }
+    var st=document.getElementById('insp_istat');if(st)st.innerHTML=inspIssueStatsHTML(INSP.issues);
+    inspToast('저장됨');
+  });
+}
+// ---------- 단가표 (항목별 기본 단위·단가) ----------
+function inspPriceBook(){
+  var used={};(INSP.issues||[]).forEach(function(x){used[x.item_id]=1;});
+  var list=INSP.items.filter(function(it){return it.active!==false;}).slice().sort(function(a,b){return (used[b.id]?1:0)-(used[a.id]?1:0)||(a.item_type<b.item_type?-1:1)||a.no-b.no;});
+  openModal('<div class="mb" style="padding-top:18px"><div style="font-size:14px;font-weight:600;margin-bottom:4px">단가표 관리</div>'
+    +'<div class="hint" style="margin-bottom:10px;line-height:1.6">항목별 기본 단가를 넣어 두면 미흡·불량 항목에 <b>수량만 입력해도 예상 비용이 자동 계산</b>됩니다. 실제 구매가·업체 견적가 기준으로 입력하세요. (입력 즉시 저장)</div>'
+    +'<div class="insp-pb">'+list.map(function(it){
+      return '<div class="insp-pb-r'+(used[it.id]?' used':'')+'"><div class="t">'+inspH(it.title)+'<span>'+(it.item_type==='space'?'호실·공간':inspH(it.category||''))+(used[it.id]?' · 이번 회차 지적':'')+'</span></div>'
+        +'<input data-pb="unit" data-id="'+it.id+'" value="'+inspH(it.unit||'')+'" placeholder="단위">'
+        +'<input data-pb="unit_price" data-id="'+it.id+'" value="'+(it.unit_price==null?'':it.unit_price)+'" placeholder="단가(원)" inputmode="numeric"></div>';
+    }).join('')+'</div></div>'
+    +'<div class="mf"><button class="mbtn yes" onclick="inspPriceBookClose()">닫기</button></div>');
+  document.querySelectorAll('[data-pb]').forEach(function(inp){inp.addEventListener('change',function(){
+    var it=INSP.itemById[inp.dataset.id];if(!it)return;var f=inp.dataset.pb,patch={};
+    patch[f]=f==='unit_price'?inspNum(inp.value):(inp.value.trim()||null);
+    sb.from('fac_inspection_items').update(patch).eq('id',it.id).then(function(r){
+      if(r.error){inspToast('저장 실패: '+r.error.message+(/unit/.test(r.error.message)?' (SQL 10 실행 필요)':''),true);return;}
+      it[f]=patch[f];inspToast('단가표 저장됨');
+    });
+  });});
+}
+function inspPriceBookClose(){closeModal();if(INSP.view==='issues')inspRenderIssues();}
 function inspSetPri(id,p){
   var x=(INSP.issues||[]).filter(function(r){return r.id===id;})[0];if(!x)return;
   sb.from('fac_inspection_results').update({priority:p}).eq('id',id).then(function(r){
     if(r.error){inspToast('저장 실패: '+r.error.message+(/priority/.test(r.error.message)?' (SQL 9 실행 필요)':''),true);inspRenderIssues();return;}
-    x.priority=p;var y=window.scrollY;inspSortIssues(INSP.issues);inspRenderIssues();window.scrollTo({top:y});inspToast('우선순위 '+(p?p+'위로 지정':'자동으로 되돌림'));
+    x.priority=p;x._pri=inspPri(x,x._item);var y=window.scrollY;inspSortIssues(INSP.issues);inspRenderIssues();window.scrollTo({top:y});inspToast('우선순위 '+(p?p+'위로 지정':'자동으로 되돌림'));
   });
 }
 function inspToRequest(resId){
@@ -3290,6 +3388,7 @@ function inspReportHTML(insps,rows,scope,maxPri,urls){
   var locTotal=scope?(INSP.locs||[]).filter(function(L){return (L.legacy?'건물·층 미등록':L.building)===scope;}).length:(INSP.locs||[]).length;
   var urgent=rows.filter(function(x){return x._pri<=2;});
   var conv=rows.filter(function(x){return x.request_no;}).length;
+  var bg=inspBudget(rows),bgU=bg.pri[1]+bg.pri[2];
   var badge=function(p){var c=INSP_PRI_COLOR[p];return '<span class="pri" style="color:'+c[0]+';background:'+c[1]+'">'+p+'위</span>';};
   var loc=function(x){var L=INSP.locByKey[x._insp.campus_code];return L&&!L.legacy?L.floor:(x._insp.campus_label||'');};
   var where=function(x){return [x.space_name,x.space_zone||x._item.zone].filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;}).join(' · ');};
@@ -3301,9 +3400,12 @@ function inspReportHTML(insps,rows,scope,maxPri,urls){
       +'<td><b>'+E(x._item.title||'')+'</b></td>'
       +'<td class="c"><span class="'+(x.result==='불량'?'bad':'weak')+'">'+E(x.result)+'</span></td>'
       +'<td>'+E(x.note||'')+photos(x)+'</td>'
-      +'<td>'+E(x.action_type||'-')+(x.request_no?'<br><span class="m">접수 '+E(x.request_no)+'</span>':'')+'</td></tr>';
+      +'<td>'+(x.action_type?'<b>'+E(inspActLabel(x.action_type))+'</b>':'<span class="m">미정</span>')+(x.vendor?' <span class="m">('+E(x.vendor)+')</span>':'')
+        +(x.action_plan?'<br>'+E(x.action_plan):'')+(x.request_no?'<br><span class="m">유지보수 '+E(x.request_no)+'</span>':'')+'</td>'
+      +'<td class="r">'+(function(){var c=inspCost(x);if(c==null)return '<span class="m">미산정</span>';
+        return '<b>'+inspWon(c)+'</b>'+(x.qty!=null&&x.unit_price!=null?'<br><span class="m">'+E(x.qty)+E(x._item.unit||'')+' × '+inspWon(x.unit_price)+'</span>':'');})()+'</td></tr>';
   };
-  var thead=function(withBld){return '<thead><tr><th style="width:52px">순위</th><th style="width:'+(withBld?'110':'70')+'px">'+(withBld?'건물·층':'층')+'</th><th style="width:90px">위치</th><th style="width:120px">항목</th><th style="width:44px">결과</th><th>내용</th><th style="width:88px">조치</th></tr></thead>';};
+  var thead=function(withBld){return '<thead><tr><th style="width:46px">순위</th><th style="width:'+(withBld?'92':'52')+'px">'+(withBld?'건물·층':'층')+'</th><th style="width:78px">위치</th><th style="width:100px">항목</th><th style="width:40px">결과</th><th>내용</th><th style="width:150px">조치 방안</th><th style="width:92px">예상 비용</th></tr></thead>';};
   // 건물별
   var bOrder=[];insps.forEach(function(x){var b=inspBldOf(x);if(bOrder.indexOf(b)<0)bOrder.push(b);});
   bOrder.sort(function(a,b){return a.localeCompare(b,'ko');});
@@ -3311,9 +3413,10 @@ function inspReportHTML(insps,rows,scope,maxPri,urls){
     var bi=insps.filter(function(x){return inspBldOf(x)===b;});
     bi.sort(function(p,q){var Lp=INSP.locByKey[p.campus_code],Lq=INSP.locByKey[q.campus_code];return inspFloorNum(Lp&&Lp.floor)-inspFloorNum(Lq&&Lq.floor);});
     var br=shown.filter(function(x){return inspBldOf(x._insp)===b;});
-    var bpc={1:0,2:0,3:0,4:0,5:0};rows.filter(function(x){return inspBldOf(x._insp)===b;}).forEach(function(x){bpc[x._pri]++;});
+    var bRows=rows.filter(function(x){return inspBldOf(x._insp)===b;}),bpc={1:0,2:0,3:0,4:0,5:0};bRows.forEach(function(x){bpc[x._pri]++;});var bb=inspBudget(bRows);
     return '<section class="bld"><h2>'+E(b)+'</h2>'
-      +'<div class="bsum">'+[1,2,3,4,5].map(function(p){return bpc[p]?badge(p)+' '+bpc[p]+'건':'';}).filter(Boolean).join(' &nbsp; ')+(Object.keys(bpc).every(function(k){return !bpc[k];})?'<span class="m">미흡·불량 없음</span>':'')+'</div>'
+      +'<div class="bsum">'+[1,2,3,4,5].map(function(p){return bpc[p]?badge(p)+' '+bpc[p]+'건':'';}).filter(Boolean).join(' &nbsp; ')+(Object.keys(bpc).every(function(k){return !bpc[k];})?'<span class="m">미흡·불량 없음</span>':'')
+        +(bb.total?' &nbsp;|&nbsp; <b>예상 예산 '+inspWon(bb.total)+'</b> <span class="m">(1~2위 '+inspWon(bb.pri[1]+bb.pri[2])+')</span>':'')+(bb.none?' <span class="m">· 미산정 '+bb.none+'건</span>':'')+'</div>'
       +'<table class="fl"><thead><tr><th>층</th><th>캠퍼스</th><th>점검일</th><th>점검자</th><th>확인자</th><th>상태</th><th>미흡</th><th>불량</th></tr></thead><tbody>'
       +bi.map(function(x){var L=INSP.locByKey[x.campus_code]||{},st=INSP.stat[x.id]||{};
         return '<tr><td>'+E(L.legacy?(x.campus_label||''):(L.floor||x.campus_label||''))+'</td><td>'+E(L.campText||x.brand||'')+'</td><td>'+E(x.inspected_at||'')+'</td><td>'+E(x.inspector_name||'')+'</td><td>'+E(x.campus_confirmer||'-')+'</td><td>'+E(x.status)+'</td><td class="c">'+(st.weak||0)+'</td><td class="c">'+(st.bad||0)+'</td></tr>';}).join('')
@@ -3331,7 +3434,7 @@ function inspReportHTML(insps,rows,scope,maxPri,urls){
     +'h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px;padding-bottom:5px;border-bottom:2px solid #1d1d1f}h3{font-size:13px;margin:18px 0 8px}'
     +'.meta{color:#6e6e73;font-size:11.5px;margin-bottom:16px}.m{color:#6e6e73;font-size:10.5px}'
     +'.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 6px}.kpi div{border:1px solid #e8e8ed;border-radius:8px;padding:9px 11px}.kpi b{font-size:19px;display:block}.kpi span{color:#6e6e73;font-size:10.5px}'
-    +'table{width:100%;border-collapse:collapse;margin:6px 0 10px;table-layout:fixed}th,td{border:1px solid #e3e3e8;padding:5px 6px;vertical-align:top;text-align:left;word-break:keep-all;overflow-wrap:anywhere}th{background:#f5f5f7;font-size:10.5px;color:#444}td.c,th.c{text-align:center}'
+    +'table{width:100%;border-collapse:collapse;margin:6px 0 10px;table-layout:fixed}th,td{border:1px solid #e3e3e8;padding:5px 6px;vertical-align:top;text-align:left;word-break:keep-all;overflow-wrap:anywhere}th{background:#f5f5f7;font-size:10.5px;color:#444}td.c,th.c{text-align:center}td.r{text-align:right;white-space:nowrap}'
     +'.pri{display:inline-block;font-weight:700;font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap}.bad{color:#c72c22;font-weight:700}.weak{color:#b06f00;font-weight:700}'
     +'.ph{display:flex;gap:4px;margin-top:4px}.ph img{width:88px;height:66px;object-fit:cover;border-radius:4px;border:1px solid #e3e3e8}'
     +'.bsum{margin:-2px 0 8px;font-size:11px}.fl td,.fl th{font-size:10.5px}.note{background:#f5f5f7;border-radius:8px;padding:10px 12px;font-size:10.5px;color:#444;margin-top:14px}'
@@ -3344,9 +3447,15 @@ function inspReportHTML(insps,rows,scope,maxPri,urls){
     +'<h1>'+E(title)+'</h1><div class="meta">보고일 '+E(today)+' · 경영관리본부 총무기획팀 · 점검 기준: 시설관리 점검표 (교육청 점검 항목 별도)</div>'
     +'<h2>1. 요약</h2>'
     +'<div class="kpi"><div><b>'+done+' / '+locTotal+'</b><span>점검 완료 (건물·층)</span></div><div><b>'+rows.length+'</b><span>미흡·불량 전체</span></div>'
-    +'<div><b style="color:#c72c22">'+urgent.length+'</b><span>즉시·긴급 (1~2위)</span></div><div><b>'+conv+'</b><span>유지보수 접수 완료</span></div></div>'
-    +'<h3>우선순위별 현황</h3><table><thead><tr><th style="width:60px">순위</th><th style="width:80px">구분</th><th style="width:90px">조치 기한</th><th style="width:150px">기준</th><th class="c" style="width:44px">건수</th><th>주요 항목</th></tr></thead><tbody>'
-    +[1,2,3,4,5].map(function(p){return '<tr><td class="c">'+badge(p)+'</td><td><b>'+INSP_PRI[p][0]+'</b></td><td>'+INSP_PRI[p][1]+'</td><td class="m">'+INSP_PRI[p][2]+'</td><td class="c"><b>'+pc[p]+'</b></td><td>'+(top3(p)||'-')+'</td></tr>';}).join('')
+    +'<div><b style="color:#c72c22">'+urgent.length+'</b><span>즉시·긴급 (1~2위)</span></div><div><b>'+inspWon(bg.total)+'</b><span>예상 소요 예산'+(bg.none?' (미산정 '+bg.none+'건 제외)':'')+'</span></div></div>'
+    +'<p style="margin:4px 0 0"><b>즉시·긴급(1~2위) 예산 '+inspWon(bgU)+'</b> — 비용과 무관하게 우선 집행 권고 · 3위 이하 '+inspWon(bg.total-bgU)+'은 예산 계획에 따라 순차 집행 · 유지보수 접수 '+conv+'건</p>'
+    +'<h3>처리 주체별 예산</h3><table style="width:auto;min-width:60%"><thead><tr><th>처리 주체</th><th class="c" style="width:60px">건수</th><th style="width:120px">예상 비용</th></tr></thead><tbody>'
+    +INSP_ACTION_ORDER.concat(['미정']).map(function(a){var n=rows.filter(function(x){return (x.action_type||'미정')===a;}).length;if(!n)return '';
+      return '<tr><td>'+E(a==='미정'?'처리 주체 미정':inspActLabel(a))+'</td><td class="c">'+n+'</td><td class="r">'+(bg.act[a]?inspWon(bg.act[a]):'-')+'</td></tr>';}).join('')
+    +'<tr><td><b>합계</b></td><td class="c"><b>'+rows.length+'</b></td><td class="r"><b>'+inspWon(bg.total)+'</b></td></tr></tbody></table>'
+    +'<h3>우선순위별 현황 · 소요 예산</h3><table><thead><tr><th style="width:52px">순위</th><th style="width:72px">구분</th><th style="width:84px">조치 기한</th><th style="width:140px">기준</th><th class="c" style="width:40px">건수</th><th style="width:96px">예상 예산</th><th>주요 항목</th></tr></thead><tbody>'
+    +[1,2,3,4,5].map(function(p){return '<tr><td class="c">'+badge(p)+'</td><td><b>'+INSP_PRI[p][0]+'</b></td><td>'+INSP_PRI[p][1]+'</td><td class="m">'+INSP_PRI[p][2]+'</td><td class="c"><b>'+pc[p]+'</b></td><td class="r"><b>'+(bg.pri[p]?inspWon(bg.pri[p]):'-')+'</b></td><td>'+(top3(p)||'-')+'</td></tr>';}).join('')
+    +'<tr><td colspan="4"><b>합계</b></td><td class="c"><b>'+rows.length+'</b></td><td class="r"><b>'+inspWon(bg.total)+'</b></td><td class="m">'+(bg.none?'비용 미산정 '+bg.none+'건은 합계에서 제외':'')+'</td></tr>'
     +'</tbody></table>'
     +'<h3>즉시·긴급 조치 대상 (1~2위)</h3>'
     +(urgent.length?'<table>'+thead(true)+'<tbody>'+urgent.map(function(x){return row(x,true);}).join('')+'</tbody></table>':'<p class="m">해당 항목이 없습니다.</p>')
@@ -3362,12 +3471,12 @@ function inspCsv(){
   inspToast('CSV 만드는 중...');
   inspFetchAll(function(){return sb.from('fac_inspection_results').select('*').in('inspection_id',ids);}).then(function(rows){
     var byId={};INSP.list.forEach(function(x){byId[x.id]=x;});
-    var head=['회차','건물·층','브랜드','지역','점검일','점검자','상태','유형','No','구분','구역','등급','점검항목','공간명','결과','우선순위','조치구분','문제내용','사진수','유지보수 접수번호'];
+    var head=['회차','건물·층','브랜드','지역','점검일','점검자','상태','유형','No','구분','구역','등급','점검항목','공간명','결과','우선순위','처리주체','업체','조치방안','수량','단위','단가','예상비용','문제내용','사진수','유지보수 접수번호'];
     var q=function(v){v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
     var lines=[head.join(',')];
     rows.forEach(function(x){var ins=byId[x.inspection_id]||{},it=INSP.itemById[x.item_id]||{};
       lines.push([ins.round_name,ins.campus_label,ins.brand,ins.region,ins.inspected_at,ins.inspector_name,ins.status,
-        it.item_type==='space'?'공간별':'점검표',it.no,it.category,x.space_zone||it.zone,it.grade,it.title,x.space_name,x.result,(x.result==='미흡'||x.result==='불량')?inspPri(x,it):'',x.action_type,x.note,(x.photo_paths||[]).length,x.request_no].map(q).join(','));});
+        it.item_type==='space'?'공간별':'점검표',it.no,it.category,x.space_zone||it.zone,it.grade,it.title,x.space_name,x.result,(x.result==='미흡'||x.result==='불량')?inspPri(x,it):'',inspActLabel(x.action_type),x.vendor,x.action_plan,x.qty,it.unit,x.unit_price,inspCost(x),x.note,(x.photo_paths||[]).length,x.request_no].map(q).join(','));});
     var blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='정기점검_'+INSP.round.replace(/\s+/g,'_')+'.csv';
     document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
@@ -3407,6 +3516,7 @@ function inspOnClick(e){
   else if(act==='toreq')inspToRequest(v);
   else if(act==='csv')inspCsv();
   else if(act==='report')inspReportOpen();
+  else if(act==='pricebook')inspPriceBook();
   else if(act==='newround')inspNewRound();
   else if(act==='brand'){INSP.brand=v;inspRenderHome();}
 }
@@ -3415,6 +3525,7 @@ function inspOnChange(e){
   if(t.id==='insp_round'){INSP.round=t.value;inspLoadRound();return;}
   var act=t.dataset&&t.dataset.act,k=t.dataset&&t.dataset.k;
   if(act==='pri'){inspSetPri(t.dataset.v,t.value?Number(t.value):null);return;}
+  if(act==='cost'){inspSetCost(t.dataset.v,t.dataset.f,t.value);return;}
   if(act==='action')inspSave(k,{action_type:t.value||null});
   else if(act==='note')inspSave(k,{note:t.value.trim()||null});
 }
