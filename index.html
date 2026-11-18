@@ -199,6 +199,8 @@
   .insp-spwrap .insp-add{margin:4px 0 0}
   .insp-bld{margin-bottom:16px}
   .insp-bld-t{font-size:14px;color:var(--ink);margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--ink);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .insp-off>summary{cursor:pointer;font-size:12.5px;color:var(--mute);padding:6px 2px}
+  .insp-crit.sm{margin:2px 0 0;font-size:11px}
   .insp-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 14px;border-radius:20px;opacity:0;transition:all .2s;z-index:9999;pointer-events:none}
   .insp-toast.show{opacity:.92;transform:translateX(-50%) translateY(0)}.insp-toast.err{background:var(--dng)}
 </style>
@@ -2445,6 +2447,12 @@ function inspSplitItems(){
   INSP.ck=INSP.items.filter(function(x){return x.item_type==='checklist'&&x.active!==false;});
   INSP.sp=INSP.items.filter(function(x){return x.item_type==='space'&&x.active!==false;});
 }
+function inspSpFor(zone){
+  return INSP.sp.filter(function(it){
+    if(!it.zone)return true;
+    return String(it.zone).split(',').map(function(z){return z.trim();}).indexOf(zone)>=0;
+  });
+}
 function inspHidden(k){var x=INSP.res[k];return !!(x&&x.hidden);}
 function inspRender(){
   if(INSP.view==='run')inspRenderRun();
@@ -2628,7 +2636,7 @@ function inspOpen(id){
         INSP.res[inspKey(x.item_id,x.space_name)]=x;
         if(x.space_name&&!sseen[x.space_name]){sseen[x.space_name]=1;INSP.spaces.push({name:x.space_name,zone:x.space_zone||''});}
       });
-      INSP.spaces.sort(function(a,b){return INSP_SPACE_ZONES.indexOf(a.zone)-INSP_SPACE_ZONES.indexOf(b.zone)||a.name.localeCompare(b.name,'ko');});
+      INSP.spaces.sort(function(a,b){return INSP_SPACE_ZONES.indexOf(a.zone)-INSP_SPACE_ZONES.indexOf(b.zone)||a.name.localeCompare(b.name,'ko',{numeric:true});});
       var prev=rs[1]&&rs[1].data&&rs[1].data[0];
       if(!prev){INSP.view='run';inspRenderRun();return;}
       INSP.prevRound=prev.round_name+' ('+prev.inspected_at+')';
@@ -2644,7 +2652,7 @@ function inspOpen(id){
 function inspProgress(){
   var keys=[];
   INSP.ck.forEach(function(it){keys.push(inspKey(it.id,''));});
-  INSP.spaces.forEach(function(s){INSP.sp.forEach(function(it){keys.push(inspKey(it.id,s.name));});});
+  INSP.spaces.forEach(function(s){inspSpFor(s.zone).forEach(function(it){keys.push(inspKey(it.id,s.name));});});
   var total=0,done=0,bad=0,weak=0;
   keys.forEach(function(k){if(inspHidden(k))return;total++;var x=INSP.res[k];if(!x)return;if(x.result)done++;if(x.result==='불량')bad++;if(x.result==='미흡')weak++;});
   return {total:total,done:done,bad:bad,weak:weak,pct:total?Math.round(done*100/total):0};
@@ -2655,6 +2663,7 @@ function inspItemHTML(it,space,zone){
   var prev=INSP.prev[k];
   var head=sm
     ?'<div class="insp-it-t">'+inspH(it.title)+(prev?' <span class="insp-tag dng" title="직전 회차 결과">직전 '+prev+'</span>':'')+'</div>'
+      +(it.criteria?'<div class="insp-crit sm">'+inspH(it.criteria)+'</div>':'')
     :'<div class="insp-it-t"><span class="insp-no">'+it.no+'</span>'+inspH(it.title)
       +' <span class="insp-g g'+it.grade+'">'+it.grade+'</span>'
       +' <span class="insp-cat">'+inspH(it.category||'')+'</span>'
@@ -2683,7 +2692,7 @@ function inspItemHTML(it,space,zone){
   return '<div class="insp-it'+(sm?' sm':'')+(x.result?' r-'+x.result:'')+'" id="it_'+inspH(k).replace(/[^\w가-힣|]/g,'_')+'" data-k="'+inspH(k)+'" data-zone="'+inspH(zone||'')+'">'+delBtn+head+btns+detail+'</div>';
 }
 function inspSpaceHTML(s){
-  var vis=INSP.sp.filter(function(it){return !inspHidden(inspKey(it.id,s.name));});
+  var vis=inspSpFor(s.zone).filter(function(it){return !inspHidden(inspKey(it.id,s.name));});
   var cnt=vis.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&x.result;}).length;
   var iss=vis.filter(function(it){var x=INSP.res[inspKey(it.id,s.name)];return x&&(x.result==='미흡'||x.result==='불량');}).length;
   return '<details class="insp-space"'+(cnt<vis.length?' open':'')+'><summary><b>'+inspH(s.name)+'</b>'
@@ -2720,8 +2729,10 @@ function inspRenderRun(){
       +items.map(function(it){return inspItemHTML(it,'',z);}).join('');
     if(isSpace){
       var hasSame=sps.some(function(s){return s.name===z;});
-      var ph=z==='강의실'?'강의실명 (예: 301호)':('공간명 (예: '+z+')');
-      html+='<div class="insp-spwrap"><div class="insp-sub">'+inspH(z)+'별 세부 점검 <span class="hint">벽지·바닥·천장·문·콘센트·멀티탭·LED 등 '+INSP.sp.length+'개</span></div>'
+      var ph=z==='강의실'?'호실 입력 (여러 개는 쉼표: 301, 302, 303)':('공간명 (예: '+z+')');
+      var zsp=inspSpFor(z);
+      html+='<div class="insp-spwrap"><div class="insp-sub">'+inspH(z==='강의실'?'강의실 호실별':z+'별')+' 세부 점검 <span class="hint">'+inspH(zsp.slice(0,6).map(function(it){return it.title;}).join('·'))+' 등 '+zsp.length+'개</span></div>'
+        +(z==='강의실'&&!sps.length?'<div class="insp-empty" style="margin-bottom:8px">호실을 추가하면 호실마다 '+zsp.length+'개 항목이 나옵니다. 한 번에 여러 호실을 쉼표로 넣을 수 있습니다.</div>':'')
         +sps.map(inspSpaceHTML).join('')
         +'<div class="insp-add"><input type="text" id="insp_sp_'+zi+'" placeholder="'+inspH(ph)+'" value="'+(['교무실','원장실','상담실','데스크·로비'].indexOf(z)>=0&&!hasSame&&!sps.length?inspH(z):'')+'" style="flex:1;min-width:140px;margin:0">'
         +'<button class="flt on" data-act="addspace" data-v="'+zi+'">+ '+(z==='강의실'?'강의실':'공간')+' 추가</button></div></div>';
@@ -2733,10 +2744,12 @@ function inspRenderRun(){
   var off=INSP.items.filter(function(x){return x.active===false;});
   if(hid.length||off.length){
     html+='<div class="insp-sec" id="z_restore"><div class="insp-sec-t">삭제한 항목 <span class="hint">필요하면 복원</span></div>'
+      +(hid.length?'':'<div class="hint" style="margin-bottom:6px">이번 점검에서 삭제한 항목이 없습니다.</div>')
       +hid.map(function(k){var x=INSP.res[k],it=INSP.itemById[x.item_id]||{};
         return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title||'')+(x.space_name?' <span class="insp-cat">'+inspH(x.space_name)+'</span>':'')+' <span class="hint">이번 점검에서 제외</span></div><button class="flt" data-act="unhide" data-k="'+inspH(k)+'">복원</button></div>';}).join('')
-      +off.map(function(it){
-        return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title)+' <span class="hint">점검표에서 삭제 (전 캠퍼스)</span></div><button class="flt" data-act="reactivate" data-v="'+it.id+'">복원</button></div>';}).join('')
+      +(off.length?'<details class="insp-off"><summary>점검표에서 제외된 항목 '+off.length+'개 <span class="hint">(교육청 점검 등 · 전 캠퍼스 공통)</span></summary>'
+        +off.map(function(it){
+        return '<div class="insp-row"><div style="flex:1;min-width:0;font-size:13px">'+inspH(it.title)+' <span class="insp-cat">'+inspH(it.category||'')+'</span></div><button class="flt" data-act="reactivate" data-v="'+it.id+'">복원</button></div>';}).join('')+'</details>':'')
       +'</div>';
   }
   // 완료
@@ -2756,7 +2769,7 @@ function inspUpdateProg(){
     +'<div class="hint" style="margin-top:4px">'+p.done+' / '+p.total+' 항목 ('+p.pct+'%) · <span style="color:var(--warn)">미흡 '+p.weak+'</span> · <span style="color:var(--dng)">불량 '+p.bad+'</span></div>';
   var groups={};
   INSP.ck.forEach(function(it){var k=inspKey(it.id,'');if(inspHidden(k))return;var z=INSP_ZONES.indexOf(it.zone)>=0?it.zone:'전 구역';var g=groups[z]||(groups[z]={t:0,d:0});g.t++;var x=INSP.res[k];if(x&&x.result)g.d++;});
-  INSP.spaces.forEach(function(s){INSP.sp.forEach(function(it){var k=inspKey(it.id,s.name);if(inspHidden(k))return;var g=groups[s.zone]||(groups[s.zone]={t:0,d:0});g.t++;var x=INSP.res[k];if(x&&x.result)g.d++;});});
+  INSP.spaces.forEach(function(s){inspSpFor(s.zone).forEach(function(it){var k=inspKey(it.id,s.name);if(inspHidden(k))return;var g=groups[s.zone]||(groups[s.zone]={t:0,d:0});g.t++;var x=INSP.res[k];if(x&&x.result)g.d++;});});
   document.querySelectorAll('#insp_root .insp-zc').forEach(function(sp){
     var g=groups[sp.dataset.zc];if(!g){sp.textContent='';return;}sp.textContent=g.d+'/'+g.t;sp.style.color=g.d===g.t?'var(--ok)':'';
   });
@@ -2798,14 +2811,24 @@ function inspSaveMany(rows){
 }
 function inspAddSpace(zi){
   var zone=INSP_ZONES[Number(zi)]||'강의실',n=document.getElementById('insp_sp_'+zi);
-  var name=(n&&n.value||'').trim();
-  if(!name){alert('공간명을 입력하세요. (예: 301호)');if(n)n.focus();return;}
-  if(INSP.spaces.some(function(s){return s.name===name;})){alert('이미 추가된 공간입니다: '+name);return;}
-  INSP.spaces.push({name:name,zone:zone});
-  // 공간 목록이 새로고침 후에도 남도록 빈 결과 행을 미리 저장
-  var rows=INSP.sp.map(function(it){return {inspection_id:INSP.cur.id,item_id:it.id,space_name:name,space_zone:zone,updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null};});
+  var raw=(n&&n.value||'').trim();
+  if(!raw){alert('공간명을 입력하세요. (예: 301호)');if(n)n.focus();return;}
+  var names=(zone==='강의실'?raw.split(/[,，\/]+/):[raw]).map(function(x){
+    x=x.trim();if(zone==='강의실'&&/^\d+$/.test(x))x+='호';return x;}).filter(Boolean);
+  var dup=[],add=[];
+  names.forEach(function(nm){if(INSP.spaces.some(function(s){return s.name===nm;})||add.indexOf(nm)>=0)dup.push(nm);else add.push(nm);});
+  if(!add.length){alert('이미 추가된 공간입니다: '+dup.join(', '));return;}
+  var items=inspSpFor(zone),rows=[];
+  add.forEach(function(nm){
+    INSP.spaces.push({name:nm,zone:zone});
+    // 공간 목록이 새로고침 후에도 남도록 빈 결과 행을 미리 저장
+    items.forEach(function(it){rows.push({inspection_id:INSP.cur.id,item_id:it.id,space_name:nm,space_zone:zone,updated_by:(CURRENT_USER&&CURRENT_USER.login_id)||null});});
+  });
+  INSP.spaces.sort(function(a,b){return INSP_SPACE_ZONES.indexOf(a.zone)-INSP_SPACE_ZONES.indexOf(b.zone)||a.name.localeCompare(b.name,'ko',{numeric:true});});
   var y=window.scrollY;
-  inspSaveMany(rows).then(function(){inspRenderRun();window.scrollTo({top:y});var el=document.getElementById('insp_sp_'+zi);if(el&&zone==='강의실')el.focus();});
+  inspSaveMany(rows).then(function(){inspRenderRun();window.scrollTo({top:y});
+    if(dup.length)inspToast('이미 있는 공간 제외: '+dup.join(', '));
+    var el=document.getElementById('insp_sp_'+zi);if(el&&zone==='강의실')el.focus();});
 }
 // ---------- 삭제 / 복원 ----------
 function inspDelMenu(k){
@@ -2846,7 +2869,7 @@ function inspReactivate(id){
   });
 }
 function inspDelSpace(name){
-  var n=INSP.sp.filter(function(it){var x=INSP.res[inspKey(it.id,name)];return x&&x.result;}).length;
+  var n=Object.keys(INSP.res).filter(function(k){var x=INSP.res[k];return x.space_name===name&&x.result;}).length;
   if(!confirm('「'+name+'」 공간을 삭제할까요?'+(n?'\n입력한 '+n+'개 항목 결과도 함께 삭제됩니다.':'')))return;
   inspKeepScroll(function(){
     return sb.from('fac_inspection_results').delete().eq('inspection_id',INSP.cur.id).eq('space_name',name).then(function(r){
@@ -2858,8 +2881,8 @@ function inspDelSpace(name){
   });
 }
 function inspAllOk(space){
-  var rows=[];
-  INSP.sp.forEach(function(it){
+  var rows=[],sp=INSP.spaces.filter(function(x){return x.name===space;})[0]||{};
+  inspSpFor(sp.zone).forEach(function(it){
     var k=inspKey(it.id,space),x=INSP.res[k]||{};
     if(x.result||x.hidden)return;
     rows.push({inspection_id:INSP.cur.id,item_id:it.id,space_name:space,space_zone:x.space_zone||null,result:'양호',
