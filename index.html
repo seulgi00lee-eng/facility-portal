@@ -3495,10 +3495,16 @@ function inspReportGo(){
     inspSortIssues(rows);
     var paths=[];
     if(withPhoto)rows.forEach(function(x){if(x._pri<=maxPri)(x.photo_paths||[]).slice(0,2).forEach(function(p){paths.push(p);});});
-    var urlP=paths.length?inspSignAll(paths):Promise.resolve({});
     // 설비 현황용: 개수·냉난방기 상세가 있는 결과
     var eqP=inspFetchAll(function(){return sb.from('fac_inspection_results').select('inspection_id,item_id,space_name,space_zone,cnt,detail,result').in('inspection_id',ids).not('cnt','is',null);}).catch(function(){return [];});
-    return Promise.all([urlP,eqP]).then(function(rs){w.document.open();w.document.write(inspReportHTML(insps,rows,scope,maxPri,rs[0],rs[1]));w.document.close();});
+    // 현장 특이사항: 구역·공간별 기타 사항과 사진
+    var spP=inspFetchAll(function(){return sb.from('fac_inspection_spaces').select('*').in('inspection_id',ids);}).catch(function(){return [];});
+    return Promise.all([eqP,spP]).then(function(rs){
+      var sps=(rs[1]||[]).filter(function(r){return (r.memo&&r.memo.trim())||(r.photo_paths||[]).length;});
+      if(withPhoto)sps.forEach(function(r){(r.photo_paths||[]).slice(0,3).forEach(function(p){paths.push(p);});});
+      return (paths.length?inspSignAll(paths):Promise.resolve({})).then(function(urls){
+        w.document.open();w.document.write(inspReportHTML(insps,rows,scope,maxPri,urls,rs[0],sps,withPhoto));w.document.close();});
+    });
   }).catch(function(e){w.document.body.innerHTML='<p style="font-family:sans-serif;padding:40px;color:#c72c22">보고서 생성 실패: '+inspH(e&&e.message||e)+'</p>';});
 }
 function inspSignAll(paths){
@@ -3516,7 +3522,7 @@ function inspEqSummary(eq,insps){
     else if(it.has_count)b.tap+=n;});
   return {byIns:byIns,models:models};
 }
-function inspReportHTML(insps,rows,scope,maxPri,urls,eq){
+function inspReportHTML(insps,rows,scope,maxPri,urls,eq,sps,withPhoto){
   var E=inspH,today=inspToday();
   var shown=rows.filter(function(x){return x._pri<=maxPri;});
   var pc={1:0,2:0,3:0,4:0,5:0},pt={1:{},2:{},3:{},4:{},5:{}};
@@ -3570,6 +3576,21 @@ function inspReportHTML(insps,rows,scope,maxPri,urls,eq){
           +'<tr><td><b>합계</b></td><td class="c"><b>'+tot.fire+'</b></td><td class="c"><b>'+tot.map+'</b></td><td class="c"><b>'+tot.lamp+'</b></td><td class="c"><b>'+tot.tap+'</b></td><td class="c"><b>'+tot.ac+'</b></td></tr></tbody></table>'
           +(Object.keys(mm).length?'<table class="fl" style="width:auto;min-width:55%"><thead><tr><th>냉난방기 제조사</th><th>모델</th><th class="c">대수</th></tr></thead><tbody>'
             +Object.keys(mm).sort().map(function(k){var p=k.split('|');return '<tr><td>'+E(p[0])+'</td><td>'+E(p[1])+'</td><td class="c">'+mm[k]+'</td></tr>';}).join('')+'</tbody></table>':'');
+      })()
+      +(function(){
+        var list=(sps||[]).filter(function(r){return bi.some(function(x){return x.id===r.inspection_id;});});
+        if(!list.length)return '';
+        var fl=function(r){var x=insps.filter(function(i){return i.id===r.inspection_id;})[0]||{},L=INSP.locByKey[x.campus_code]||{};return L.legacy?(x.campus_label||''):(L.floor||x.campus_label||'');};
+        var zord=function(r){var z=r.zone||(r.space_name.charAt(0)==='@'?r.space_name.slice(1):'');var i=INSP_ZONES.indexOf(z);return i<0?99:i;};
+        list.sort(function(a,b){var fa=insps.filter(function(i){return i.id===a.inspection_id;})[0]||{},fb=insps.filter(function(i){return i.id===b.inspection_id;})[0]||{};
+          var La=INSP.locByKey[fa.campus_code],Lb=INSP.locByKey[fb.campus_code];
+          return inspFloorNum(La&&La.floor)-inspFloorNum(Lb&&Lb.floor)||zord(a)-zord(b)||String(a.space_name).localeCompare(String(b.space_name),'ko',{numeric:true});});
+        return '<h3 style="margin:10px 0 6px">현장 특이사항</h3><table class="fl"><thead><tr><th style="width:52px">층</th><th style="width:120px">구역·공간</th><th>내용</th></tr></thead><tbody>'
+          +list.map(function(r){
+            var ph=withPhoto?(r.photo_paths||[]).slice(0,3).map(function(p){return urls[p];}).filter(Boolean):[];
+            return '<tr><td>'+E(fl(r))+'</td><td>'+E(inspSpaceLabel(r.space_name))+(r.zone&&r.space_name.charAt(0)!=='@'?'<br><span class="m">'+E(r.zone)+'</span>':'')+'</td>'
+              +'<td>'+(r.memo?E(r.memo):'<span class="m">사진만 첨부</span>')+(ph.length?'<div class="ph">'+ph.map(function(u){return '<img src="'+E(u)+'">';}).join('')+'</div>':'')+'</td></tr>';
+          }).join('')+'</tbody></table>';
       })()
       +(br.length?'<table>'+thead(false)+'<tbody>'+br.map(function(x){return row(x,false);}).join('')+'</tbody></table>':'<p class="m">보고 범위('+maxPri+'위 이내)에 해당하는 항목이 없습니다.</p>')
       +'</section>';
