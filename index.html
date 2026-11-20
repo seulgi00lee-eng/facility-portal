@@ -9,6 +9,7 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.2px;}
   .wrap{max-width:1040px;margin:0 auto;background:var(--bg);min-height:100vh;}
+  body.dash-wide .wrap{max-width:none}
   .hd{padding:26px 32px 0;background:#fff;}
   .hd h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.4px;}
   .hd p{font-size:13.5px;color:var(--mute);margin:4px 0 0;}
@@ -2203,6 +2204,7 @@ function admTab(t){
   window.scrollTo({top:0,behavior:'instant'});
   if(t==='docs')renderDocAdmin();
   if(t==='insp')inspInit();else document.body.classList.remove('insp-run');
+  if(t!=='dash')document.body.classList.remove('dash-wide');
   if(t==='dash')dashInit();
 }
 function admSt(v){
@@ -2803,7 +2805,7 @@ function dashFiltered(){
   var q=DASH.q.toLowerCase().split(/\s+/).filter(Boolean);
   return dashAll().filter(function(it){
     if(DASH.src!=='all'&&it.src!==DASH.src)return false;
-    if(DASH.who!=='all'&&(it.assignee||'')!==(DASH.who==='-'?'':DASH.who))return false;
+    if(DASH.who!=='all'&&!dashWhoHit(it.assignee,DASH.who==='-'?'':DASH.who))return false;
     if(DASH.flt&&DASH_FLT[DASH.flt]&&!DASH_FLT[DASH.flt].f(it))return false;
     if(q.length){var hay=[it.no,it.campus,it.building,it.title,it.vendor,it.tt,it.assignee].join(' ').toLowerCase();
       for(var i=0;i<q.length;i++)if(hay.indexOf(q[i])<0)return false;}
@@ -2837,8 +2839,9 @@ function dashLoad(){
 // ---------- 화면 ----------
 function dashRender(){
   var root=dashRoot();if(!root)return;
+  document.body.classList.toggle('dash-wide',DASH.view==='gantt'&&ADM_TAB==='dash');   // 간트는 화면 전체 폭
   var all=dashAll(),list=dashFiltered(),H=inspH;
-  var who={};all.forEach(function(it){if(it.assignee)who[it.assignee]=1;});
+  var who={};all.forEach(function(it){dashNames(it.assignee).forEach(function(n){who[n]=1;});});DASH.projects.forEach(function(p){dashNames(p.owner).forEach(function(n){who[n]=1;});});
   var warn='';
   if(DASH.taskErr||DASH.reqErr||(DASH.reqs.length&&!('visit_date' in DASH.reqs[0])))
     warn='<div class="dsh-warn">SQL 12(업무 대시보드)가 아직 실행되지 않은 것 같습니다. Supabase SQL Editor에서 <b>12_dashboard.sql</b>을 실행한 뒤 새로고침해 주세요.'
@@ -3142,7 +3145,7 @@ function dashDelTask(){
 
 // ===== 프로젝트 간트차트 (업무 대시보드 > 프로젝트 일정) — SQL 13 =====
 // 프로젝트(fac_projects) 아래 세부 업무(fac_team_tasks.project_id)를 시작일~종료일 막대로 표시
-var DASH_PJ_CATS=['신규 공사','리모델링','원상복구','이전·확장','기타'];
+var DASH_PJ_CATS=['신규 공사','리모델링','원상복구','이전·확장','사업 종료','기타'];
 var DASH_PJ_STATUS=['진행 예정','진행중','완료','보류'];
 // 표준 공정: [세부 업무, 기간 비중(%)] — 프로젝트 기간을 비중대로 나눠 순서대로 배치
 var DASH_PJ_TPL={
@@ -3154,11 +3157,20 @@ var DASH_PJ_TPL={
 var DASH_G={from:'',days:56,brief:(window.innerWidth<1700),fold:{}};
 
 function dashDiff(a,b){return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);}
+// D-day: 시작 전 = 시작일까지 D-n, 진행 기간 중 = '진행', 종료일 경과 = D+n(지연) — 기존 엑셀 일정표 기준
 function dashDday(it){
-  if(!it.end_date||!dashOpen(it))return '';
-  var n=dashDiff(inspToday(),it.end_date);
-  return n===0?'D-day':(n>0?'D-'+n:'D+'+(-n));
+  if(it.col==='완료')return '완료';
+  if(!dashOpen(it))return '';
+  var t=inspToday();
+  if(it.start_date&&it.start_date>t){var a=dashDiff(t,it.start_date);return 'D-'+a;}
+  if(!it.end_date)return it.start_date?'진행':'';
+  var n=dashDiff(t,it.end_date);
+  if(n<0)return 'D+'+(-n);
+  if(it.start_date||it.col==='진행중')return n===0?'진행 (오늘 마감)':'진행';
+  return n===0?'D-day':'D-'+n;
 }
+function dashNames(v){return String(v||'').split(/\s*[,·\/]\s*/).map(function(x){return x.trim();}).filter(Boolean);}
+function dashWhoHit(v,w){return w===''?!String(v||'').trim():dashNames(v).indexOf(w)>=0;}
 function dashPjOf(id){for(var i=0;i<DASH.projects.length;i++)if(DASH.projects[i].id===id)return DASH.projects[i];return null;}
 function dashPjTasks(pid){
   return DASH.tasks.filter(function(t){return t.project_id===pid;}).map(dashTaskItem)
@@ -3177,14 +3189,14 @@ function dashPjProgress(ts){
 function dashGInit(){
   if(DASH_G.from)return;
   // 기본: 이번 주 일요일 1주 전부터 8주
-  var w=dashWeek();DASH_G.from=dashAddDays(w[0],-7);
+  var w=dashWeek();DASH_G.from=dashAddDays(w[0],-2);
 }
 function dashGanttHTML(){
   dashGInit();
   var H=inspH,today=inspToday(),from=DASH_G.from,N=DASH_G.days,to=dashAddDays(from,N-1),B=DASH_G.brief;
   var q=DASH.q.toLowerCase().split(/\s+/).filter(Boolean);
   var pjs=DASH.projects.filter(function(p){
-    if(DASH.who!=='all'){var w=DASH.who==='-'?'':DASH.who;if((p.owner||'')!==w&&!dashPjTasks(p.id).some(function(t){return (t.assignee||'')===w;}))return false;}
+    if(DASH.who!=='all'){var w=DASH.who==='-'?'':DASH.who;if(!dashWhoHit(p.owner,w)&&!dashPjTasks(p.id).some(function(t){return dashWhoHit(t.assignee,w);}))return false;}
     if(q.length){var hay=[p.name,p.campus,p.building,p.category,p.owner].concat(dashPjTasks(p.id).map(function(t){return t.title+' '+t.vendor;})).join(' ').toLowerCase();
       for(var i=0;i<q.length;i++)if(hay.indexOf(q[i])<0)return false;}
     return true;
@@ -3217,9 +3229,9 @@ function dashGanttHTML(){
   };
   var rows='',no=0;
   pjs.forEach(function(p){
-    no++;var ts=dashPjTasks(p.id),rg=dashPjRange(p,ts),pr=dashPjProgress(ts),fold=!!DASH_G.fold[p.id];
+    no++;var ts=dashPjTasks(p.id),rg=dashPjRange(p,ts);if(DASH.who!=='all'){var ww=DASH.who==='-'?'':DASH.who;ts=ts.filter(function(t){return dashWhoHit(t.assignee,ww);});}var pr=dashPjProgress(dashPjTasks(p.id)),fold=!!DASH_G.fold[p.id];
     var pc=DASH_COLOR[p.status]||DASH_COLOR['진행 예정'];
-    var pIt={col:p.status,end_date:rg[1]};
+    var pIt={col:p.status,start_date:rg[0],end_date:rg[1]};
     var fillTo=null;if(pr!=null&&rg[0]&&rg[1]){fillTo=dashAddDays(rg[0],Math.round(dashDiff(rg[0],rg[1])*pr/100)-(pr<100?1:0));}
     var lc={'gc-no':'<button class="gt-fold" data-a="gfold" data-v="'+p.id+'">'+(fold?'▸':'▾')+'</button>'+no,
       'gc-cp':H(p.campus||''),'gc-ct':H(p.category||''),
@@ -3391,7 +3403,7 @@ function dashPjEdit(p){
   var tpl=isNew?f('표준 공정 자동 생성','<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--ink2)"><input type="checkbox" id="pj_tpl" checked style="width:auto"> 구분에 맞는 세부 업무를 기간에 나눠 자동 생성 (등록 후 수정 가능)</label><div id="pj_tpl_list" class="hint" style="font-size:11.5px;margin-top:4px;line-height:1.5"></div>',true):'';
   openModal('<div class="mh">'+(isNew?'프로젝트 등록':'프로젝트 수정')+'</div><div class="mb"><div class="dsh-form">'
     +f('프로젝트명 *',inp('pj_name',p.name,'예: 수지 하나로프라자 6층 신규 강의실 공사'),true)
-    +f('구분','<select id="pj_cat">'+DASH_PJ_CATS.map(function(c){return '<option'+(c===p.category?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')
+    +f('구분','<select id="pj_cat">'+(p.category&&DASH_PJ_CATS.indexOf(p.category)<0?[p.category]:[]).concat(DASH_PJ_CATS).map(function(c){return '<option'+(c===p.category?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')
     +f('상태','<select id="pj_st">'+DASH_PJ_STATUS.map(function(c){return '<option'+(c===p.status?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')
     +f('캠퍼스',inp('pj_campus',p.campus,'예: 수지'))+f('건물·위치',inp('pj_bld',p.building,'예: 하나로프라자 6층'))
     +f('시작일',inp('pj_s',p.start_date,'','date'))+f('종료(준공)일',inp('pj_e',p.end_date,'','date'))
