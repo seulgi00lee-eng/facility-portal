@@ -3194,10 +3194,14 @@ function dashGanttHTML(){
     +(DASH.projects.length?'조건에 맞는 프로젝트가 없습니다.':'등록된 프로젝트가 없습니다. <b>+ 프로젝트 등록</b>으로 신규 공사·리모델링을 추가하세요. 표준 공정을 고르면 세부 업무가 자동으로 생성됩니다.')+'</td></tr>';
   var legend='<div class="gt-legend">'+['진행 예정','방문 예정','견적','진행중','완료','보류'].map(function(s){var c=DASH_COLOR[s];return '<span><i style="background:'+c[1]+';border-color:'+c[0]+'"></i>'+s+'</span>';}).join('')
     +'<span><b class="gv" style="position:static">◆</b> 방문 예정일</span><span><i class="gb-late" style="background:#fff"></i>지연</span><span><i style="background:#e9e9ee;border-color:#6e6e73"></i>프로젝트 전체(진한 부분 = 완료율)</span></div>';
+  var allFold=pjs.length>0&&pjs.every(function(p){return DASH_G.fold[p.id];});
   var ctl='<div class="dsh-bar" style="margin-bottom:8px">'
     +'<button class="flt" data-a="gmv" data-v="-14">‹ 2주</button><button class="flt" data-a="gmv" data-v="0">오늘</button><button class="flt" data-a="gmv" data-v="14">2주 ›</button>'
     +'<b style="font-size:13px">'+dashMD(from)+' ~ '+dashMD(to)+'</b>'
     +'<span class="filt" style="margin:0">'+[[28,'4주'],[56,'8주'],[91,'13주']].map(function(x){return '<button class="flt'+(N===x[0]?' on':'')+'" data-a="gdays" data-v="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</span>'
+    +'<span class="filt" style="margin:0">'
+      +'<button class="flt'+(allFold?'':' on')+'" data-a="gsum" data-v="0">전체</button>'
+      +'<button class="flt'+(allFold?' on':'')+'" data-a="gsum" data-v="1">요약(프로젝트만)</button></span>'
     +'<button class="flt" data-a="gbrief">'+(B?'상세 열 보기':'열 간단히')+'</button>'
     +'<button class="flt" data-a="gcsv">CSV</button>'
     +'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="gnew">+ 프로젝트 등록</button></div>';
@@ -3316,6 +3320,7 @@ function dashGUp(){
 function dashGClick(a,v){
   if(a==='gmv'){if(v==='0'){DASH_G.from='';dashGInit();}else DASH_G.from=dashAddDays(DASH_G.from,Number(v));dashRender();return true;}
   if(a==='gdays'){DASH_G.days=Number(v);dashRender();return true;}
+  if(a==='gsum'){DASH.projects.forEach(function(p){DASH_G.fold[p.id]=(v==='1');});dashRender();return true;}
   if(a==='gbrief'){DASH_G.brief=!DASH_G.brief;dashRender();return true;}
   if(a==='gfold'){DASH_G.fold[v]=!DASH_G.fold[v];dashRender();return true;}
   if(a==='gcsv'){dashGanttCSV();return true;}
