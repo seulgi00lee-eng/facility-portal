@@ -423,6 +423,11 @@
   .as-acts span{border:1px solid #d2d2d7;border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer;color:var(--ink2)}
   .as-acts span.on{background:var(--bluebg);border-color:var(--blue);color:var(--blue)}
   .as-tbl th .gt-fb{color:#8e8e93}.as-tbl th .gt-fb.on,.as-tbl th .gt-fb.srt{color:#fff}
+  .as-tbl td.as-bad.on{background:#fdf3f2}
+  .as-tbl td.as-bad.on input{color:#b3261e}
+  .as-tbl td.as-bad input:disabled{background:#fafafa!important;color:#c7c7cc}
+  .as-tbl td.as-bad input:disabled::placeholder{color:#d1d1d6;font-size:11px}
+  .as-tbl td input[data-bad]{color:#b3261e;font-weight:600}
   .as-tbl td.as-warn{color:#b3261e!important;font-weight:700;background:#fdf3f2!important}
   .as-tbl td input.as-code{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2px}
   .as-tbl td.as-ro{padding:0 6px;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;background:#fafafa}
@@ -4327,7 +4332,7 @@ var DASH_AS_COLS=[
   {k:'item_name',t:'품명·모델',w:170},{k:'qty',t:'수량',w:56,num:1},{k:'ownership',t:'소유',w:66,list:'ownership'},
   {k:'asset_no',t:'자산코드',w:100,code:1},{k:'contract_vendor',t:'계약 업체',w:96,list:'contract_vendor'},
   {k:'contract_start',t:'계약시작일',w:118,date:1},{k:'contract_end',t:'계약종료일',w:118,date:1},{k:'_remain',t:'잔여 계약',w:86,ro:1},
-  {k:'cond',t:'상태',w:84,list:'cond'},{k:'action',t:'처리 방안',w:100,list:'action'},{k:'dest',t:'이관처·매각처',w:110},
+  {k:'cond',t:'상태',w:84,list:'cond'},{k:'cond_detail',t:'불량·고장 내용',w:170,bad:1},{k:'action',t:'처리 방안',w:100,list:'action'},{k:'dest',t:'이관처·매각처',w:110},
   {k:'vendor',t:'처리 업체',w:100,list:'vendor'},{k:'done_date',t:'처리(예정)일',w:118,date:1},{k:'amount',t:'금액(원)',w:96,num:1,money:1},
   {k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170},
   {k:'_by',t:'입력자',w:70,ro:1},{k:'_upd',t:'최종 수정',w:110,ro:1}];
@@ -4403,7 +4408,9 @@ function dashAssetsHTML(){
       if(c.ro){var rv=dashAsCell(a,c.k),warn=c.k==='_remain'&&dashAsRemain(a)>0&&/반납|폐기|매각/.test(a.action||'');
         return '<td class="as-ro'+(warn?' as-warn':'')+'" title="'+H(warn?'계약 기간이 남아 있습니다 — 중도 해지 위약금·잔여 렌탈료를 확인하세요':rv)+'">'+H(rv)+'</td>';}
       var v=a[c.k],val=v==null?'':(c.money?Number(v).toLocaleString('ko-KR'):String(v));
-      return '<td><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="asl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.k==='action'?' data-act="'+H(v||'미정')+'"':'')+(c.code?' placeholder="코드 입력" title="자산코드를 넣으면 자산관리시스템에서 계약 업체·기간·모델을 가져옵니다" class="as-code"':'')+'></td>';}).join('')
+      if(c.bad){var isBad=/불량|고장/.test(a.cond||'');
+        return '<td class="as-bad'+(isBad?' on':'')+'"><input data-f="'+c.k+'" value="'+H(val)+'"'+(isBad?' placeholder="증상·부위 입력 (예: 화면 깨짐)"':' disabled placeholder="상태가 불량·고장일 때"')+' title="'+H(val)+'"></td>';}
+      return '<td><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="asl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.k==='action'?' data-act="'+H(v||'미정')+'"':'')+(c.k==='cond'&&/불량|고장/.test(v||'')?' data-bad="1"':'')+(c.code?' placeholder="코드 입력" title="자산코드를 넣으면 자산관리시스템에서 계약 업체·기간·모델을 가져옵니다" class="as-code"':'')+'></td>';}).join('')
       +'<td class="as-del"><button data-a="as_del" data-v="'+a.id+'" title="행 삭제">×</button></td></tr>';
   }).join('');
   var empty=!rows.length?'<div class="hint" style="padding:18px;text-align:center">'+(all.length?'조건에 맞는 자산이 없습니다.':'아직 자산이 없습니다. <b>+ 행 추가</b>로 하나씩 넣거나, 엑셀에서 복사해 <b>엑셀 붙여넣기</b>로 한 번에 넣으세요.')+'</div>':'';
@@ -4578,6 +4585,9 @@ function dashAsInput(e){
   var tr=t.closest&&t.closest('.as-tbl tr[data-id]');
   if(tr&&t.dataset.f){if(t.dataset.f==='amount'){var n=dashNum(t.value);t.value=n==null?'':n.toLocaleString('ko-KR');}
     if(t.dataset.f==='action')t.dataset.act=t.value||'미정';
+    if(t.dataset.f==='cond'){var bad=/불량|고장/.test(t.value||'');if(bad)t.dataset.bad='1';else delete t.dataset.bad;var di=tr.querySelector('input[data-f="cond_detail"]');
+      if(di){di.disabled=!bad;di.placeholder=bad?'증상·부위 입력 (예: 화면 깨짐)':'상태가 불량·고장일 때';di.parentNode.classList.toggle('on',bad);
+        if(bad&&!di.value){setTimeout(function(){di.focus();},50);inspToast(t.value+' — 옆 칸에 내용을 적어 주세요');}}}
     if(t.dataset.f==='status')tr.classList.toggle('as-done',t.value==='완료');
     dashAsSave(tr.dataset.id,t.dataset.f,t.value);return true;}
   return false;
