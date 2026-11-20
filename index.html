@@ -273,6 +273,19 @@
   .pc-sel b{cursor:pointer;padding:0 5px;font-weight:400}
   .pc-sel em{font-style:normal;color:var(--mute);font-size:12px}
   /* ===== 프로젝트 현황 ===== */
+  #dsh_cf{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:16px}
+  .cf-box{background:#fff;border-radius:16px;max-width:400px;width:100%;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:center}
+  .cf-ic{width:42px;height:42px;border-radius:50%;background:#fdf3f2;color:#b3261e;font-weight:800;font-size:22px;line-height:42px;margin:0 auto 10px}
+  .cf-t{font-size:16px;font-weight:700;margin-bottom:12px}
+  .cf-rows{background:#f7f7f9;border-radius:10px;padding:8px 12px;text-align:left;font-size:13px;margin-bottom:10px}
+  .cf-rows div{display:flex;gap:10px;padding:3px 0}.cf-rows span{color:var(--mute);width:72px;flex:0 0 72px}.cf-rows b{font-weight:600;word-break:break-all}
+  .cf-note{font-size:12px;color:var(--mute);line-height:1.5;margin-bottom:14px}
+  .cf-f{display:flex;gap:8px}.cf-f button{flex:1;padding:12px;border-radius:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .cf-f .cf-yes{background:#b3261e;border-color:#b3261e;color:#fff}
+  .cf-f button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  #dsh_undo{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:10001;background:#1d1d1f;color:#fff;border-radius:12px;padding:10px 10px 10px 16px;display:flex;align-items:center;gap:14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  #dsh_undo button{border:0;background:#fff;color:#1d1d1f;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .as-tbl .as-del button{font-size:14px}
   .pjs-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
   .pjs-kpi>div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
   .pjs-kpi b{display:block;font-size:22px}.pjs-kpi span{font-size:11.5px;color:var(--mute)}
@@ -3325,10 +3338,22 @@ function dashSaveTask(it,v,note){
 }
 function dashDelTask(){
   var c=DASH.cur;if(!c||!c.it||c.isReq)return;
-  if(!confirm('이 팀 업무를 삭제할까요?\n(목록에서만 숨김 처리되며 Supabase에는 기록이 남습니다)'))return;
-  sb.from('fac_team_tasks').update({deleted:true,updated_at:new Date().toISOString()}).eq('id',c.it.id).then(function(res){
-    if(res.error){dashErr('삭제 오류: '+res.error.message);return;}
-    DASH.tasks=DASH.tasks.filter(function(t){return t.id!==c.it.id;});closeModal();dashRender();inspToast('삭제했습니다');
+  dashDelTaskConfirm(c.it.raw,function(){closeModal();});
+}
+// 팀 업무(간트 행) 삭제: 확인 → 숨김 → 7초 되돌리기
+function dashDelTaskConfirm(t,after){
+  var pj=t.project_id?dashPjOf(t.project_id):null;
+  dashConfirm({title:'이 업무를 정말 삭제할까요?',rows:[['프로젝트',pj&&pj.name],['세부 업무',t.title],['담당자',t.assignee],
+      ['기간',t.start_date?dashMD(t.start_date)+(t.end_date&&t.end_date!==t.start_date?' ~ '+dashMD(t.end_date):''):''],['상태',t.stage]],
+    note:'간트·캘린더·보드에서 사라지며, 삭제 직후 7초 동안 [되돌리기]로 복구할 수 있습니다.',ok:'삭제'}).then(function(yes){
+    if(!yes)return;
+    var pid=t.project_id;DASH.tasks=DASH.tasks.filter(function(x){return x.id!==t.id;});after&&after();dashRender();
+    sb.from('fac_team_tasks').update({deleted:true,updated_at:new Date().toISOString()}).eq('id',t.id).then(function(r){
+      if(r.error){DASH.tasks.push(t);dashRender();inspToast('삭제 실패: '+r.error.message,true);return;}
+      if(pid)dashRenumber(pid);
+      dashUndo('['+(t.title||'업무')+'] 을(를) 삭제했습니다',function(){
+        sb.from('fac_team_tasks').update({deleted:false}).eq('id',t.id).then(function(r2){if(r2.error){inspToast('복구 실패: '+r2.error.message,true);return;}DASH.tasks.push(t);dashRender();inspToast('복구했습니다');});});
+    });
   });
 }
 
@@ -3634,11 +3659,7 @@ function dashRowMenu(td,tid,at){
     '-',
     {t:'상세 편집',fn:function(){var it=dashFind('t:'+tid);if(it)dashEdit(it);}},
     {t:'행 삭제',danger:1,fn:function(){
-      if(!confirm('['+(t.title||'')+'] 행을 삭제할까요?\n(목록에서 숨김 처리되며 Supabase에는 기록이 남습니다)'))return;
-      var pid=t.project_id;DASH.tasks=DASH.tasks.filter(function(x){return x.id!==tid;});dashRender();
-      sb.from('fac_team_tasks').update({deleted:true,updated_at:new Date().toISOString()}).eq('id',tid).then(function(r){
-        if(r.error){DASH.tasks.push(t);dashRender();inspToast('삭제 실패: '+r.error.message,true);return;}
-        dashRenumber(pid);inspToast('행을 삭제했습니다');});}}
+      dashDelTaskConfirm(t,function(){});}}
   ],at);
 }
 function dashInsertRow(anchor,tid,pos){
@@ -3722,9 +3743,11 @@ function dashColMenu(btn,k){
   if(c.custom){
     items.push({t:'열 이름·형식 변경',fn:function(){dashColAdd(btn,null,c);}});
     items.push({t:'열 삭제',danger:1,fn:function(){
-      if(!confirm('['+c.t+'] 열을 삭제할까요?\n(입력한 값은 Supabase에 남고 화면에서만 사라집니다)'))return;
-      DASH.gcols=DASH.gcols.filter(function(x){return x.id!==c.id;});dashRender();
-      sb.from('fac_gantt_cols').update({deleted:true}).eq('id',c.id).then(function(r){if(r.error)inspToast('열 삭제 실패: '+r.error.message,true);else inspToast('열을 삭제했습니다');});}});
+      dashConfirm({title:'['+c.t+'] 열을 정말 삭제할까요?',note:'팀 전체 화면에서 이 열이 사라집니다. 입력한 값은 Supabase에 남아 있어 [되돌리기]로 다시 살릴 수 있습니다.',ok:'열 삭제'}).then(function(yes){
+        if(!yes)return;var col=null;DASH.gcols.forEach(function(x){if(x.id===c.id)col=x;});
+        DASH.gcols=DASH.gcols.filter(function(x){return x.id!==c.id;});dashRender();
+        sb.from('fac_gantt_cols').update({deleted:true}).eq('id',c.id).then(function(r){if(r.error){inspToast('열 삭제 실패: '+r.error.message,true);return;}
+          dashUndo('['+c.t+'] 열을 삭제했습니다',function(){sb.from('fac_gantt_cols').update({deleted:false}).eq('id',c.id).then(function(r2){if(r2.error){inspToast('복구 실패: '+r2.error.message,true);return;}DASH.gcols.push(col);dashRender();inspToast('복구했습니다');});});});});}});
   }else if(k!=='tt'){
     items.push({t:'이 열 숨기기 (내 화면만)',fn:function(){dashGHidden()[k]=1;dashLS('dash_gt_hide',DASH_G.hide);dashRender();inspToast(c.t+' 열을 숨겼습니다');}});
   }
@@ -4244,7 +4267,10 @@ function dashPjSave(){
 function dashPjDel(){
   var p=DASH.curPj;if(!p)return;
   var n=DASH.tasks.filter(function(t){return t.project_id===p.id;}).length;
-  if(!confirm('['+p.name+'] 프로젝트를 삭제할까요?'+(n?'\n세부 업무 '+n+'건도 함께 숨김 처리됩니다.':'')+'\n(Supabase에는 기록이 남습니다)'))return;
+  dashConfirm({title:'프로젝트를 정말 삭제할까요?',rows:[['프로젝트',p.name],['기간',(p.start_date?dashMD(p.start_date):'')+(p.end_date?' ~ '+dashMD(p.end_date):'')],['세부 업무',n?n+'건 (함께 숨김)':'']],
+    note:'프로젝트와 세부 업무가 모든 화면에서 사라집니다. Supabase에는 기록이 남습니다.',ok:'프로젝트 삭제'}).then(function(yes){if(yes)dashPjDelGo(p,n);});
+}
+function dashPjDelGo(p,n){
   var now=new Date().toISOString();
   sb.from('fac_projects').update({deleted:true,updated_at:now}).eq('id',p.id).then(function(r){
     if(r.error){dashErr('삭제 오류: '+r.error.message);return;}
@@ -4254,6 +4280,33 @@ function dashPjDel(){
   });
 }
 
+// ===== 삭제 확인 창 · 되돌리기 =====
+// rows: [[항목, 값], ...] 지울 대상 요약. 확인 버튼은 오른쪽, 기본 포커스는 [취소]
+function dashConfirm(o){
+  return new Promise(function(res){
+    var H=inspH,old=document.getElementById('dsh_cf');if(old)old.remove();
+    var el=document.createElement('div');el.id='dsh_cf';
+    el.innerHTML='<div class="cf-box" role="alertdialog" aria-modal="true"><div class="cf-ic">!</div><div class="cf-t">'+H(o.title)+'</div>'
+      +(o.rows&&o.rows.length?'<div class="cf-rows">'+o.rows.filter(function(r){return r[1]!=null&&r[1]!=='';}).map(function(r){return '<div><span>'+H(r[0])+'</span><b>'+H(r[1])+'</b></div>';}).join('')+'</div>':'')
+      +(o.note?'<div class="cf-note">'+H(o.note)+'</div>':'')
+      +'<div class="cf-f"><button class="cf-no">취소</button><button class="cf-yes">'+H(o.ok||'삭제')+'</button></div></div>';
+    document.body.appendChild(el);
+    var done=function(v){document.removeEventListener('keydown',key,true);el.remove();res(v);};
+    var key=function(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();done(false);}};
+    document.addEventListener('keydown',key,true);
+    el.querySelector('.cf-no').onclick=function(){done(false);};
+    el.querySelector('.cf-yes').onclick=function(){done(true);};
+    el.addEventListener('click',function(e){if(e.target===el)done(false);});
+    setTimeout(function(){el.querySelector('.cf-no').focus();},0);
+  });
+}
+// 삭제 후 몇 초 동안 [되돌리기]
+function dashUndo(msg,fn){
+  var t=document.getElementById('dsh_undo');if(t){clearTimeout(t._h);t.remove();}
+  t=document.createElement('div');t.id='dsh_undo';t.innerHTML='<span></span><button>되돌리기</button>';t.firstChild.textContent=msg;document.body.appendChild(t);
+  t.querySelector('button').onclick=function(){clearTimeout(t._h);t.remove();fn();};
+  t._h=setTimeout(function(){t.remove();},7000);
+}
 // ===== 공용 필터 창 (자산 목록 등) =====
 // vals: 값 목록(순서대로), cnt: 값별 건수, sel: 현재 선택(null=전체), sortDir: 1/-1/0
 function dashFltPop(btn,title,vals,cnt,sel,sortDir,onApply,onSort){
@@ -4524,9 +4577,16 @@ function dashAsFlt(btn,k){
 }
 function dashAsDel(id){
   var a=null;(DASH.assets||[]).forEach(function(x){if(x.id===id)a=x;});if(!a)return;
-  if(!confirm('['+(a.item_name||a.category||'자산')+'] 행을 삭제할까요?'))return;
-  DASH.assets=DASH.assets.filter(function(x){return x.id!==id;});dashRender();
-  sb.from('fac_project_assets').update({deleted:true}).eq('id',id).then(function(r){if(r.error){DASH.assets.push(a);dashRender();inspToast('삭제 실패: '+r.error.message,true);}});
+  dashConfirm({title:'이 자산 행을 정말 삭제할까요?',rows:[['품명·모델',a.item_name],['분류',a.category],['자산코드',a.asset_no],['위치',[a.campus,a.location].filter(Boolean).join(' ')],['수량',a.qty],['처리 방안',a.action]],
+    note:'목록에서 사라지며, 삭제 직후 7초 동안 [되돌리기]로 복구할 수 있습니다.',ok:'삭제'}).then(function(yes){
+    if(!yes)return;
+    DASH.assets=DASH.assets.filter(function(x){return x.id!==id;});dashRender();
+    sb.from('fac_project_assets').update({deleted:true}).eq('id',id).then(function(r){
+      if(r.error){DASH.assets.push(a);dashRender();inspToast('삭제 실패: '+r.error.message,true);return;}
+      dashUndo('['+(a.item_name||a.category||'자산')+'] 행을 삭제했습니다',function(){
+        sb.from('fac_project_assets').update({deleted:false}).eq('id',id).then(function(r2){if(r2.error){inspToast('복구 실패: '+r2.error.message,true);return;}DASH.assets.push(a);dashRender();inspToast('복구했습니다');});});
+    });
+  });
 }
 // 엑셀에서 복사한 표(탭 구분)를 한 번에 넣기
 function dashAsPaste(){
