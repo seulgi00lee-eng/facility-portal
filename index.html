@@ -448,6 +448,13 @@
   .ntf-row input{width:100%;box-sizing:border-box;margin:0;font-size:12.5px}
   .ntf-ck{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:13px}
   .ntf-ck input{width:auto;margin:0}.ntf-ck span{flex-basis:100%;padding-left:22px;font-size:11.5px;color:var(--mute);line-height:1.5}
+  .ntf-hol{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:10px}
+  .ntf-hh{font-size:13px;margin-bottom:6px}.ntf-hh .hint{font-size:11.5px;margin-left:4px}
+  .ntf-hl{display:flex;flex-wrap:wrap;gap:4px;max-height:96px;overflow:auto;margin-bottom:8px}
+  .ntf-hc{background:#f4f4f6;border-radius:12px;padding:2px 4px 2px 9px;font-size:12px;color:var(--ink2)}
+  .ntf-hc.we{color:#a1a1a6}
+  .ntf-hc b{cursor:pointer;padding:0 5px;font-weight:400;color:#a1a1a6}.ntf-hc b:hover{color:#b3261e}
+  .ntf-ha{display:flex;gap:6px}.ntf-ha input{margin:0;font-size:12.5px}.ntf-ha input[type=date]{width:150px}.ntf-ha input[type=text]{flex:1}
   .ntf-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
   .ntf-out{background:#f7f7f9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;white-space:pre-wrap;max-height:280px;overflow:auto;margin-top:10px;font-family:inherit}
   .as-acts span:hover{border-color:var(--blue);color:var(--blue)}
@@ -4348,7 +4355,10 @@ function dashNtfOpen(){
       '<div class="ntf-row"><label>구글챗 스페이스 웹훅 주소</label><input type="text" id="ntf_url" value="'+H(cfg.gchat_webhook||'')+'" placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=...">'
       +'<div class="hint" style="font-size:11.5px;line-height:1.6;margin-top:4px">구글챗 스페이스 이름 옆 ▾ → <b>앱 및 통합</b> → <b>웹훅 관리</b> → 이름(예: 업무 리마인드) 입력 → 생성된 주소 복사. 주소는 Supabase에만 저장되고 화면에는 관리자에게만 보입니다.</div></div>'
       +'<label class="ntf-ck"><input type="checkbox" id="ntf_memo"'+((cfg.notify_memo||'on')==='on'?' checked':'')+'> <b>진행·이슈 사항 저장 시 팀 알림</b> <span>세부 업무·프로젝트의 「진행 및 이슈 사항」을 고치면 바로 스페이스에 올림 (덧붙인 부분은 「추가」로 표시)</span></label>'
-      +'<label class="ntf-ck"><input type="checkbox" id="ntf_daily"'+((cfg.notify_daily||'on')==='on'?' checked':'')+'> <b>평일 아침 8:40 리마인드</b> <span>담당자별 지연·오늘/내일 마감·D-3 마감·오늘/내일 시작·방문 일정 + 미처리 현황(지연·담당 미지정·신규 접수·예정일 지난 접수·업체 미정·자산 미처리)</span></label>'
+      +'<label class="ntf-ck"><input type="checkbox" id="ntf_daily"'+((cfg.notify_daily||'on')==='on'?' checked':'')+'> <b>평일 오전 9시 · 오후 1시 리마인드</b> <span>주말·공휴일은 보내지 않음 · 담당자별 지연·오늘/내일 마감·D-3 마감·오늘/내일 시작·방문 일정 + 미처리 현황(지연·담당 미지정·신규 접수·예정일 지난 접수·업체 미정·자산 미처리)</span></label>'
+      +'<div class="ntf-hol"><div class="ntf-hh"><b>공휴일·회사 휴무일</b> <span class="hint">이 날은 리마인드를 보내지 않음 (2026·2027 공휴일 등록됨)</span></div>'
+        +'<div id="ntf_hl" class="ntf-hl"><span class="hint">불러오는 중...</span></div>'
+        +'<div class="ntf-ha"><input type="date" id="ntf_hd"><input type="text" id="ntf_hn" placeholder="이름 (예: 창립기념일)"><button class="flt" id="ntf_hadd">추가</button></div></div>'
       +'<div class="ntf-btns"><button class="flt" id="ntf_test">연결 테스트 보내기</button><button class="flt" id="ntf_pv">오늘 리마인드 미리보기</button><button class="flt" id="ntf_now">지금 리마인드 보내기</button></div>'
       +'<pre id="ntf_out" class="ntf-out" style="display:none"></pre><div id="ntf_msg" class="hint" style="margin-top:6px"></div>';
     var msg=function(t,err){var m=document.getElementById('ntf_msg');m.textContent=t;m.style.color=err?'var(--dng)':'var(--ok)';};
@@ -4364,13 +4374,32 @@ function dashNtfOpen(){
         sb.rpc('fac_gchat_test').then(function(x){if(x.error)msg('보내기 실패: '+x.error.message,true);else msg('테스트 메시지를 보냈습니다. 구글챗 스페이스를 확인하세요.');});});
     };
     document.getElementById('ntf_pv').onclick=function(){
-      sb.rpc('fac_task_reminder',{send:false}).then(function(x){if(x.error){msg('미리보기 실패: '+x.error.message,true);return;}
+      sb.rpc('fac_task_reminder',{send:false,slot:new Date().getHours()<12?'오전':'오후'}).then(function(x){if(x.error){msg('미리보기 실패: '+x.error.message,true);return;}
         var o=document.getElementById('ntf_out');o.style.display='';o.textContent=x.data||'';msg('');});
     };
     document.getElementById('ntf_now').onclick=function(){
       if(!confirm('오늘 리마인드를 지금 구글챗으로 보낼까요?'))return;
-      save().then(function(){return sb.rpc('fac_task_reminder',{send:true});}).then(function(x){if(x.error){msg('보내기 실패: '+x.error.message,true);return;}
+      save().then(function(){return sb.rpc('fac_task_reminder',{send:true,slot:new Date().getHours()<12?'오전':'오후'});}).then(function(x){if(x.error){msg('보내기 실패: '+x.error.message,true);return;}
         var o=document.getElementById('ntf_out');o.style.display='';o.textContent=x.data||'';msg('보냈습니다.');});
+    };
+    var hl=function(){
+      sb.from('fac_holidays').select('*').gte('day',inspToday()).order('day',{ascending:true}).limit(40).then(function(r){
+        var box=document.getElementById('ntf_hl');if(!box)return;
+        if(r.error){box.innerHTML='<span class="hint" style="color:var(--dng)">공휴일 목록은 17-1 실행 후 표시됩니다 ('+inspH(r.error.message)+')</span>';return;}
+        var d=r.data||[];
+        box.innerHTML=d.length?d.map(function(h){var w=new Date(h.day+'T00:00:00').getDay();
+          return '<span class="ntf-hc'+(w===0||w===6?' we':'')+'" title="'+(w===0||w===6?'주말이라 원래 보내지 않는 날':'')+'">'+dashMD(h.day)+' '+inspH(h.name)+'<b data-hd="'+h.day+'" title="삭제">×</b></span>';}).join(''):'<span class="hint">등록된 공휴일이 없습니다</span>';
+      });
+    };
+    hl();
+    document.getElementById('ntf_hl').addEventListener('click',function(e){var b=e.target.closest('[data-hd]');if(!b)return;var day=b.dataset.hd;
+      dashConfirm({title:dashMD(day)+' 휴무일을 삭제할까요?',note:'삭제하면 이 날도 리마인드를 보냅니다.',ok:'삭제'}).then(function(y){if(!y)return;
+        sb.from('fac_holidays').delete().eq('day',day).then(function(r){if(r.error)msg('삭제 실패: '+r.error.message,true);else{msg('휴무일을 삭제했습니다.');hl();}});});});
+    document.getElementById('ntf_hadd').onclick=function(){
+      var d=document.getElementById('ntf_hd').value,n=document.getElementById('ntf_hn').value.trim();
+      if(!d||!n){msg('날짜와 이름을 넣어 주세요.',true);return;}
+      sb.from('fac_holidays').upsert({day:d,name:n,created_by:dashMe()},{onConflict:'day'}).then(function(r){if(r.error){msg('추가 실패: '+r.error.message,true);return;}
+        document.getElementById('ntf_hd').value='';document.getElementById('ntf_hn').value='';msg(dashMD(d)+' '+n+' 추가 — 이 날은 리마인드를 보내지 않습니다.');hl();});
     };
     var mf=document.createElement('div');mf.className='mf';
     mf.innerHTML='<button class="mbtn no" onclick="closeModal()">닫기</button><button class="mbtn yes" id="ntf_save">설정 저장</button>';
