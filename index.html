@@ -380,6 +380,16 @@
   .gt-grip:active{cursor:grabbing}
   .gt-ins{border:0;background:none;color:var(--mute);cursor:pointer;font-size:13px;padding:0 2px;margin-left:2px;visibility:hidden;font-family:inherit;line-height:1}
   .gt-tk:hover .gt-ins{visibility:visible}.gt-ins:hover{color:var(--blue)}
+  .gt-fb{border:0;background:none;color:#a07c5c;cursor:pointer;font-size:10px;padding:1px 3px;margin-left:3px;border-radius:4px;font-family:inherit;vertical-align:1px}
+  .gt-fb:hover{background:#efd3b8;color:#4a3a2c}
+  .gt-fb.on,.gt-fb.srt{background:var(--blue);color:#fff;font-size:11px}
+  .gf-sort{display:flex;gap:4px;margin-bottom:8px}
+  .gf-sort button{flex:1;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 0;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink2)}
+  .gf-sort button.on{background:var(--bluebg);border-color:var(--blue);color:var(--blue);font-weight:600}
+  .dsh-pop .gf-q{width:100%;box-sizing:border-box;margin:0 0 6px;font-size:12.5px}
+  .gf-all{border-bottom:1px solid var(--line2);border-radius:0;margin-bottom:2px}
+  .gf-list .pp-ck span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gf-list .pp-ck em{font-style:normal;color:var(--mute);font-size:11px}
   .gt-hm{border:0;background:none;color:#a07c5c;cursor:pointer;font-size:12px;padding:0 3px;margin-left:2px;visibility:hidden;font-family:inherit}
   .gt thead th:hover .gt-hm{visibility:visible}.gt-hm:hover{color:var(--blue)}
   .gt-moving{opacity:.4}
@@ -3305,7 +3315,7 @@ var DASH_PJ_TPL={
   '원상복구':[['원복 범위 협의(임대인)',12],['업체 견적·선정',15],['집기·자산 반출',13],['철거·원복 공사',35],['임대인 확인·인도',13],['보증금 정산',12]],
   '이전·확장':[['신규 공간 실측·배치안',10],['업체 견적·계약',12],['시공',38],['집기·IT 이전',15],['교육청 시설 변경 신고',13],['기존 공간 정리',12]]
 };
-var DASH_G={from:'',days:56,brief:(window.innerWidth<1700),fold:{},mfold:{},tlOff:false};
+var DASH_G={from:'',days:56,brief:(window.innerWidth<1700),fold:{},mfold:{},tlOff:false,flt:{},sort:null};
 
 function dashDiff(a,b){return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);}
 // D-day: 시작 전 = 시작일까지 D-n, 진행 기간 중 = '진행', 종료일 경과 = D+n(지연) — 기존 엑셀 일정표 기준
@@ -3364,6 +3374,7 @@ function dashGanttHTML(){
   var cols=dashGCols(),nLeft=cols.length,W=dashGW();
   var cw=function(c){return c.custom?' style="width:'+W[c.k]+'px;min-width:'+W[c.k]+'px;max-width:'+W[c.k]+'px"':'';};
   var thead='<thead><tr>'+cols.map(function(c,i){return '<th class="gc-'+c.k+(i<4?' gsk gsk'+i:'')+(c.custom?' gc-x':'')+'" rowspan="3" data-col="'+c.k+'"'+cw(c)+'>'+H(c.t)
+      +(c.k!=='no'?'<button class="gt-fb'+(DASH_G.flt[c.k]?' on':'')+(DASH_G.sort&&DASH_G.sort.k===c.k?' srt':'')+'" data-a="gflt" data-v="'+c.k+'" title="필터·정렬">'+(DASH_G.flt[c.k]?'⏷':(DASH_G.sort&&DASH_G.sort.k===c.k?(DASH_G.sort.dir>0?'↑':'↓'):'▾'))+'</button>':'')
       +(c.k!=='no'?'<button class="gt-hm" data-a="ghm" data-v="'+c.k+'" title="열 메뉴 (열 추가·숨기기)">⋯</button>':'')+'<i class="gt-cr" data-cr="'+c.k+'" title="끌어서 열 너비 조절"></i></th>';}).join('')
     +(TL?months.map(function(m){var f=DASH_G.mfold[m.m];return '<th class="gt-mon'+(f?' gt-monf':'')+'" colspan="'+(f?1:m.d.length)+'" data-a="gmon" data-v="'+m.m+'" title="눌러서 '+(f?'펼치기':'접기')+'">'+(f?'▸ ':'▾ ')+Number(m.m.slice(5))+'월</th>';}).join('')
         +'<th class="gt-tlbtn" rowspan="3" data-a="gtl" title="간트 영역 접기">◂</th>'
@@ -3391,8 +3402,9 @@ function dashGanttHTML(){
     if(c.kind==='number')return Number(v).toLocaleString('ko-KR');if(c.kind==='date')return dashMD(v);return H(v);};
   var rows='',no=0;
   pjs.forEach(function(p){
-    no++;var all=dashPjTasks(p.id),ts=all,rg=dashPjRange(p,all);
+    var all=dashPjTasks(p.id),ts=all,rg=dashPjRange(p,all);
     if(DASH.who!=='all'){var ww=DASH.who==='-'?'':DASH.who;ts=all.filter(function(t){return dashWhoHit(t.assignee,ww);});}
+    ts=dashGFltApply(ts);if(dashGFltOn()&&!ts.length)return;no++;
     var pr=dashPjProgress(all),fold=!!DASH_G.fold[p.id];
     var pc=DASH_COLOR[p.status]||DASH_COLOR['진행 예정'];
     var pIt={col:p.status,start_date:rg[0],end_date:rg[1]};
@@ -3413,7 +3425,7 @@ function dashGanttHTML(){
     if(fold)return;
     ts.forEach(function(t,k){
       var c=DASH_COLOR[t.col]||DASH_COLOR['진행 예정'],late=dashLate(t),vs=dashVisits(t);
-      var tv={no:'<span class="gt-grip" data-grip="'+t.id+'" title="끌어서 행 이동">⠿</span><span class="gt-n">'+no+'-'+(k+1)+'</span><button class="gt-ins" data-a="grmenu" data-v="'+t.id+'" title="행 메뉴 (위·아래에 행 추가, 삭제)">⋯</button><i class="gt-rh" data-rh="t:'+t.id+'"></i>',
+      var tv={no:(DASH_G.sort?'':'<span class="gt-grip" data-grip="'+t.id+'" title="끌어서 행 이동">⠿</span>')+'<span class="gt-n">'+no+'-'+(k+1)+'</span><button class="gt-ins" data-a="grmenu" data-v="'+t.id+'" title="행 메뉴 (위·아래에 행 추가, 삭제)">⋯</button><i class="gt-rh" data-rh="t:'+t.id+'"></i>',
         cp:H(t.campus||''),ct:H(t.raw.category||''),tt:H(t.raw.title||''),who:H(t.assignee||''),vd:H(t.vendor||''),
         s:t.start_date?dashMD(t.start_date):'',e:t.end_date?dashMD(t.end_date):'',st:dashColBadge(t.col),
         dd:'<span'+(late?' class="dsh-late"':'')+'>'+H(dashDday(t))+'</span>',
@@ -3443,6 +3455,7 @@ function dashGanttHTML(){
       +'<button class="flt'+(allFold?' on':'')+'" data-a="gsum" data-v="1">요약(프로젝트만)</button></span>'
     +'<button class="flt'+(TL?'':' on')+'" data-a="gtl">'+(TL?'간트 접기':'간트 펼치기')+'</button>'
     +'<button class="flt" data-a="gbrief">'+(B?'상세 열 보기':'열 간단히')+'</button>'
+    +(dashGFltOn()||DASH_G.sort?'<button class="flt on" data-a="gfclear" title="모든 열 필터·정렬 해제">필터 '+Object.keys(DASH_G.flt).length+(DASH_G.sort?' · 정렬':'')+' 해제 ✕</button>':'')
     +(nh?'<button class="flt" data-a="gunhide">숨긴 열 '+nh+'개 보기</button>':'')
     +'<button class="flt" data-a="gsize" title="열 너비·행 높이를 처음 상태로">크기 초기화</button>'
     +'<button class="flt" data-a="gcsv">CSV</button>'
@@ -3450,6 +3463,78 @@ function dashGanttHTML(){
   var tip='<div class="hint" style="font-size:11.5px;margin:-2px 0 8px">칸을 누르면 그 항목만 수정 · 행 번호의 <b>⠿</b>를 잡고 끌면 행 이동 · 행 <b>⋯</b>(또는 우클릭)로 위·아래 행 추가 · 머리글 <b>⋯</b>로 열 추가·숨기기 · 월 머리글을 누르면 그 달 접기 · 머리글 끝·번호 칸 아래 끝을 끌면 크기 조절</div>';
   DASH_G.curCols=cols;
   return ctl+legend+tip+'<div class="gt-wrap"><table class="gt'+(TL?'':' gt-notl')+'" id="gt_tbl" style="'+dashGVars(cols)+'">'+thead+'<tbody>'+rows+'</tbody></table></div>';
+}
+
+// ---------- 열 필터·정렬 (엑셀 자동 필터처럼) ----------
+var DASH_BLANK='(비어 있음)';
+function dashGFltOn(){return Object.keys(DASH_G.flt).length>0;}
+function dashGColDef(k){var c=null;(DASH_G.curCols||dashGCols()).forEach(function(x){if(x.k===k)c=x;});return c;}
+// 열 k에서 업무 t가 가진 값(여러 개일 수 있음)
+function dashGVals(t,k){
+  var r=t.raw||{},one=function(v){v=v==null?'':String(v).trim();return [v||DASH_BLANK];},many=function(v){var a=dashNames(v);return a.length?a:[DASH_BLANK];};
+  if(k==='cp')return one(t.campus);if(k==='ct')return one(r.category);if(k==='tt')return one(r.title);
+  if(k==='who')return many(t.assignee);if(k==='vd')return many(t.vendor);
+  if(k==='s')return one(t.start_date?dashMD(t.start_date):'');if(k==='e')return one(t.end_date?dashMD(t.end_date):'');
+  if(k==='st')return one(t.col);if(k==='dd')return one(dashDday(t));
+  if(k==='vis'){var v=dashVisits(t);return v.length?v.map(dashMD):[DASH_BLANK];}
+  if(k==='memo')return one(r.memo);
+  if(k.indexOf('x_')===0){var c=dashGColDef(k);var x=(r.extra||{})[k.slice(2)];
+    if(c&&c.kind==='select')return many(x);if(x==null||x==='')return [DASH_BLANK];
+    if(c&&c.kind==='number')return [Number(x).toLocaleString('ko-KR')];if(c&&c.kind==='date')return [dashMD(x)];return one(x);}
+  return [DASH_BLANK];
+}
+// 정렬 기준값: 날짜는 원래 형식, 숫자는 숫자
+function dashGSortKey(t,k){
+  var r=t.raw||{};
+  if(k==='s')return t.start_date||'9999';if(k==='e')return t.end_date||'9999';if(k==='vis')return dashVisits(t)[0]||'9999';
+  if(k==='st')return ('0'+DASH_COLS.indexOf(t.col)).slice(-2);
+  if(k==='dd'){var d=dashDday(t),m=d.match(/^D([+-])(\d+)/);return m?(m[1]==='+'?-Number(m[2]):Number(m[2])):(d==='진행'?0:(d==='완료'?99999:50000));}
+  if(k.indexOf('x_')===0){var c=dashGColDef(k),x=(r.extra||{})[k.slice(2)];if(c&&c.kind==='number')return x==null?Infinity:Number(x);return x==null?'':String(x);}
+  return dashGVals(t,k)[0].replace(DASH_BLANK,'');
+}
+function dashGFltApply(ts){
+  var f=DASH_G.flt,ks=Object.keys(f);
+  if(ks.length)ts=ts.filter(function(t){return ks.every(function(k){var sel=f[k];return dashGVals(t,k).some(function(v){return sel.indexOf(v)>=0;});});});
+  if(DASH_G.sort){var k=DASH_G.sort.k,d=DASH_G.sort.dir;ts=ts.slice().sort(function(a,b){var x=dashGSortKey(a,k),y=dashGSortKey(b,k);
+    if(typeof x==='number'&&typeof y==='number')return (x-y)*d;return String(x).localeCompare(String(y),'ko',{numeric:true})*d;});}
+  return ts;
+}
+function dashGFltOpen(btn,k){
+  var H=inspH,c=dashGColDef(k);if(!c)return;
+  // 다른 열 필터는 그대로 두고, 이 열에 나올 수 있는 값 모으기(엑셀과 같음)
+  var other={};Object.keys(DASH_G.flt).forEach(function(x){if(x!==k)other[x]=DASH_G.flt[x];});
+  var cnt={},order=[];
+  DASH.projects.forEach(function(p){dashPjTasks(p.id).forEach(function(t){
+    if(!Object.keys(other).every(function(x){return dashGVals(t,x).some(function(v){return other[x].indexOf(v)>=0;});}))return;
+    dashGVals(t,k).forEach(function(v){if(!(v in cnt)){cnt[v]=0;order.push([v,dashGSortKey(t,k)]);}cnt[v]++;});});});
+  order.sort(function(a,b){if(a[0]===DASH_BLANK)return 1;if(b[0]===DASH_BLANK)return -1;var x=a[1],y=b[1];if(typeof x==='number'&&typeof y==='number')return x-y;return String(x).localeCompare(String(y),'ko',{numeric:true});});
+  var vals=order.map(function(o){return o[0];}),sel=DASH_G.flt[k]||vals.slice();
+  var srt=DASH_G.sort&&DASH_G.sort.k===k?DASH_G.sort.dir:0;
+  var el=dashPopOpen(btn,'<div class="pp-h">'+H(c.t)+' 필터</div>'
+    +'<div class="gf-sort"><button data-s="1"'+(srt===1?' class="on"':'')+'>↑ 오름차순</button><button data-s="-1"'+(srt===-1?' class="on"':'')+'>↓ 내림차순</button></div>'
+    +'<input type="text" class="gf-q" placeholder="값 검색">'
+    +'<label class="pp-ck gf-all"><input type="checkbox"'+(sel.length===vals.length?' checked':'')+'> <b>(전체 선택)</b></label>'
+    +'<div class="pp-list gf-list">'+vals.map(function(v){return '<label class="pp-ck" data-v="'+H(v)+'"><input type="checkbox" value="'+H(v)+'"'+(sel.indexOf(v)>=0?' checked':'')+'> <span>'+H(v)+'</span><em>'+cnt[v]+'</em></label>';}).join('')+'</div>'
+    +'<div class="pp-f"><button data-x="clear">이 열 필터 해제</button><button data-x="cancel">취소</button><button class="pri" data-x="ok">확인</button></div>',260);
+  var list=el.querySelector('.gf-list'),all=el.querySelector('.gf-all input'),q=el.querySelector('.gf-q');
+  var boxes=function(vis){return [].slice.call(list.querySelectorAll('label')).filter(function(l){return !vis||l.style.display!=='none';}).map(function(l){return l.querySelector('input');});};
+  var sync=function(){var b=boxes(true);all.checked=b.length>0&&b.every(function(x){return x.checked;});};
+  all.addEventListener('change',function(){boxes(true).forEach(function(x){x.checked=all.checked;});});
+  list.addEventListener('change',sync);
+  q.addEventListener('input',function(){var s=q.value.trim().toLowerCase();[].slice.call(list.querySelectorAll('label')).forEach(function(l){var hit=!s||l.dataset.v.toLowerCase().indexOf(s)>=0;l.style.display=hit?'':'none';l.querySelector('input').checked=hit&&(!s||true)&&(s?true:l.querySelector('input').checked);});sync();});
+  el.addEventListener('click',function(e){
+    var sb2=e.target.closest('[data-s]');if(sb2){var d=Number(sb2.dataset.s);DASH_G.sort=(srt===d)?null:{k:k,dir:d};dashPopClose();dashRender();return;}
+    var x=e.target.dataset&&e.target.dataset.x;if(!x)return;
+    if(x==='cancel'){dashPopClose();return;}
+    if(x==='clear'){delete DASH_G.flt[k];dashPopClose();dashRender();return;}
+    var on=boxes(false).filter(function(i){return i.checked&&i.closest('label').style.display!=='none';}).map(function(i){return i.value;});
+    if(!on.length){q.focus();q.placeholder='하나 이상 선택하세요';return;}
+    if(on.length===vals.length)delete DASH_G.flt[k];else DASH_G.flt[k]=on;
+    if(dashGFltOn())DASH.projects.forEach(function(p){DASH_G.fold[p.id]=false;});
+    dashPopClose();dashRender();
+  });
+  q.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing){e.preventDefault();el.querySelector('[data-x=ok]').click();}});
+  setTimeout(function(){q.focus();},0);
 }
 
 // ---------- 열 구성: 기본 열 + 사용자 열(SQL 16) ----------
@@ -4035,6 +4120,8 @@ function dashGUp(){
 function dashGClick(a,v,el){
   if(a==='gcell'){dashCellEdit(el,v);return true;}
   if(a==='ghm'){dashColMenu(el,v);return true;}
+  if(a==='gflt'){dashGFltOpen(el,v);return true;}
+  if(a==='gfclear'){DASH_G.flt={};DASH_G.sort=null;dashRender();return true;}
   if(a==='grmenu'){dashRowMenu(el.closest('td'),v);return true;}
   if(a==='gmon'){DASH_G.mfold[v]=!DASH_G.mfold[v];dashRender();return true;}
   if(a==='gtl'){DASH_G.tlOff=!DASH_G.tlOff;dashRender();return true;}
