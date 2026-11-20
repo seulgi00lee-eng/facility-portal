@@ -163,14 +163,17 @@
   .dsh-calh{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
   .dsh-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
   .dsh-dow{font-size:11.5px;color:var(--mute);text-align:center;padding:6px 0;border-bottom:1px solid var(--line2)}
-  .dsh-day{min-height:98px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:4px;cursor:pointer;overflow:hidden;min-width:0}
+  .dsh-day{min-height:112px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:4px;cursor:pointer;overflow:hidden;min-width:0}
   .dsh-day:nth-child(7n){border-right:0}
   .dsh-day.out{background:#fafafa}
   .dsh-day.out .dsh-dn{color:var(--mute)}
   .dsh-day.today .dsh-dn{background:var(--blue);color:#fff;border-radius:10px;padding:0 7px}
   .dsh-day.sel{box-shadow:inset 0 0 0 2px var(--blue)}
   .dsh-dn{font-size:12px;font-weight:600;margin-bottom:3px;display:inline-block}
-  .dsh-ev{display:block;font-size:11px;line-height:1.35;padding:2px 5px;border-radius:5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid;cursor:pointer;font-weight:600}
+  .dsh-ev{display:block;font-size:11px;line-height:1.3;padding:2px 5px;border-radius:5px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid;cursor:pointer;font-weight:600}
+  .dsh-ev .ev1,.dsh-ev .ev2{display:block;overflow:hidden;text-overflow:ellipsis}
+  .dsh-ev .ev2{font-weight:400;font-size:10.5px;opacity:.85}
+  .dsh-ev .ev-nv{opacity:.6;font-weight:400}
   .dsh-ev.plan{border-left-style:dashed;font-weight:400}
   .dsh-more{font-size:11px;color:var(--mute)}
   .dsh-dots{display:none}
@@ -2736,7 +2739,7 @@ function dashReqItem(r){
   var tt={fix:'유지보수',buy:'구매',rent:'렌탈'}[r.type]||r.type;
   var sub=r.reqtype||(r.detail?String(r.detail).slice(0,24):'');
   return {k:'r:'+r.id,src:'req',id:r.id,type:r.type,tt:tt,no:r.record_no||'',campus:r.campus||'',building:r.building||'',
-    title:sub||'(내용 없음)',vendor:r.vendor||'',visit_date:r.visit_date||'',visit_time:r.visit_time||'',plan_date:r.plan_date||'',
+    title:sub||'(내용 없음)',floor:(Array.isArray(r.floors)?r.floors.join(','):(r.floors||'')),loc:r.location||'',vendor:r.vendor||'',visit_date:r.visit_date||'',visit_time:r.visit_time||'',plan_date:r.plan_date||'',
     quote:r.quote_amount,final:r.final_amount,assignee:r.assignee||'',stage:stage,col:col,log:log,raw:r};
 }
 function dashTaskItem(t){
@@ -2842,7 +2845,10 @@ function dashTag(it){
 }
 function dashColBadge(col,sub){var c=DASH_COLOR[col]||DASH_COLOR['신규 접수'];
   return '<span class="dsh-tag" style="color:'+c[0]+';background:'+c[1]+'">'+inspH(col)+(sub&&sub!==col?' · '+inspH(sub):'')+'</span>';}
-function dashWhere(it){return [it.campus,it.building].filter(Boolean).join(' ');}
+function dashFloor(f){f=String(f||'').trim();return !f?'':(/층|F$|B\d|지하|옥상/i.test(f)?f:f.split(/\s*,\s*/).map(function(x){return /^\d+$/.test(x)?x+'층':x;}).join(','));}
+function dashWhere(it){return [it.campus,it.building,dashFloor(it.floor)].filter(Boolean).join(' ');}
+// 캘린더 칸용: 건물·층 (없으면 캠퍼스)
+function dashSpot(it){var b=[it.building,dashFloor(it.floor)].filter(Boolean).join(' ');return b?((it.campus?it.campus+' ':'')+b):(it.campus||it.title);}
 function dashWhen(it){
   if(it.visit_date)return '방문 '+dashMD(it.visit_date)+(it.visit_time?' '+inspH(it.visit_time):'');
   if(it.plan_date)return '예정 '+dashMD(it.plan_date);
@@ -2863,7 +2869,8 @@ function dashCalHTML(list){
       +'<span class="dsh-dn">'+Number(d.slice(8,10))+'</span>'
       +evs.slice(0,3).map(function(it){var c=DASH_COLOR[it.col]||DASH_COLOR['신규 접수'];
         return '<span class="dsh-ev'+(it.visit_date?'':' plan')+'" data-a="open" data-k="'+it.k+'" style="color:'+c[0]+';background:'+c[1]+';border-left-color:'+c[0]+'" title="'+H(it.col+' · '+(it.vendor||'')+' · '+dashWhere(it)+' · '+it.title)+'">'
-          +(it.visit_time?H(it.visit_time)+' ':'')+H(it.vendor||it.campus||it.title)+(it.vendor&&it.campus?' · '+H(it.campus):'')+'</span>';}).join('')
+          +'<span class="ev1">'+(it.visit_time?H(it.visit_time)+' ':'')+(it.vendor?H(it.vendor):'<span class="ev-nv">업체 미정</span>')+'</span>'
+          +'<span class="ev2">'+H(dashSpot(it))+'</span></span>';}).join('')
       +(evs.length>3?'<span class="dsh-more">+'+(evs.length-3)+'건</span>':'')
       +'<span class="dsh-dots">'+evs.slice(0,6).map(function(it){return '<i style="background:'+(DASH_COLOR[it.col]||DASH_COLOR['신규 접수'])[0]+'"></i>';}).join('')+'</span>'
       +'</div>';
