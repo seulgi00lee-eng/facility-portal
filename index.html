@@ -190,6 +190,15 @@
   .dsh-meta{color:var(--mute);font-size:11.5px;margin-top:3px;line-height:1.55}
   .dsh-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-right:4px;white-space:nowrap}
   .dsh-late{display:inline-block;font-size:10.5px;font-weight:700;color:var(--dng);background:var(--dngbg);padding:1px 6px;border-radius:4px;margin-right:4px}
+  .dsh-lane{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .dsh-laneh{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;font-size:14px;background:#fff;user-select:none}
+  .dsh-laneh:hover{background:var(--bg)}
+  .dsh-lanefold{color:var(--mute);font-size:12px;width:12px}
+  .dsh-lanen{color:var(--mute);font-size:12.5px}
+  .dsh-lanegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;padding:2px 12px 12px;background:#fff}
+  .dsh-lanegrid .dsh-card{margin:0;display:flex;flex-direction:column}
+  .dsh-lanegrid .dsh-mv{margin-top:auto;padding-top:7px}
+  .dsh-lanemore{display:block;width:calc(100% - 24px);margin:0 12px 12px;border:1px dashed var(--line);background:#fff;border-radius:8px;padding:7px;font-size:12px;color:var(--blue);cursor:pointer;font-family:inherit}
   .dsh-board{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
   .dsh-col{flex:0 0 228px;background:var(--bg);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;max-height:72vh}
   .dsh-colh{padding:9px 12px;font-weight:700;font-size:13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;background:#fff;border-radius:14px 14px 0 0}
@@ -2904,24 +2913,33 @@ function dashRowHTML(it){
 
 // 단계별 보드
 function dashBoardHTML(list){
-  var H=inspH,cut=dashAddDays(inspToday(),-30);
-  return '<div class="hint" style="margin-bottom:8px;font-size:12px">카드의 ‹ › 버튼으로 단계를 옮깁니다. 캠퍼스 접수 건은 옮길 때마다 접수자에게 알림이 갑니다. 완료 칸은 최근 30일만 표시합니다.</div>'
-    +'<div class="dsh-board">'+DASH_COLS.map(function(col){
+  var H=inspH,cut=dashAddDays(inspToday(),-30),LIM=8;
+  DASH.lane=DASH.lane||{};
+  return '<div class="hint" style="margin-bottom:8px;font-size:12px">단계가 위에서 아래로 진행됩니다. 카드의 ↑ ↓ 버튼으로 단계를 옮기고, 캠퍼스 접수 건은 옮길 때마다 접수자에게 알림이 갑니다. 완료는 최근 30일만 표시합니다.</div>'
+    +DASH_COLS.map(function(col){
     var cs=list.filter(function(it){return it.col===col&&(col!=='완료'||((it.raw.updated_at||it.raw.created_at||'').slice(0,10)>=cut||dashDate(it)>=cut));});
     cs.sort(function(a,b){return (dashDate(a)||'9999').localeCompare(dashDate(b)||'9999');});
-    var c=DASH_COLOR[col];
-    return '<div class="dsh-col"><div class="dsh-colh" style="border-top:3px solid '+c[0]+'"><span style="color:'+c[0]+'">'+col+'</span><span class="hint">'+cs.length+'</span></div><div class="dsh-colb">'
-      +(cs.length?cs.map(function(it){
+    var c=DASH_COLOR[col],st=DASH.lane[col]||'',fold=st==='fold',all=st==='all';
+    var late=cs.filter(dashLate).length;
+    var head='<div class="dsh-laneh" data-a="lane" data-v="'+col+'" style="border-left:4px solid '+c[0]+'">'
+      +'<span class="dsh-lanefold">'+(fold?'▸':'▾')+'</span><b style="color:'+c[0]+'">'+col+'</b><span class="dsh-lanen">'+cs.length+'건</span>'
+      +(late?'<span class="dsh-late">지연 '+late+'</span>':'')+'</div>';
+    if(fold)return '<div class="dsh-lane">'+head+'</div>';
+    var shown=all?cs:cs.slice(0,LIM);
+    return '<div class="dsh-lane">'+head
+      +(cs.length?'<div class="dsh-lanegrid">'+shown.map(function(it){
         var cols=dashColsOf(it),ix=cols.indexOf(col);
-        return '<div class="dsh-card" data-a="open" data-k="'+it.k+'">'
+        return '<div class="dsh-card" data-a="open" data-k="'+it.k+'" style="border-top:3px solid '+c[0]+'">'
           +'<div>'+dashTag(it)+(dashLate(it)?'<span class="dsh-late">지연</span>':'')+(it.no?'<span class="hint" style="font-size:11px">'+H(it.no)+'</span>':'')+'</div>'
           +'<div class="dsh-t">'+H(dashWhere(it))+'</div><div style="font-size:12px;color:var(--ink2)">'+H(it.title)+'</div>'
-          +'<div class="dsh-meta">'+[it.vendor?'🏢 '+H(it.vendor):'',dashWhen(it),it.quote!=null?dashWon(it.quote):'',it.assignee?'👤 '+H(it.assignee):''].filter(Boolean).join('<br>')+'</div>'
-          +'<div class="dsh-mv">'+(ix>0?'<button data-a="mv" data-k="'+it.k+'" data-v="'+cols[ix-1]+'">‹ '+cols[ix-1]+'</button>':'')
-          +(ix>=0&&ix<cols.length-2?'<button data-a="mv" data-k="'+it.k+'" data-v="'+cols[ix+1]+'">'+cols[ix+1]+' ›</button>':'')+'</div></div>';
-      }).join(''):'<div class="hint" style="padding:10px;text-align:center;font-size:12px">없음</div>')
-      +'</div></div>';
-  }).join('')+'</div>';
+          +'<div class="dsh-meta">'+[it.vendor?'🏢 '+H(it.vendor):'<span style="color:var(--warn)">업체 미정</span>',dashWhen(it),it.quote!=null?dashWon(it.quote):'',it.assignee?'👤 '+H(it.assignee):''].filter(Boolean).join('<br>')+'</div>'
+          +'<div class="dsh-mv">'+(ix>0?'<button data-a="mv" data-k="'+it.k+'" data-v="'+cols[ix-1]+'">↑ '+cols[ix-1]+'</button>':'')
+          +(ix>=0&&ix<cols.length-2?'<button data-a="mv" data-k="'+it.k+'" data-v="'+cols[ix+1]+'">'+cols[ix+1]+' ↓</button>':'')+'</div></div>';
+      }).join('')+'</div>'
+      +(cs.length>LIM?'<button class="dsh-lanemore" data-a="lanemore" data-v="'+col+'">'+(all?'접기':'나머지 '+(cs.length-LIM)+'건 더 보기')+'</button>':'')
+      :'<div class="hint" style="padding:8px 12px;font-size:12px">없음</div>')
+      +'</div>';
+  }).join('');
 }
 
 // 목록
@@ -2955,6 +2973,8 @@ function dashOnClick(e){
   if(a==='view'){DASH.view=v;dashRender();return;}
   if(a==='mon'){if(v==='0'){DASH.ym=inspToday().slice(0,7);DASH.sel=inspToday();}else{var d=new Date(DASH.ym+'-01T00:00:00');d.setMonth(d.getMonth()+Number(v));DASH.ym=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}dashRender();return;}
   if(a==='day'){DASH.sel=v;dashRender();return;}
+  if(a==='lane'){DASH.lane=DASH.lane||{};DASH.lane[v]=DASH.lane[v]==='fold'?'':'fold';dashRender();return;}
+  if(a==='lanemore'){DASH.lane=DASH.lane||{};DASH.lane[v]=DASH.lane[v]==='all'?'':'all';dashRender();return;}
   if(a==='new'){dashEdit(null,null,v||'');return;}
   if(a==='csv'){dashCSV();return;}
 }
