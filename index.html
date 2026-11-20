@@ -423,6 +423,8 @@
   .as-acts span{border:1px solid #d2d2d7;border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer;color:var(--ink2)}
   .as-acts span.on{background:var(--bluebg);border-color:var(--blue);color:var(--blue)}
   .as-tbl th .gt-fb{color:#8e8e93}.as-tbl th .gt-fb.on,.as-tbl th .gt-fb.srt{color:#fff}
+  .as-tbl td.as-warn{color:#b3261e!important;font-weight:700;background:#fdf3f2!important}
+  .as-tbl td input.as-code{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2px}
   .as-tbl td.as-ro{padding:0 6px;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;background:#fafafa}
   .ntf-row{margin-bottom:12px}.ntf-row>label{display:block;font-size:12px;font-weight:700;margin-bottom:4px}
   .ntf-row input{width:100%;box-sizing:border-box;margin:0;font-size:12.5px}
@@ -4323,10 +4325,18 @@ function dashNtfOpen(){
 var DASH_AS_COLS=[
   {k:'campus',t:'캠퍼스',w:72,list:'campus'},{k:'location',t:'위치(층·호실)',w:110},{k:'category',t:'분류',w:100,list:'category'},
   {k:'item_name',t:'품명·모델',w:170},{k:'qty',t:'수량',w:56,num:1},{k:'ownership',t:'소유',w:66,list:'ownership'},
+  {k:'asset_no',t:'자산코드',w:100,code:1},{k:'contract_vendor',t:'계약 업체',w:96,list:'contract_vendor'},
+  {k:'contract_start',t:'계약시작일',w:118,date:1},{k:'contract_end',t:'계약종료일',w:118,date:1},{k:'_remain',t:'잔여 계약',w:86,ro:1},
   {k:'cond',t:'상태',w:84,list:'cond'},{k:'action',t:'처리 방안',w:100,list:'action'},{k:'dest',t:'이관처·매각처',w:110},
   {k:'vendor',t:'처리 업체',w:100,list:'vendor'},{k:'done_date',t:'처리(예정)일',w:118,date:1},{k:'amount',t:'금액(원)',w:96,num:1,money:1},
-  {k:'asset_no',t:'자산번호',w:90},{k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170},
+  {k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170},
   {k:'_by',t:'입력자',w:70,ro:1},{k:'_upd',t:'최종 수정',w:110,ro:1}];
+// 잔여 계약 개월(종료일 기준) — 렌탈 중도 해지 위약금 확인용
+function dashAsRemain(a){
+  if(!a.contract_end)return null;var t=inspToday();if(a.contract_end<t)return 0;
+  var y=Number(a.contract_end.slice(0,4))-Number(t.slice(0,4)),m=Number(a.contract_end.slice(5,7))-Number(t.slice(5,7)),d=Number(a.contract_end.slice(8,10))-Number(t.slice(8,10));
+  return Math.max(0,y*12+m+(d>0?1:0));
+}
 var DASH_AS_LIST={
   category:['책상','의자','칠판·화이트보드','PC','모니터','노트북','프린터·복합기','냉난방기','공기청정기','TV·전자칠판','사물함·수납장','소파·테이블','정수기','기타'],
   ownership:['자사','렌탈'],cond:['양호','사용감 있음','불량','고장'],
@@ -4335,16 +4345,19 @@ var DASH_AS={pid:'',q:'',flt:{},sort:null};
 function dashMe(){var u=CURRENT_USER||{};return String(u.name||'').replace('총무기획팀','').trim()||u.login_id||'';}
 function dashNameOf(login){var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===login;})[0];return a&&a.name?String(a.name).replace('총무기획팀','').trim():(login||'');}
 function dashAsCell(a,k){
+  if(k==='_remain'){var r=dashAsRemain(a);return r==null?'':(r===0?'만료':r+'개월 남음');}
   if(k==='_by')return a.created_name||dashNameOf(a.created_by)||'';
   if(k==='_upd')return a.updated_name?(a.updated_name+(a.updated_at?' '+dashMD(String(a.updated_at).slice(0,10)):'')):'';
   var c=DASH_AS_COLS.filter(function(x){return x.k===k;})[0],v=a[k];if(v==null||v==='')return '';
   if(c&&c.money)return Number(v).toLocaleString('ko-KR');if(c&&c.date)return dashMD(v);return String(v);
 }
 function dashAsKey(a,k){var c=DASH_AS_COLS.filter(function(x){return x.k===k;})[0];
+  if(k==='_remain'){var r=dashAsRemain(a);return r==null?-1:r;}
   if(c&&c.num)return a[k]==null?-Infinity:Number(a[k]);if(c&&c.date)return a[k]||'9999';if(k==='_upd')return a.updated_at||'';return dashAsCell(a,k);}
 function dashAsRows(pid){return (DASH.assets||[]).filter(function(a){return a.project_id===pid;}).sort(function(a,b){return (a.sort_no||0)-(b.sort_no||0);});}
 function dashAsOpts(k){
   var s={};(DASH_AS_LIST[k]||[]).forEach(function(v){s[v]=1;});
+  if(k==='contract_vendor')(DASH.assets||[]).forEach(function(a){if(a.contract_vendor)s[a.contract_vendor]=1;});
   if(k==='campus')DASH.projects.forEach(function(p){dashNames(p.campus).forEach(function(v){s[v]=1;});});
   (DASH.assets||[]).forEach(function(a){if(a[k])s[a[k]]=1;});
   return Object.keys(s);
@@ -4371,8 +4384,9 @@ function dashAssetsHTML(){
   var sel=function(id,cur,opts,ph){return '<select id="'+id+'" style="width:auto;margin:0"><option value="">'+ph+'</option>'+opts.map(function(o){return '<option'+(o===cur?' selected':'')+'>'+H(o)+'</option>';}).join('')+'</select>';};
   var head='<div class="dsh-bar">'
     +'<select id="as_pj" style="width:auto;margin:0;font-weight:700">'+DASH.projects.map(function(x){return '<option value="'+x.id+'"'+(x.id===p.id?' selected':'')+'>'+H(x.name)+'</option>';}).join('')+'</select>'
-    +'<input type="text" id="as_q" placeholder="품명·위치·자산번호 검색" value="'+H(DASH_AS.q)+'" style="flex:1;min-width:150px;max-width:240px;margin:0">'
+    +'<input type="text" id="as_q" placeholder="품명·위치·자산코드 검색" value="'+H(DASH_AS.q)+'" style="flex:1;min-width:150px;max-width:240px;margin:0">'
     +(fk.length||DASH_AS.sort?'<button class="flt on" data-a="as_fclear">'+(fk.length?'필터 '+fk.length:'')+(fk.length&&DASH_AS.sort?' · ':'')+(DASH_AS.sort?'정렬':'')+' 해제 ✕</button>':'')
+    +'<button class="flt" data-a="as_lookall" title="자산코드가 있는 행의 계약 업체·계약 기간·모델명을 자산관리시스템에서 가져옴">자산코드 일괄 조회</button>'
     +'<button class="flt" data-a="as_paste">엑셀 붙여넣기</button><button class="flt" data-a="as_csv">CSV</button>'
     +'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="as_add">+ 행 추가</button></div>';
   var sum='<div class="as-sum">'
@@ -4381,14 +4395,15 @@ function dashAssetsHTML(){
     +'<div class="as-acts">'+['재사용 이관','매각','폐기','렌탈 반납','보관','미정'].filter(function(k){return byAct[k];}).map(function(k){var on=DASH_AS.flt.action&&DASH_AS.flt.action.length===1&&DASH_AS.flt.action[0]===k;return '<span class="'+(on?'on':'')+'" data-a="as_fa" data-v="'+k+'">'+k+' <b>'+byAct[k]+'</b></span>';}).join('')+'</div>'
     +(sale||cost?'<div class="m">매각 '+dashWon(sale)+' · 처리비 '+dashWon(cost)+'</div>':'')
     +(rel.length?'<div class="m">관련 자산 업무 '+relDone+'/'+rel.length+' 완료</div>':'')+'</div>';
-  var lists=Object.keys(DASH_AS_LIST).concat(['campus','vendor']).map(function(k){return '<datalist id="asl_'+k+'">'+dashAsOpts(k).map(function(o){return '<option value="'+H(o)+'">';}).join('')+'</datalist>';}).join('');
+  var lists=Object.keys(DASH_AS_LIST).concat(['campus','vendor','contract_vendor']).map(function(k){return '<datalist id="asl_'+k+'">'+dashAsOpts(k).map(function(o){return '<option value="'+H(o)+'">';}).join('')+'</datalist>';}).join('');
   var th='<tr><th class="as-no">No</th>'+DASH_AS_COLS.map(function(c){var on=DASH_AS.flt[c.k],so=DASH_AS.sort&&DASH_AS.sort.k===c.k;
       return '<th style="min-width:'+c.w+'px;width:'+c.w+'px">'+c.t+'<button class="gt-fb'+(on?' on':'')+(so?' srt':'')+'" data-a="as_flt" data-v="'+c.k+'" title="필터·정렬">'+(on?'⏷':(so?(DASH_AS.sort.dir>0?'↑':'↓'):'▾'))+'</button></th>';}).join('')+'<th class="as-del"></th></tr>';
   var body=rows.map(function(a,i){
     return '<tr data-id="'+a.id+'"'+(a.status==='완료'?' class="as-done"':'')+'><td class="as-no">'+(i+1)+'</td>'+DASH_AS_COLS.map(function(c){
-      if(c.ro)return '<td class="as-ro" title="'+H(dashAsCell(a,c.k))+'">'+H(dashAsCell(a,c.k))+'</td>';
+      if(c.ro){var rv=dashAsCell(a,c.k),warn=c.k==='_remain'&&dashAsRemain(a)>0&&/반납|폐기|매각/.test(a.action||'');
+        return '<td class="as-ro'+(warn?' as-warn':'')+'" title="'+H(warn?'계약 기간이 남아 있습니다 — 중도 해지 위약금·잔여 렌탈료를 확인하세요':rv)+'">'+H(rv)+'</td>';}
       var v=a[c.k],val=v==null?'':(c.money?Number(v).toLocaleString('ko-KR'):String(v));
-      return '<td><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="asl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.k==='action'?' data-act="'+H(v||'미정')+'"':'')+'></td>';}).join('')
+      return '<td><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="asl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.k==='action'?' data-act="'+H(v||'미정')+'"':'')+(c.code?' placeholder="코드 입력" title="자산코드를 넣으면 자산관리시스템에서 계약 업체·기간·모델을 가져옵니다" class="as-code"':'')+'></td>';}).join('')
       +'<td class="as-del"><button data-a="as_del" data-v="'+a.id+'" title="행 삭제">×</button></td></tr>';
   }).join('');
   var empty=!rows.length?'<div class="hint" style="padding:18px;text-align:center">'+(all.length?'조건에 맞는 자산이 없습니다.':'아직 자산이 없습니다. <b>+ 행 추가</b>로 하나씩 넣거나, 엑셀에서 복사해 <b>엑셀 붙여넣기</b>로 한 번에 넣으세요.')+'</div>':'';
@@ -4398,7 +4413,7 @@ function dashAssetsHTML(){
 function dashAsSave(id,f,raw){
   var a=null;(DASH.assets||[]).forEach(function(x){if(x.id===id)a=x;});if(!a)return;
   var c=DASH_AS_COLS.filter(function(x){return x.k===f;})[0],v=raw.trim();
-  v=c&&c.num?dashNum(v):(v||null);
+  v=c&&c.num?dashNum(v):(v||null);if(c&&c.code&&v)v=v.toUpperCase();
   if(f==='qty'&&v==null)v=0;
   if(JSON.stringify(a[f]==null?null:a[f])===JSON.stringify(v))return;
   var old=a[f];a[f]=v;
@@ -4408,7 +4423,8 @@ function dashAsSave(id,f,raw){
     if(r.error&&/updated_name/.test(r.error.message)){DASH.asNmOK=false;delete patch.updated_name;return go();}return r;}).then(function(r){
     if(r.error){a[f]=old;inspToast('저장 실패: '+r.error.message,true);dashRender();return;}
     if(patch.updated_name){a.updated_name=patch.updated_name;a.updated_at=patch.updated_at;var tr=dashRoot().querySelector('tr[data-id="'+id+'"] td.as-ro:last-of-type');var c2=dashRoot().querySelectorAll('tr[data-id="'+id+'"] td.as-ro');if(c2.length)c2[c2.length-1].textContent=dashAsCell(a,'_upd');}
-    if(f==='status'||f==='action'||f==='qty'||f==='amount')dashAsRefreshSum();
+    if(f==='asset_no'&&v){dashAsLookup(id,v);return;}
+    if(f==='status'||f==='action'||f==='qty'||f==='amount'||f==='contract_end')dashAsRefreshSum();
   });
 }
 // 입력 중 화면 전체를 다시 그리지 않고 요약만 갱신
@@ -4426,6 +4442,40 @@ function dashAsAdd(){
     DASH.assets.push(r.data[0]);DASH_AS.q='';DASH_AS.flt={};DASH_AS.sort=null;dashRender();
     var el=dashRoot().querySelector('tr[data-id="'+r.data[0].id+'"] input[data-f="item_name"]');if(el){el.focus();el.scrollIntoView({block:'nearest'});}
   });
+}
+// ---------- 자산관리시스템 조회 (SQL 18: fac_asset_lookup) ----------
+function dashAsDate(v){v=String(v||'').trim();var m=v.match(/(\d{4})\D{0,2}(\d{1,2})\D{0,2}(\d{1,2})/);return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):null;}
+function dashAsLookup(id,code,quiet){
+  var a=null;(DASH.assets||[]).forEach(function(x){if(x.id===id)a=x;});if(!a)return Promise.resolve(0);
+  return sb.rpc('fac_asset_lookup',{code:code}).then(function(r){
+    if(r.error){if(!quiet)inspToast(/fac_asset_lookup/.test(r.error.message)?'자산코드 조회는 SQL 18 실행 후 사용할 수 있습니다':'조회 실패: '+r.error.message,true);return 0;}
+    var j=r.data;if(!j){if(!quiet)inspToast('자산관리시스템에 없는 자산코드입니다: '+code,true);return 0;}
+    var p={};
+    if(j.start)p.contract_start=dashAsDate(j.start);if(j.end)p.contract_end=dashAsDate(j.end);
+    if(j.vendor)p.contract_vendor=j.vendor;
+    if(!a.item_name&&(j.model||j.name||j.item))p.item_name=j.model||j.name||j.item;
+    if(!a.category&&(j.category||j.item))p.category=j.category||j.item;
+    p.ownership=j.src==='렌탈자산'?'렌탈':'자사';
+    Object.keys(p).forEach(function(k){if(p[k]===a[k])delete p[k];});
+    if(!Object.keys(p).length){if(!quiet)inspToast('자산관리시스템 정보와 같습니다');return 0;}
+    p.updated_at=new Date().toISOString();if(DASH.asNmOK!==false)p.updated_name=dashMe();
+    return sb.from('fac_project_assets').update(p).eq('id',id).then(function(u){
+      if(u.error){if(!quiet)inspToast('반영 실패: '+u.error.message+(/contract_/.test(u.error.message)?' (SQL 18 실행 필요)':''),true);return 0;}
+      Object.assign(a,p);dashAsRefreshSum();
+      if(!quiet)inspToast(j.src+' 연동: '+[j.vendor,j.model,(p.contract_start||a.contract_start||'')+(a.contract_end?' ~ '+a.contract_end:'')].filter(Boolean).join(' · '));
+      return 1;
+    });
+  });
+}
+// 자산코드가 있는 행을 한 번에 조회
+function dashAsLookupAll(list){
+  list=(list||dashAsRows(DASH_AS.pid)).filter(function(a){return a.asset_no;});
+  if(!list.length){inspToast('자산코드가 입력된 행이 없습니다',true);return;}
+  inspToast(list.length+'건 조회 중...');
+  var ok=0,i=0;
+  var next=function(){if(i>=list.length){inspToast('자산관리시스템 연동 '+ok+'/'+list.length+'건 반영');return;}
+    var a=list[i++];dashAsLookup(a.id,a.asset_no,true).then(function(n){ok+=n||0;next();});};
+  next();
 }
 // 입력자 칸이 아직 없으면(SQL 17 전) 빼고 다시 저장
 function dashAsInsert(rows){
@@ -4451,7 +4501,8 @@ function dashAsDel(id){
 }
 // 엑셀에서 복사한 표(탭 구분)를 한 번에 넣기
 function dashAsPaste(){
-  var cols=DASH_AS_COLS.map(function(c){return c.t;}).join(' | ');
+  var ED=DASH_AS_COLS.filter(function(c){return !c.ro;});
+  var cols=ED.map(function(c){return c.t;}).join(' | ');
   openModal('<div class="mh">엑셀 붙여넣기 — 자산 목록</div><div class="mb">'
     +'<div class="hint" style="line-height:1.6;margin-bottom:8px">엑셀에서 아래 순서의 열을 선택해 복사(Ctrl+C)한 뒤 붙여넣으세요(Ctrl+V). 열이 적으면 앞에서부터 채웁니다. 첫 줄이 제목이면 자동으로 건너뜁니다.<br><b>'+inspH(cols)+'</b></div>'
     +'<textarea id="as_pt" rows="9" style="width:100%;font-family:inherit;font-size:12px" placeholder="여기에 붙여넣기"></textarea><div id="as_pv" class="hint" style="margin-top:6px"></div></div>'
@@ -4465,7 +4516,7 @@ function dashAsPaste(){
     var l=parse();if(!l.length){pv.textContent='붙여넣은 내용이 없습니다.';return;}
     var base=dashAsRows(DASH_AS.pid).reduce(function(m,a){return Math.max(m,a.sort_no||0);},0);
     var rows=l.map(function(cells,i){var r={project_id:DASH_AS.pid,sort_no:base+(i+1)*10,created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null};
-      DASH_AS_COLS.forEach(function(c,j){var v=(cells[j]||'').trim();if(!v)return;
+      ED.forEach(function(c,j){var v=(cells[j]||'').trim();if(!v)return;
         if(c.num)v=dashNum(v);else if(c.date){var m=v.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/)||v.match(/^(\d{1,2})[.\-\/](\d{1,2})$/);
           v=m?(m.length===4?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):'2026-'+('0'+m[1]).slice(-2)+'-'+('0'+m[2]).slice(-2)):null;}
         if(v!=null&&v!=='')r[c.k]=v;});
@@ -4473,7 +4524,8 @@ function dashAsPaste(){
     this.disabled=true;
     dashAsInsert(rows).then(function(r){
       if(r.error){pv.textContent='넣기 실패: '+r.error.message;document.getElementById('as_pgo').disabled=false;return;}
-      DASH.assets=DASH.assets.concat(r.data||[]);closeModal();dashRender();inspToast(rows.length+'행을 넣었습니다');});
+      DASH.assets=DASH.assets.concat(r.data||[]);closeModal();dashRender();inspToast(rows.length+'행을 넣었습니다');
+      var wc=(r.data||[]).filter(function(x){return x.asset_no;});if(wc.length)setTimeout(function(){dashAsLookupAll(wc);},600);});
   };
   setTimeout(function(){ta.focus();},0);
 }
@@ -4488,6 +4540,7 @@ function dashAsClick(a,v){
   if(a==='as_add'){dashAsAdd();return true;}
   if(a==='as_del'){dashAsDel(v);return true;}
   if(a==='as_paste'){dashAsPaste();return true;}
+  if(a==='as_lookall'){dashAsLookupAll();return true;}
   if(a==='as_csv'){dashAsCSV();return true;}
   if(a==='as_fa'){var cur=DASH_AS.flt.action;if(cur&&cur.length===1&&cur[0]===v)delete DASH_AS.flt.action;else DASH_AS.flt.action=[v];dashRender();return true;}
   if(a==='as_flt'){dashAsFlt(document.querySelector('[data-a=as_flt][data-v="'+v+'"]'),v);return true;}
