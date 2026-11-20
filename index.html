@@ -421,6 +421,15 @@
   .as-prog{display:flex;align-items:center;gap:8px;min-width:240px}.as-prog .pjs-bar{width:120px;flex:0 0 120px}
   .as-acts{display:flex;gap:6px;flex-wrap:wrap}
   .as-acts span{border:1px solid #d2d2d7;border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer;color:var(--ink2)}
+  .as-acts span.on{background:var(--bluebg);border-color:var(--blue);color:var(--blue)}
+  .as-tbl th .gt-fb{color:#8e8e93}.as-tbl th .gt-fb.on,.as-tbl th .gt-fb.srt{color:#fff}
+  .as-tbl td.as-ro{padding:0 6px;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;background:#fafafa}
+  .ntf-row{margin-bottom:12px}.ntf-row>label{display:block;font-size:12px;font-weight:700;margin-bottom:4px}
+  .ntf-row input{width:100%;box-sizing:border-box;margin:0;font-size:12.5px}
+  .ntf-ck{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:13px}
+  .ntf-ck input{width:auto;margin:0}.ntf-ck span{flex-basis:100%;padding-left:22px;font-size:11.5px;color:var(--mute);line-height:1.5}
+  .ntf-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .ntf-out{background:#f7f7f9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;white-space:pre-wrap;max-height:280px;overflow:auto;margin-top:10px;font-family:inherit}
   .as-acts span:hover{border-color:var(--blue);color:var(--blue)}
   .as-wrap{overflow:auto;max-height:70vh;background:#fff;border:1px solid var(--line);border-radius:12px}
   .as-tbl{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:100%}
@@ -2980,6 +2989,8 @@ function dashLoad(){
   return Promise.all([pr,pt,pp,pg,pa]).then(function(){
     // 삭제된 프로젝트의 세부 업무는 숨김
     if(DASH.pjOK){var ok={};DASH.projects.forEach(function(x){ok[x.id]=1;});DASH.tasks=DASH.tasks.filter(function(t){return !t.project_id||ok[t.project_id];});}
+    DASH.ubOK=DASH.tasks.length?('updated_by' in DASH.tasks[0]):(DASH.projects.length?('updated_by' in DASH.projects[0]):false);
+    if(DASH.assets&&DASH.assets.length)DASH.asNmOK=('created_name' in DASH.assets[0]);
     DASH.loaded=true;if(ADM_TAB==='dash')dashRender();});
 }
 
@@ -3014,6 +3025,7 @@ function dashRender(){
     +'<select id="dsh_src" style="width:auto;margin:0"><option value="all">전체</option><option value="req"'+(DASH.src==='req'?' selected':'')+'>캠퍼스 접수</option><option value="task"'+(DASH.src==='task'?' selected':'')+'>팀 업무</option></select>'
     +'<select id="dsh_who" style="width:auto;margin:0"><option value="all">담당자 전체</option><option value="-"'+(DASH.who==='-'?' selected':'')+'>담당자 미지정</option>'
       +Object.keys(who).sort().map(function(w){return '<option value="'+H(w)+'"'+(DASH.who===w?' selected':'')+'>'+H(w)+'</option>';}).join('')+'</select>'
+    +'<button class="flt" data-a="ntf" title="구글챗 리마인드·이슈 알림 설정">🔔 알림 설정</button>'
     +(DASH.view==='gantt'||DASH.view==='pjs'||DASH.view==='assets'?'':'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="new">+ 팀 업무 등록</button>')
     +'</div>';
   if(DASH.view==='gantt'&&DASH.pjOK&&DASH.gcolOK===false)warn+='<div class="dsh-warn">열 추가를 쓰려면 Supabase에서 <b>16_rows_cols_assets.sql</b>을 실행해 주세요. (행 이동·행 추가·간트 접기는 바로 쓸 수 있습니다)</div>';
@@ -3164,6 +3176,7 @@ function dashOnClick(e){
   if(a==='swl'||a==='swr'){var st=el.parentNode.querySelector('.dsh-strip');if(st)st.scrollBy({left:(a==='swr'?1:-1)*Math.max(220,st.clientWidth-160),behavior:'smooth'});return;}
   if(a==='new'){dashEdit(null,null,v||'');return;}
   if(a==='csv'){dashCSV();return;}
+  if(a==='ntf'){dashNtfOpen();return;}
 }
 function dashOnInput(e){
   var t=e.target;
@@ -3280,6 +3293,7 @@ function dashSaveTask(it,v,note){
   var row={title:title,category:dashVal('de_cat')||null,campus:dashVal('de_campus')||null,building:dashVal('de_bld')||null,
     vendor:v.vendor,vendor_contact:dashVal('de_vtel')||null,stage:v.stage,visit_date:v.visit_date,visit_time:v.visit_time,plan_date:v.plan_date,
     quote_amount:v.quote_amount,final_amount:v.final_amount,assignee:v.assignee,memo:dashVal('de_memo')||null,updated_at:new Date().toISOString()};
+  if(DASH.ubOK)row.updated_by=dashMe();
   if(DASH.pjOK){
     var ps=dashVal('de_s')||null,pe=dashVal('de_e')||null;
     if(ps&&pe&&pe<ps){dashErr('종료일이 시작일보다 빠릅니다.');return;}
@@ -3462,7 +3476,7 @@ function dashGanttHTML(){
       +'<button class="flt'+(allFold?' on':'')+'" data-a="gsum" data-v="1">요약(프로젝트만)</button></span>'
     +'<button class="flt'+(TL?'':' on')+'" data-a="gtl">'+(TL?'간트 접기':'간트 펼치기')+'</button>'
     +'<button class="flt" data-a="gbrief">'+(B?'상세 열 보기':'열 간단히')+'</button>'
-    +(dashGFltOn()||DASH_G.sort?'<button class="flt on" data-a="gfclear" title="모든 열 필터·정렬 해제">필터 '+Object.keys(DASH_G.flt).length+(DASH_G.sort?' · 정렬':'')+' 해제 ✕</button>':'')
+    +(dashGFltOn()||DASH_G.sort?'<button class="flt on" data-a="gfclear" title="모든 열 필터·정렬 해제">'+(dashGFltOn()?'필터 '+Object.keys(DASH_G.flt).length:'')+(dashGFltOn()&&DASH_G.sort?' · ':'')+(DASH_G.sort?'정렬':'')+' 해제 ✕</button>':'')
     +(nh?'<button class="flt" data-a="gunhide">숨긴 열 '+nh+'개 보기</button>':'')
     +'<button class="flt" data-a="gsize" title="열 너비·행 높이를 처음 상태로">크기 초기화</button>'
     +'<button class="flt" data-a="gcsv">CSV</button>'
@@ -3951,6 +3965,7 @@ function dashCellSave(kind,id,patch,keepSpec){
   var same=Object.keys(patch).every(function(k){return JSON.stringify(patch[k]==null?null:patch[k])===JSON.stringify(old[k]==null?null:old[k]);});
   if(same)return;
   var row=Object.assign({},patch,{updated_at:new Date().toISOString()});
+  if(DASH.ubOK)row.updated_by=dashMe();
   if(kind==='t'&&patch.stage&&patch.stage!==rec.stage){
     var log=(Array.isArray(rec.log)?rec.log.slice():[]);log.push({n:log.length+1,stage:patch.stage,note:'간트차트에서 상태 변경 ('+(rec.stage||'-')+' → '+patch.stage+')',by:staffLabel(),at:inspToday()});row.log=log;
   }
@@ -4201,6 +4216,7 @@ function dashPjSave(){
   if(s&&e&&e<s){dashErr('종료일이 시작일보다 빠릅니다.');return;}
   var row={name:name,category:dashVal('pj_cat'),status:dashVal('pj_st'),campus:dashVal('pj_campus')||null,building:dashVal('pj_bld')||null,
     start_date:s,end_date:e,owner:dashVal('pj_owner')||null,budget:dashNum(dashVal('pj_budget')),memo:dashVal('pj_memo')||null,updated_at:new Date().toISOString()};
+  if(DASH.ubOK)row.updated_by=dashMe();
   var p=DASH.curPj,useTpl=!p&&document.getElementById('pj_tpl')&&document.getElementById('pj_tpl').checked;
   var q=p?sb.from('fac_projects').update(row).eq('id',p.id).select()
          :sb.from('fac_projects').insert(Object.assign(row,{created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null})).select();
@@ -4231,18 +4247,101 @@ function dashPjDel(){
   });
 }
 
+// ===== 공용 필터 창 (자산 목록 등) =====
+// vals: 값 목록(순서대로), cnt: 값별 건수, sel: 현재 선택(null=전체), sortDir: 1/-1/0
+function dashFltPop(btn,title,vals,cnt,sel,sortDir,onApply,onSort){
+  var H=inspH;sel=sel||vals.slice();
+  var el=dashPopOpen(btn,'<div class="pp-h">'+H(title)+' 필터</div>'
+    +'<div class="gf-sort"><button data-s="1"'+(sortDir===1?' class="on"':'')+'>↑ 오름차순</button><button data-s="-1"'+(sortDir===-1?' class="on"':'')+'>↓ 내림차순</button></div>'
+    +'<input type="text" class="gf-q" placeholder="값 검색">'
+    +'<label class="pp-ck gf-all"><input type="checkbox"'+(sel.length===vals.length?' checked':'')+'> <b>(전체 선택)</b></label>'
+    +'<div class="pp-list gf-list">'+(vals.length?vals.map(function(v){return '<label class="pp-ck" data-v="'+H(v)+'"><input type="checkbox" value="'+H(v)+'"'+(sel.indexOf(v)>=0?' checked':'')+'> <span>'+H(v)+'</span><em>'+(cnt[v]||0)+'</em></label>';}).join(''):'<div class="pp-none">값이 없습니다</div>')+'</div>'
+    +'<div class="pp-f"><button data-x="clear">이 열 필터 해제</button><button data-x="cancel">취소</button><button class="pri" data-x="ok">확인</button></div>',260);
+  var list=el.querySelector('.gf-list'),all=el.querySelector('.gf-all input'),q=el.querySelector('.gf-q');
+  var labels=function(){return [].slice.call(list.querySelectorAll('label'));};
+  var sync=function(){var v=labels().filter(function(l){return l.style.display!=='none';});all.checked=v.length>0&&v.every(function(l){return l.querySelector('input').checked;});};
+  all.addEventListener('change',function(){labels().forEach(function(l){if(l.style.display!=='none')l.querySelector('input').checked=all.checked;});});
+  list.addEventListener('change',sync);
+  q.addEventListener('input',function(){var s=q.value.trim().toLowerCase();labels().forEach(function(l){var hit=!s||l.dataset.v.toLowerCase().indexOf(s)>=0;l.style.display=hit?'':'none';if(s)l.querySelector('input').checked=hit;});sync();});
+  q.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing){e.preventDefault();el.querySelector('[data-x=ok]').click();}});
+  el.addEventListener('click',function(e){
+    var s2=e.target.closest('[data-s]');if(s2){var d=Number(s2.dataset.s);dashPopClose();onSort(sortDir===d?0:d);return;}
+    var x=e.target.dataset&&e.target.dataset.x;if(!x)return;
+    if(x==='cancel'){dashPopClose();return;}
+    if(x==='clear'){dashPopClose();onApply(null);return;}
+    var on=labels().filter(function(l){return l.style.display!=='none'&&l.querySelector('input').checked;}).map(function(l){return l.dataset.v;});
+    if(!on.length){q.focus();q.placeholder='하나 이상 선택하세요';return;}
+    dashPopClose();onApply(on.length===vals.length?null:on);
+  });
+  setTimeout(function(){q.focus();},0);
+}
+
+// ===== 구글챗 알림 설정 (SQL 17) =====
+function dashNtfOpen(){
+  openModal('<div class="mh">구글챗 알림 설정</div><div class="mb"><div class="hint" style="padding:10px">설정을 불러오는 중...</div></div>');
+  var md=document.getElementById('modal');if(md)md.style.maxWidth='620px';
+  sb.from('fac_notify_config').select('*').then(function(r){
+    if(r.error){document.querySelector('#modal .mb').innerHTML='<div class="dsh-warn">알림을 쓰려면 Supabase에서 <b>17-1 → 17-2 → 17-3</b> SQL을 차례로 실행해 주세요.<br><span class="m">'+inspH(r.error.message)+'</span></div>';return;}
+    var cfg={};(r.data||[]).forEach(function(x){cfg[x.key]=x.value;});
+    var H=inspH;
+    document.querySelector('#modal .mb').innerHTML=
+      '<div class="ntf-row"><label>구글챗 스페이스 웹훅 주소</label><input type="text" id="ntf_url" value="'+H(cfg.gchat_webhook||'')+'" placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=...">'
+      +'<div class="hint" style="font-size:11.5px;line-height:1.6;margin-top:4px">구글챗 스페이스 이름 옆 ▾ → <b>앱 및 통합</b> → <b>웹훅 관리</b> → 이름(예: 업무 리마인드) 입력 → 생성된 주소 복사. 주소는 Supabase에만 저장되고 화면에는 관리자에게만 보입니다.</div></div>'
+      +'<label class="ntf-ck"><input type="checkbox" id="ntf_memo"'+((cfg.notify_memo||'on')==='on'?' checked':'')+'> <b>진행·이슈 사항 저장 시 팀 알림</b> <span>세부 업무·프로젝트의 「진행 및 이슈 사항」을 고치면 바로 스페이스에 올림 (덧붙인 부분은 「추가」로 표시)</span></label>'
+      +'<label class="ntf-ck"><input type="checkbox" id="ntf_daily"'+((cfg.notify_daily||'on')==='on'?' checked':'')+'> <b>평일 아침 8:40 리마인드</b> <span>담당자별 지연·오늘/내일 마감·D-3 마감·오늘/내일 시작·방문 일정 + 미처리 현황(지연·담당 미지정·신규 접수·예정일 지난 접수·업체 미정·자산 미처리)</span></label>'
+      +'<div class="ntf-btns"><button class="flt" id="ntf_test">연결 테스트 보내기</button><button class="flt" id="ntf_pv">오늘 리마인드 미리보기</button><button class="flt" id="ntf_now">지금 리마인드 보내기</button></div>'
+      +'<pre id="ntf_out" class="ntf-out" style="display:none"></pre><div id="ntf_msg" class="hint" style="margin-top:6px"></div>';
+    var msg=function(t,err){var m=document.getElementById('ntf_msg');m.textContent=t;m.style.color=err?'var(--dng)':'var(--ok)';};
+    var save=function(){
+      var me=dashMe(),rows=[{key:'gchat_webhook',value:document.getElementById('ntf_url').value.trim()||null,updated_by:me,updated_at:new Date().toISOString()},
+        {key:'notify_memo',value:document.getElementById('ntf_memo').checked?'on':'off',updated_by:me,updated_at:new Date().toISOString()},
+        {key:'notify_daily',value:document.getElementById('ntf_daily').checked?'on':'off',updated_by:me,updated_at:new Date().toISOString()}];
+      return sb.from('fac_notify_config').upsert(rows,{onConflict:'key'});
+    };
+    document.getElementById('ntf_test').onclick=function(){
+      var u=document.getElementById('ntf_url').value.trim();if(!/^https:\/\/chat\.googleapis\.com\//.test(u)){msg('구글챗 웹훅 주소(https://chat.googleapis.com/...)를 넣어 주세요.',true);return;}
+      save().then(function(r){if(r.error){msg('저장 실패: '+r.error.message,true);return;}
+        sb.rpc('fac_gchat_test').then(function(x){if(x.error)msg('보내기 실패: '+x.error.message,true);else msg('테스트 메시지를 보냈습니다. 구글챗 스페이스를 확인하세요.');});});
+    };
+    document.getElementById('ntf_pv').onclick=function(){
+      sb.rpc('fac_task_reminder',{send:false}).then(function(x){if(x.error){msg('미리보기 실패: '+x.error.message,true);return;}
+        var o=document.getElementById('ntf_out');o.style.display='';o.textContent=x.data||'';msg('');});
+    };
+    document.getElementById('ntf_now').onclick=function(){
+      if(!confirm('오늘 리마인드를 지금 구글챗으로 보낼까요?'))return;
+      save().then(function(){return sb.rpc('fac_task_reminder',{send:true});}).then(function(x){if(x.error){msg('보내기 실패: '+x.error.message,true);return;}
+        var o=document.getElementById('ntf_out');o.style.display='';o.textContent=x.data||'';msg('보냈습니다.');});
+    };
+    var mf=document.createElement('div');mf.className='mf';
+    mf.innerHTML='<button class="mbtn no" onclick="closeModal()">닫기</button><button class="mbtn yes" id="ntf_save">설정 저장</button>';
+    document.getElementById('modal').appendChild(mf);
+    document.getElementById('ntf_save').onclick=function(){var b=this;b.disabled=true;save().then(function(r){b.disabled=false;if(r.error){msg('저장 실패: '+r.error.message,true);return;}msg('저장했습니다.');inspToast('알림 설정을 저장했습니다');});};
+  });
+}
+
 // ===== 프로젝트 자산 목록 (업무 대시보드 > 자산 목록) — SQL 16 fac_project_assets =====
 var DASH_AS_COLS=[
   {k:'campus',t:'캠퍼스',w:72,list:'campus'},{k:'location',t:'위치(층·호실)',w:110},{k:'category',t:'분류',w:100,list:'category'},
   {k:'item_name',t:'품명·모델',w:170},{k:'qty',t:'수량',w:56,num:1},{k:'ownership',t:'소유',w:66,list:'ownership'},
   {k:'cond',t:'상태',w:84,list:'cond'},{k:'action',t:'처리 방안',w:100,list:'action'},{k:'dest',t:'이관처·매각처',w:110},
   {k:'vendor',t:'처리 업체',w:100,list:'vendor'},{k:'done_date',t:'처리(예정)일',w:118,date:1},{k:'amount',t:'금액(원)',w:96,num:1,money:1},
-  {k:'asset_no',t:'자산번호',w:90},{k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170}];
+  {k:'asset_no',t:'자산번호',w:90},{k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170},
+  {k:'_by',t:'입력자',w:70,ro:1},{k:'_upd',t:'최종 수정',w:110,ro:1}];
 var DASH_AS_LIST={
   category:['책상','의자','칠판·화이트보드','PC','모니터','노트북','프린터·복합기','냉난방기','공기청정기','TV·전자칠판','사물함·수납장','소파·테이블','정수기','기타'],
   ownership:['자사','렌탈'],cond:['양호','사용감 있음','불량','고장'],
   action:['재사용 이관','매각','폐기','렌탈 반납','보관','미정'],status:['미처리','진행중','완료']};
-var DASH_AS={pid:'',q:'',campus:'',action:'',status:''};
+var DASH_AS={pid:'',q:'',flt:{},sort:null};
+function dashMe(){var u=CURRENT_USER||{};return String(u.name||'').replace('총무기획팀','').trim()||u.login_id||'';}
+function dashNameOf(login){var a=(ACCOUNTS_CACHE||[]).filter(function(x){return x.login_id===login;})[0];return a&&a.name?String(a.name).replace('총무기획팀','').trim():(login||'');}
+function dashAsCell(a,k){
+  if(k==='_by')return a.created_name||dashNameOf(a.created_by)||'';
+  if(k==='_upd')return a.updated_name?(a.updated_name+(a.updated_at?' '+dashMD(String(a.updated_at).slice(0,10)):'')):'';
+  var c=DASH_AS_COLS.filter(function(x){return x.k===k;})[0],v=a[k];if(v==null||v==='')return '';
+  if(c&&c.money)return Number(v).toLocaleString('ko-KR');if(c&&c.date)return dashMD(v);return String(v);
+}
+function dashAsKey(a,k){var c=DASH_AS_COLS.filter(function(x){return x.k===k;})[0];
+  if(c&&c.num)return a[k]==null?-Infinity:Number(a[k]);if(c&&c.date)return a[k]||'9999';if(k==='_upd')return a.updated_at||'';return dashAsCell(a,k);}
 function dashAsRows(pid){return (DASH.assets||[]).filter(function(a){return a.project_id===pid;}).sort(function(a,b){return (a.sort_no||0)-(b.sort_no||0);});}
 function dashAsOpts(k){
   var s={};(DASH_AS_LIST[k]||[]).forEach(function(v){s[v]=1;});
@@ -4256,12 +4355,12 @@ function dashAssetsHTML(){
   if(!DASH.projects.length)return '<div class="dsh-sec"><div class="hint" style="padding:22px">프로젝트가 없습니다. 「프로젝트 일정」에서 먼저 등록하세요.</div></div>';
   if(!DASH_AS.pid||!dashPjOf(DASH_AS.pid)){var act=DASH.projects.filter(function(p){return p.status!=='완료';});DASH_AS.pid=(act[0]||DASH.projects[0]).id;}
   var p=dashPjOf(DASH_AS.pid),all=dashAsRows(p.id),q=DASH_AS.q.toLowerCase();
+  var fk=Object.keys(DASH_AS.flt);
   var rows=all.filter(function(a){
-    if(DASH_AS.campus&&a.campus!==DASH_AS.campus)return false;
-    if(DASH_AS.action&&(a.action||'미정')!==DASH_AS.action)return false;
-    if(DASH_AS.status&&(a.status||'미처리')!==DASH_AS.status)return false;
-    if(q&&[a.campus,a.location,a.category,a.item_name,a.dest,a.vendor,a.asset_no,a.memo].join(' ').toLowerCase().indexOf(q)<0)return false;
+    if(!fk.every(function(k){return DASH_AS.flt[k].indexOf(dashAsCell(a,k)||DASH_BLANK)>=0;}))return false;
+    if(q&&[a.campus,a.location,a.category,a.item_name,a.dest,a.vendor,a.asset_no,a.memo,dashAsCell(a,'_by')].join(' ').toLowerCase().indexOf(q)<0)return false;
     return true;});
+  if(DASH_AS.sort){var sk=DASH_AS.sort.k,sd=DASH_AS.sort.dir;rows.sort(function(x,y){var p1=dashAsKey(x,sk),p2=dashAsKey(y,sk);if(typeof p1==='number'&&typeof p2==='number')return (p1-p2)*sd;return String(p1).localeCompare(String(p2),'ko',{numeric:true})*sd;});}
   // 요약
   var qty=function(l){return l.reduce(function(s,a){return s+(Number(a.qty)||0);},0);};
   var tq=qty(all),dq=qty(all.filter(function(a){return a.status==='완료';})),pct=tq?Math.round(dq*100/tq):0;
@@ -4273,20 +4372,21 @@ function dashAssetsHTML(){
   var head='<div class="dsh-bar">'
     +'<select id="as_pj" style="width:auto;margin:0;font-weight:700">'+DASH.projects.map(function(x){return '<option value="'+x.id+'"'+(x.id===p.id?' selected':'')+'>'+H(x.name)+'</option>';}).join('')+'</select>'
     +'<input type="text" id="as_q" placeholder="품명·위치·자산번호 검색" value="'+H(DASH_AS.q)+'" style="flex:1;min-width:150px;max-width:240px;margin:0">'
-    +sel('as_cp',DASH_AS.campus,dashAsOpts('campus').filter(function(c){return all.some(function(a){return a.campus===c;});}),'캠퍼스 전체')
-    +sel('as_ac',DASH_AS.action,DASH_AS_LIST.action,'처리 방안 전체')+sel('as_st',DASH_AS.status,DASH_AS_LIST.status,'처리 상태 전체')
+    +(fk.length||DASH_AS.sort?'<button class="flt on" data-a="as_fclear">'+(fk.length?'필터 '+fk.length:'')+(fk.length&&DASH_AS.sort?' · ':'')+(DASH_AS.sort?'정렬':'')+' 해제 ✕</button>':'')
     +'<button class="flt" data-a="as_paste">엑셀 붙여넣기</button><button class="flt" data-a="as_csv">CSV</button>'
     +'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="as_add">+ 행 추가</button></div>';
   var sum='<div class="as-sum">'
     +'<div><b>'+all.length+'</b>건 · 수량 <b>'+tq+'</b></div>'
     +'<div class="as-prog"><span>처리 완료 <b>'+pct+'%</b> ('+dq+'/'+tq+')</span><div class="pjs-bar sm"><i style="width:'+pct+'%"></i></div></div>'
-    +'<div class="as-acts">'+['재사용 이관','매각','폐기','렌탈 반납','보관','미정'].filter(function(k){return byAct[k];}).map(function(k){return '<span data-a="as_fa" data-v="'+k+'">'+k+' <b>'+byAct[k]+'</b></span>';}).join('')+'</div>'
+    +'<div class="as-acts">'+['재사용 이관','매각','폐기','렌탈 반납','보관','미정'].filter(function(k){return byAct[k];}).map(function(k){var on=DASH_AS.flt.action&&DASH_AS.flt.action.length===1&&DASH_AS.flt.action[0]===k;return '<span class="'+(on?'on':'')+'" data-a="as_fa" data-v="'+k+'">'+k+' <b>'+byAct[k]+'</b></span>';}).join('')+'</div>'
     +(sale||cost?'<div class="m">매각 '+dashWon(sale)+' · 처리비 '+dashWon(cost)+'</div>':'')
     +(rel.length?'<div class="m">관련 자산 업무 '+relDone+'/'+rel.length+' 완료</div>':'')+'</div>';
   var lists=Object.keys(DASH_AS_LIST).concat(['campus','vendor']).map(function(k){return '<datalist id="asl_'+k+'">'+dashAsOpts(k).map(function(o){return '<option value="'+H(o)+'">';}).join('')+'</datalist>';}).join('');
-  var th='<tr><th class="as-no">No</th>'+DASH_AS_COLS.map(function(c){return '<th style="min-width:'+c.w+'px;width:'+c.w+'px">'+c.t+'</th>';}).join('')+'<th class="as-del"></th></tr>';
+  var th='<tr><th class="as-no">No</th>'+DASH_AS_COLS.map(function(c){var on=DASH_AS.flt[c.k],so=DASH_AS.sort&&DASH_AS.sort.k===c.k;
+      return '<th style="min-width:'+c.w+'px;width:'+c.w+'px">'+c.t+'<button class="gt-fb'+(on?' on':'')+(so?' srt':'')+'" data-a="as_flt" data-v="'+c.k+'" title="필터·정렬">'+(on?'⏷':(so?(DASH_AS.sort.dir>0?'↑':'↓'):'▾'))+'</button></th>';}).join('')+'<th class="as-del"></th></tr>';
   var body=rows.map(function(a,i){
     return '<tr data-id="'+a.id+'"'+(a.status==='완료'?' class="as-done"':'')+'><td class="as-no">'+(i+1)+'</td>'+DASH_AS_COLS.map(function(c){
+      if(c.ro)return '<td class="as-ro" title="'+H(dashAsCell(a,c.k))+'">'+H(dashAsCell(a,c.k))+'</td>';
       var v=a[c.k],val=v==null?'':(c.money?Number(v).toLocaleString('ko-KR'):String(v));
       return '<td><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="asl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.k==='action'?' data-act="'+H(v||'미정')+'"':'')+'></td>';}).join('')
       +'<td class="as-del"><button data-a="as_del" data-v="'+a.id+'" title="행 삭제">×</button></td></tr>';
@@ -4302,9 +4402,12 @@ function dashAsSave(id,f,raw){
   if(f==='qty'&&v==null)v=0;
   if(JSON.stringify(a[f]==null?null:a[f])===JSON.stringify(v))return;
   var old=a[f];a[f]=v;
-  var patch={updated_at:new Date().toISOString()};patch[f]=v;
-  sb.from('fac_project_assets').update(patch).eq('id',id).then(function(r){
+  var patch={updated_at:new Date().toISOString()};patch[f]=v;if(DASH.asNmOK!==false)patch.updated_name=dashMe();
+  var go=function(){return sb.from('fac_project_assets').update(patch).eq('id',id);};
+  go().then(function(r){
+    if(r.error&&/updated_name/.test(r.error.message)){DASH.asNmOK=false;delete patch.updated_name;return go();}return r;}).then(function(r){
     if(r.error){a[f]=old;inspToast('저장 실패: '+r.error.message,true);dashRender();return;}
+    if(patch.updated_name){a.updated_name=patch.updated_name;a.updated_at=patch.updated_at;var tr=dashRoot().querySelector('tr[data-id="'+id+'"] td.as-ro:last-of-type');var c2=dashRoot().querySelectorAll('tr[data-id="'+id+'"] td.as-ro');if(c2.length)c2[c2.length-1].textContent=dashAsCell(a,'_upd');}
     if(f==='status'||f==='action'||f==='qty'||f==='amount')dashAsRefreshSum();
   });
 }
@@ -4314,13 +4417,31 @@ function dashAsRefreshSum(){var root=dashRoot(),sc=root.querySelector('.as-wrap'
   if(af&&af[0]){var el=dashRoot().querySelector('tr[data-id="'+af[0]+'"] input[data-f="'+af[1]+'"]');if(el)el.focus();}}
 function dashAsAdd(){
   var pid=DASH_AS.pid,list=dashAsRows(pid),last=list[list.length-1]||{};
-  var row={project_id:pid,campus:DASH_AS.campus||last.campus||(dashNames((dashPjOf(pid)||{}).campus)[0]||null),location:last.location||null,qty:1,ownership:'자사',action:'미정',status:'미처리',
+  var fc=DASH_AS.flt.campus&&DASH_AS.flt.campus.length===1?DASH_AS.flt.campus[0]:'';
+  var row={project_id:pid,campus:fc||last.campus||(dashNames((dashPjOf(pid)||{}).campus)[0]||null),location:last.location||null,qty:1,ownership:'자사',action:'미정',status:'미처리',
     sort_no:(last.sort_no||0)+10,created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null};
-  sb.from('fac_project_assets').insert(row).select().then(function(r){
+  if(DASH.asNmOK!==false)row.created_name=dashMe();
+  dashAsInsert([row]).then(function(r){
     if(r.error){inspToast('행 추가 실패: '+r.error.message,true);return;}
-    DASH.assets.push(r.data[0]);DASH_AS.q='';DASH_AS.action='';DASH_AS.status='';dashRender();
+    DASH.assets.push(r.data[0]);DASH_AS.q='';DASH_AS.flt={};DASH_AS.sort=null;dashRender();
     var el=dashRoot().querySelector('tr[data-id="'+r.data[0].id+'"] input[data-f="item_name"]');if(el){el.focus();el.scrollIntoView({block:'nearest'});}
   });
+}
+// 입력자 칸이 아직 없으면(SQL 17 전) 빼고 다시 저장
+function dashAsInsert(rows){
+  var go=function(){return sb.from('fac_project_assets').insert(rows).select();};
+  return go().then(function(r){if(r.error&&/created_name/.test(r.error.message)){DASH.asNmOK=false;rows.forEach(function(x){delete x.created_name;});return go();}return r;});
+}
+function dashAsFlt(btn,k){
+  var c=DASH_AS_COLS.filter(function(x){return x.k===k;})[0];if(!c)return;
+  var all=dashAsRows(DASH_AS.pid),other={};Object.keys(DASH_AS.flt).forEach(function(x){if(x!==k)other[x]=DASH_AS.flt[x];});
+  var cnt={},ord=[];all.forEach(function(a){
+    if(!Object.keys(other).every(function(x){return other[x].indexOf(dashAsCell(a,x)||DASH_BLANK)>=0;}))return;
+    var v=dashAsCell(a,k)||DASH_BLANK;if(!(v in cnt)){cnt[v]=0;ord.push([v,dashAsKey(a,k)]);}cnt[v]++;});
+  ord.sort(function(x,y){if(x[0]===DASH_BLANK)return 1;if(y[0]===DASH_BLANK)return -1;if(typeof x[1]==='number'&&typeof y[1]==='number')return x[1]-y[1];return String(x[1]).localeCompare(String(y[1]),'ko',{numeric:true});});
+  dashFltPop(btn,c.t,ord.map(function(o){return o[0];}),cnt,DASH_AS.flt[k],DASH_AS.sort&&DASH_AS.sort.k===k?DASH_AS.sort.dir:0,
+    function(sel){if(sel)DASH_AS.flt[k]=sel;else delete DASH_AS.flt[k];dashRender();},
+    function(d){DASH_AS.sort=d?{k:k,dir:d}:null;dashRender();});
 }
 function dashAsDel(id){
   var a=null;(DASH.assets||[]).forEach(function(x){if(x.id===id)a=x;});if(!a)return;
@@ -4348,9 +4469,9 @@ function dashAsPaste(){
         if(c.num)v=dashNum(v);else if(c.date){var m=v.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/)||v.match(/^(\d{1,2})[.\-\/](\d{1,2})$/);
           v=m?(m.length===4?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):'2026-'+('0'+m[1]).slice(-2)+'-'+('0'+m[2]).slice(-2)):null;}
         if(v!=null&&v!=='')r[c.k]=v;});
-      if(r.qty==null)r.qty=1;if(!r.action)r.action='미정';if(!r.status)r.status='미처리';return r;});
+      if(r.qty==null)r.qty=1;if(!r.action)r.action='미정';if(!r.status)r.status='미처리';if(DASH.asNmOK!==false)r.created_name=dashMe();return r;});
     this.disabled=true;
-    sb.from('fac_project_assets').insert(rows).select().then(function(r){
+    dashAsInsert(rows).then(function(r){
       if(r.error){pv.textContent='넣기 실패: '+r.error.message;document.getElementById('as_pgo').disabled=false;return;}
       DASH.assets=DASH.assets.concat(r.data||[]);closeModal();dashRender();inspToast(rows.length+'행을 넣었습니다');});
   };
@@ -4368,7 +4489,9 @@ function dashAsClick(a,v){
   if(a==='as_del'){dashAsDel(v);return true;}
   if(a==='as_paste'){dashAsPaste();return true;}
   if(a==='as_csv'){dashAsCSV();return true;}
-  if(a==='as_fa'){DASH_AS.action=DASH_AS.action===v?'':v;dashRender();return true;}
+  if(a==='as_fa'){var cur=DASH_AS.flt.action;if(cur&&cur.length===1&&cur[0]===v)delete DASH_AS.flt.action;else DASH_AS.flt.action=[v];dashRender();return true;}
+  if(a==='as_flt'){dashAsFlt(document.querySelector('[data-a=as_flt][data-v="'+v+'"]'),v);return true;}
+  if(a==='as_fclear'){DASH_AS.flt={};DASH_AS.sort=null;dashRender();return true;}
   if(a==='as_open'){DASH_AS.pid=v;DASH.view='assets';dashRender();window.scrollTo({top:0});return true;}
   return false;
 }
@@ -4376,10 +4499,7 @@ function dashAsInput(e){
   var t=e.target;
   if(t.id==='as_q'){if(e.type!=='input')return;DASH_AS.q=t.value.trim();clearTimeout(DASH._aq);DASH._aq=setTimeout(function(){dashRender();var q=document.getElementById('as_q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},250);return true;}
   if(e.type!=='change')return !!(t.closest&&t.closest('.as-tbl'));
-  if(t.id==='as_pj'){DASH_AS.pid=t.value;DASH_AS.campus='';dashRender();return true;}
-  if(t.id==='as_cp'){DASH_AS.campus=t.value;dashRender();return true;}
-  if(t.id==='as_ac'){DASH_AS.action=t.value;dashRender();return true;}
-  if(t.id==='as_st'){DASH_AS.status=t.value;dashRender();return true;}
+  if(t.id==='as_pj'){DASH_AS.pid=t.value;DASH_AS.flt={};DASH_AS.sort=null;dashRender();return true;}
   var tr=t.closest&&t.closest('.as-tbl tr[data-id]');
   if(tr&&t.dataset.f){if(t.dataset.f==='amount'){var n=dashNum(t.value);t.value=n==null?'':n.toLocaleString('ko-KR');}
     if(t.dataset.f==='action')t.dataset.act=t.value||'미정';
