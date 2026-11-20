@@ -4444,23 +4444,40 @@ function dashAsAdd(){
   });
 }
 // ---------- 자산관리시스템 조회 (SQL 18: fac_asset_lookup) ----------
-function dashAsDate(v){v=String(v||'').trim();var m=v.match(/(\d{4})\D{0,2}(\d{1,2})\D{0,2}(\d{1,2})/);return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):null;}
+// 자산관리시스템 날짜는 저장 형식이 섞여 있음(2022-04-01 · 4/1/22 · 4/1/2022 · 2022.4.1 · 20220401 · 엑셀 일련번호 44652 · 2022년 4월 1일)
+// → 자산관리시스템 fmtDate와 같은 규칙으로 YYYY-MM-DD 변환
+function dashAsDate(v){
+  if(v==null)return null;var s=String(v).trim();if(!s)return null;
+  var p2=function(n){return ('0'+n).slice(-2);},ok=function(y,m,d){y=Number(y);m=Number(m);d=Number(d);return (m>=1&&m<=12&&d>=1&&d<=31&&y>1900&&y<2200)?y+'-'+p2(m)+'-'+p2(d):null;};
+  var yy=function(y){y=String(y);return y.length===2?((Number(y)>=50?'19':'20')+y):y;};
+  var m;
+  if((m=s.match(/^(\d{4})[-./ ]\s*(\d{1,2})[-./ ]\s*(\d{1,2})/)))return ok(m[1],m[2],m[3]);           // 2022-04-01, 2022.4.1, 2022/4/1
+  if((m=s.match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/)))return ok(m[1],m[2],m[3]);                  // 2022년 4월 1일
+  if((m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)))return ok(yy(m[3]),m[1],m[2]);                    // 4/1/22, 4/1/2022 (엑셀 자동 변환: 월/일/연)
+  if((m=s.match(/^(\d{2})[-.](\d{1,2})[-.](\d{1,2})$/)))return ok(yy(m[1]),m[2],m[3]);                    // 22-04-01, 22.04.01
+  if((m=s.match(/^(\d{4})(\d{2})(\d{2})$/)))return ok(m[1],m[2],m[3]);                                    // 20220401
+  if(/^\d{5}(\.\d+)?$/.test(s)){var n=Math.floor(Number(s));if(n>20000&&n<80000){var d=new Date(Date.UTC(1899,11,30)+n*864e5);return ok(d.getUTCFullYear(),d.getUTCMonth()+1,d.getUTCDate());}} // 엑셀 일련번호
+  var t=Date.parse(s);if(!isNaN(t)){var d2=new Date(t);return ok(d2.getFullYear(),d2.getMonth()+1,d2.getDate());}
+  return null;
+}
 function dashAsLookup(id,code,quiet){
   var a=null;(DASH.assets||[]).forEach(function(x){if(x.id===id)a=x;});if(!a)return Promise.resolve(0);
   return sb.rpc('fac_asset_lookup',{code:code}).then(function(r){
-    if(r.error){if(!quiet)inspToast(/fac_asset_lookup/.test(r.error.message)?'자산코드 조회는 SQL 18 실행 후 사용할 수 있습니다':'조회 실패: '+r.error.message,true);return 0;}
-    var j=r.data;if(!j){if(!quiet)inspToast('자산관리시스템에 없는 자산코드입니다: '+code,true);return 0;}
-    var p={};
-    if(j.start)p.contract_start=dashAsDate(j.start);if(j.end)p.contract_end=dashAsDate(j.end);
+    if(r.error){var em=/fac_asset_lookup/.test(r.error.message)?'자산코드 조회는 SQL 18 ② 실행 후 사용할 수 있습니다':'조회 실패: '+r.error.message;if(!quiet)inspToast(em,true);return 'err:'+em;}
+    var j=r.data;if(!j){if(!quiet)inspToast('자산관리시스템에 없는 자산코드입니다: '+code,true);return 'none';}
+    var p={},bad=[];
+    if(j.start){var ds=dashAsDate(j.start);if(ds)p.contract_start=ds;else bad.push('시작 '+j.start);}
+    if(j.end){var de=dashAsDate(j.end);if(de)p.contract_end=de;else bad.push('종료 '+j.end);}
+    if(bad.length)inspToast('계약일 형식을 읽지 못했습니다 ('+code+': '+bad.join(', ')+')',true);
     if(j.vendor)p.contract_vendor=j.vendor;
     if(!a.item_name&&(j.model||j.name||j.item))p.item_name=j.model||j.name||j.item;
     if(!a.category&&(j.category||j.item))p.category=j.category||j.item;
     p.ownership=j.src==='렌탈자산'?'렌탈':'자사';
     Object.keys(p).forEach(function(k){if(p[k]===a[k])delete p[k];});
-    if(!Object.keys(p).length){if(!quiet)inspToast('자산관리시스템 정보와 같습니다');return 0;}
+    if(!Object.keys(p).length){if(!quiet)inspToast('자산관리시스템 정보와 같습니다');return 'same';}
     p.updated_at=new Date().toISOString();if(DASH.asNmOK!==false)p.updated_name=dashMe();
     return sb.from('fac_project_assets').update(p).eq('id',id).then(function(u){
-      if(u.error){if(!quiet)inspToast('반영 실패: '+u.error.message+(/contract_/.test(u.error.message)?' (SQL 18 실행 필요)':''),true);return 0;}
+      if(u.error){var em2='반영 실패: '+u.error.message+(/contract_/.test(u.error.message)?' (SQL 18 ① 실행 필요)':'');if(!quiet)inspToast(em2,true);return 'err:'+em2;}
       Object.assign(a,p);dashAsRefreshSum();
       if(!quiet)inspToast(j.src+' 연동: '+[j.vendor,j.model,(p.contract_start||a.contract_start||'')+(a.contract_end?' ~ '+a.contract_end:'')].filter(Boolean).join(' · '));
       return 1;
@@ -4472,9 +4489,14 @@ function dashAsLookupAll(list){
   list=(list||dashAsRows(DASH_AS.pid)).filter(function(a){return a.asset_no;});
   if(!list.length){inspToast('자산코드가 입력된 행이 없습니다',true);return;}
   inspToast(list.length+'건 조회 중...');
-  var ok=0,i=0;
-  var next=function(){if(i>=list.length){inspToast('자산관리시스템 연동 '+ok+'/'+list.length+'건 반영');return;}
-    var a=list[i++];dashAsLookup(a.id,a.asset_no,true).then(function(n){ok+=n||0;next();});};
+  var ok=0,same=0,none=[],err='',i=0;
+  var next=function(){
+    if(i>=list.length){
+      var msg='자산관리시스템 연동: 반영 '+ok+'건'+(same?' · 변경 없음 '+same+'건':'')+(none.length?' · 없는 코드 '+none.length+'건('+none.slice(0,3).join(', ')+(none.length>3?' 외':'')+')':'');
+      if(err){inspToast(err,true);setTimeout(function(){inspToast(msg,!ok);},3600);}else inspToast(msg,!ok&&!same);return;}
+    var a=list[i++];dashAsLookup(a.id,a.asset_no,true).then(function(n){
+      if(n===1)ok++;else if(n==='same')same++;else if(n==='none')none.push(a.asset_no);else if(typeof n==='string'&&n.indexOf('err:')===0){err=n.slice(4);i=list.length;}
+      next();});};
   next();
 }
 // 입력자 칸이 아직 없으면(SQL 17 전) 빼고 다시 저장
