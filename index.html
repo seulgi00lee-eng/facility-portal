@@ -189,16 +189,19 @@
   .dsh-t{font-size:13px;font-weight:600;margin-top:4px;color:var(--ink)}
   .dsh-meta{color:var(--mute);font-size:11.5px;margin-top:3px;line-height:1.55}
   .dsh-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-right:4px;white-space:nowrap}
-  .dsh-late{display:inline-block;font-size:10.5px;font-weight:700;color:var(--dng);background:var(--dngbg);padding:1px 6px;border-radius:4px;margin-right:4px}
+  .dsh-late{display:inline-block;font-size:10.5px;font-weight:700;color:#b3261e;background:#fff;border:1px solid #e8c4c0;padding:1px 6px;border-radius:4px;margin-right:4px}
   .dsh-sw{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
   .dsh-swrow{display:grid;grid-template-columns:118px minmax(0,1fr);border-bottom:1px solid var(--line2)}
   .dsh-swrow:last-child{border-bottom:0}
-  .dsh-swh{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 10px;font-size:13.5px}
+  .dsh-swh{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 12px;font-size:13px;background:#fafafa;border-right:1px solid var(--line2);color:var(--ink)}
+  .dsh-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .dsh-tag-n{color:#6e6e73;background:#fff;border:1px solid #d2d2d7;font-weight:600}
   .dsh-swh .dsh-late{align-self:flex-start}
   .dsh-lanen{color:var(--mute);font-size:12px}
   .dsh-swb{position:relative;min-width:0}
   .dsh-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 10px;scroll-behavior:smooth;scrollbar-width:thin}
-  .dsh-sc2{flex:0 0 212px;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:#fff;cursor:pointer;font-size:12px;line-height:1.45;min-width:0}
+  .dsh-sc2.late{border-color:#e8c4c0}
+  .dsh-sc2{flex:0 0 212px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;cursor:pointer;font-size:12px;line-height:1.45;min-width:0}
   .dsh-sc2:hover{box-shadow:var(--shadow-h)}
   .dsh-sc2 .r1{display:flex;align-items:center;gap:2px;min-width:0}
   .dsh-sc2 .no{font-size:10.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2731,8 +2734,8 @@ function bindAdmin(){
 // 접수 건의 단계를 바꾸면 progress_log에 기록 + 접수자 알림(notifyApplicant, 단계 바뀔 때마다)
 // ===================================================================
 var DASH_COLS=['신규 접수','방문 예정','견적','진행 예정','진행중','완료','보류'];
-var DASH_COLOR={'신규 접수':['#6e6e73','#f2f2f4'],'방문 예정':['#0071e3','#eef1f8'],'견적':['#7a3fc9','#f3edfc'],
-  '진행 예정':['#b06f00','#fff6e6'],'진행중':['#c25e00','#fff1e5'],'완료':['#248a3d','#eaf7ee'],'보류':['#86868b','#f2f2f4']};
+var DASH_COLOR={'신규 접수':['#8e8e93','#f4f4f5'],'방문 예정':['#2c6db3','#f0f4f9'],'견적':['#9a7425','#f8f4ea'],
+  '진행 예정':['#56657a','#f1f3f6'],'진행중':['#b35a1f','#f9f1eb'],'완료':['#3b7a4f','#eff5f1'],'보류':['#a1a1a6','#f4f4f5']};
 // 접수 세부 단계 → 대시보드 단계 (업체 배정·현장 점검은 재정비 전 기록)
 var DASH_FIX_MAP={'접수 확인':'신규 접수','방문 예정':'방문 예정','업체 배정':'방문 예정','현장 점검':'방문 예정','견적·승인':'견적',
   '조치 예정':'진행 예정','조치 중':'진행중','조치 완료':'완료','보류':'보류'};
@@ -2868,8 +2871,7 @@ function dashCount(all){
   if(c){var n=all.filter(function(it){return dashLate(it)||it.col==='신규 접수';}).length;c.textContent=n?('('+n+')'):'';}
 }
 function dashTag(it){
-  var c=it.src==='task'?['#1d1d1f','#f2f2f4']:it.type==='fix'?['#0071e3','#eef1f8']:['#248a3d','#eaf7ee'];
-  return '<span class="dsh-tag" style="color:'+c[0]+';background:'+c[1]+'">'+inspH(it.tt)+'</span>';
+  return '<span class="dsh-tag dsh-tag-n">'+inspH(it.tt)+'</span>';
 }
 function dashColBadge(col,sub){var c=DASH_COLOR[col]||DASH_COLOR['신규 접수'];
   return '<span class="dsh-tag" style="color:'+c[0]+';background:'+c[1]+'">'+inspH(col)+(sub&&sub!==col?' · '+inspH(sub):'')+'</span>';}
@@ -2936,11 +2938,11 @@ function dashBoardHTML(list){
     cs.sort(function(a,b){return (dashDate(a)||'9999').localeCompare(dashDate(b)||'9999');});
     var c=DASH_COLOR[col],late=cs.filter(dashLate).length;
     return '<div class="dsh-swrow">'
-      +'<div class="dsh-swh" style="border-left:4px solid '+c[0]+';background:'+c[1]+'"><b style="color:'+c[0]+'">'+col+'</b><span class="dsh-lanen">'+cs.length+'건</span>'+(late?'<span class="dsh-late">지연 '+late+'</span>':'')+'</div>'
+      +'<div class="dsh-swh"><b><i class="dsh-dot" style="background:'+c[0]+'"></i>'+col+'</b><span class="dsh-lanen">'+cs.length+'건</span>'+(late?'<span class="dsh-late">지연 '+late+'</span>':'')+'</div>'
       +'<div class="dsh-swb"><button class="dsh-swarr l" data-a="swl" tabindex="-1">‹</button><div class="dsh-strip">'
       +(cs.length?cs.map(function(it){
         var cols=dashColsOf(it),ix=cols.indexOf(col),pv=ix>0?cols[ix-1]:'',nx=(ix>=0&&ix<cols.length-2)?cols[ix+1]:'';
-        return '<div class="dsh-sc2" data-a="open" data-k="'+it.k+'" style="border-left:3px solid '+c[0]+'">'
+        return '<div class="dsh-sc2'+(dashLate(it)?' late':'')+'" data-a="open" data-k="'+it.k+'">'
           +'<div class="r1">'+dashTag(it)+(dashLate(it)?'<span class="dsh-late">지연</span>':'')+'<span class="no">'+H(it.no)+'</span>'
             +'<span class="mv">'+(pv?'<button data-a="mv" data-k="'+it.k+'" data-v="'+pv+'" title="'+pv+'(으)로">↑</button>':'')+(nx?'<button data-a="mv" data-k="'+it.k+'" data-v="'+nx+'" title="'+nx+'(으)로">↓</button>':'')+'</span></div>'
           +'<div class="r2" title="'+H(dashWhere(it))+'">'+H(dashWhere(it)||'-')+'</div>'
