@@ -507,6 +507,13 @@
   .insp-g{display:inline-block;font-size:10.5px;font-weight:700;border-radius:4px;padding:0 5px;line-height:16px}
   .insp-g.gA{background:var(--dngbg);color:var(--dng)}.insp-g.gB{background:var(--warnbg);color:var(--warn)}.insp-g.gC{background:var(--bg);color:var(--mute)}
   .insp-cat{font-size:11px;color:var(--mute);font-weight:500;border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .insp-self{margin-top:10px;padding:9px 11px;border:1px dashed var(--line);border-radius:8px;font-size:12.5px}
+  .insp-self.on{border-style:solid;border-color:var(--okln);background:var(--okbg)}
+  .insp-self-h{font-weight:600;font-size:12px;margin-bottom:6px}
+  .insp-self-c{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+  .insp-self-c:first-of-type{border-top:0}
+  .insp-self-d{font-size:12px;margin:2px 0;color:var(--ink2);overflow-wrap:anywhere}
+  .insp-self .flt{margin-top:4px}
   .insp-tag{display:inline-block;font-size:10.5px;font-weight:600;border-radius:4px;padding:1px 6px}
   .insp-tag.dng{background:var(--dngbg);color:var(--dng)}.insp-tag.warn{background:var(--warnbg);color:var(--warn)}.insp-tag.ok{background:var(--okbg);color:var(--ok)}
   .insp-btns{display:flex;gap:6px;margin-top:8px}
@@ -5412,7 +5419,8 @@ function inspLoadIssues(){
     rows=rows.filter(function(x){return !x.hidden;});
     rows.forEach(function(x){x._insp=byId[x.inspection_id]||{};x._item=INSP.itemById[x.item_id]||{};});
     inspSortIssues(rows);
-    INSP.issues=rows;inspRenderIssues();
+    INSP.issues=rows;INSP.selfOpen={};
+    return inspSelfLoad(rows).then(function(){inspRenderIssues();});
   }).catch(function(e){if(root)root.innerHTML='<div class="insp-empty">불러오기 실패: '+inspH(e&&e.message||e)+'</div>';});
 }
 function inspSortIssues(rows){
@@ -5434,11 +5442,11 @@ function inspIssueStatsHTML(rows){
 function inspRenderIssues(){
   var root=inspRoot();if(!root)return;inspLeaveRun();
   var rows=INSP.issues||[];
-  var open=rows.filter(function(x){return !x.request_no;}).length;
+  var open=rows.filter(function(x){return !x.request_no;}).length,spend=rows.filter(function(x){return !x.self_match;}).length,smat=rows.filter(function(x){return x.self_match==='match';}).length;
   root.innerHTML='<div class="insp-head"><button class="flt" data-act="home">← 회차 현황</button>'
-    +'<div style="flex:1"><div class="title" style="font-size:15px">미흡·불량 모아보기</div><div class="rid">'+inspH(INSP.round)+' · 전체 '+rows.length+'건 · 미전환 '+open+'건</div></div></div>'
+    +'<div style="flex:1"><div class="title" style="font-size:15px">미흡·불량 모아보기</div><div class="rid">'+inspH(INSP.round)+' · 전체 '+rows.length+'건 · 미전환 '+open+'건 · 자진 접수 일치 '+smat+'건 · 매칭 미판정 '+spend+'건</div></div></div>'
     +'<div id="insp_istat">'+inspIssueStatsHTML(rows)+'</div>'
-    +'<div style="display:flex;gap:6px;margin-bottom:10px"><button class="flt" data-act="pricebook">단가표 관리</button></div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><button class="flt" data-act="pricebook">단가표 관리</button><button class="flt" data-act="selfsum">자진 접수 가점 현황</button><button class="flt" data-act="selfbulk">후보 없는 항목 일괄 \'접수 없음\'</button></div>'
     +'<div class="hint" style="margin-bottom:12px;line-height:1.6">우선순위는 <b>위험등급 × 결과</b>로 자동 산정되며, 현장 판단에 따라 항목마다 바꿀 수 있습니다. [유지보수 접수로 전환]을 누르면 <b>접수 처리</b> 목록에 정기점검 출처로 등록되어 기존 진행 이력·완료 처리 흐름으로 관리됩니다. (현장 알림은 발송하지 않음)</div>'
     +(rows.length?rows.map(function(x,i){
       var it=x._item,ins=x._insp,pid='iss_'+i;
@@ -5457,6 +5465,7 @@ function inspRenderIssues(){
         +'<div id="'+pid+'" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>'
         +'<div style="margin-top:9px">'+(x.request_no?'<span class="insp-tag ok">유지보수 접수 '+inspH(x.request_no)+'</span>'
           :'<button class="flt on" data-act="toreq" data-v="'+x.id+'">유지보수 접수로 전환</button>')+'</div>'
+        +inspSelfHTML(x)
         +'</div></div>';
     }).join(''):'<div class="insp-empty">이 회차에 미흡·불량 항목이 없습니다.</div>');
 }
@@ -5546,6 +5555,144 @@ function inspToRequest(resId){
       x.request_id=rec.id;x.request_no=rec.record_no||'접수됨';inspRenderIssues();inspToast('유지보수 접수 '+(rec.record_no||'')+' 등록');
     });
   });
+}
+
+// ---------- 자진 접수 매칭 (경연대회 3-5) — SQL 19 ----------
+// 점검 발견 항목 ↔ 캠퍼스가 점검일 이전 90일 안에 접수한 유지보수 건을 수동 매칭
+var INSP_SELF_DAYS=90;
+var INSP_REQ_KW=[
+  ['전등 및 조명',/조명|전등|형광|LED|등기구|램프/],
+  ['프로젝트빔',/빔|프로젝터|스크린|전자칠판/],
+  ['냉난방기',/냉난방|에어컨|냉방|난방|히터|온풍|리모컨|실외기/],
+  ['CCTV',/CCTV|cctv|카메라|녹화/],
+  ['소방 및 전기',/소방|소화|화재|비상|유도등|피난|감지기|전기|콘센트|멀티탭|누전|배선|차단기|분전/]
+];
+function inspReqTypeOf(it,x){
+  var t=[it.title,it.category,it.zone,x&&x.note].join(' ');
+  for(var i=0;i<INSP_REQ_KW.length;i++)if(INSP_REQ_KW[i][1].test(t))return INSP_REQ_KW[i][0];
+  return '이외 유지보수';
+}
+function inspDayMs(d){return Date.parse(String(d||'').slice(0,10)+'T00:00:00+09:00');}
+function inspSelfLoad(rows){
+  INSP.reqs=[];INSP.reqErr=null;
+  var dates=rows.map(function(x){return inspDayMs(x._insp.inspected_at||x._insp.created_at);}).filter(function(n){return !isNaN(n);});
+  if(!dates.length)return Promise.resolve();
+  var from=new Date(Math.min.apply(null,dates)-INSP_SELF_DAYS*864e5).toISOString();
+  return inspFetchAll(function(){return sb.from('fac_requests').select('id,record_no,campus,building,floors,reqtype,detail,location,created_at,applicant,status').eq('type','fix').gte('created_at',from).order('created_at',{ascending:false});})
+    .then(function(d){INSP.reqs=(d||[]).filter(function(r){return !/\(정기점검\)/.test(r.applicant||'');});})
+    .catch(function(e){INSP.reqErr=(e&&e.message)||String(e);});
+}
+// 후보: 같은 지역 + 점검일 이전 90일. 점수 = 건물·층·문제유형·위치 키워드 일치
+function inspSelfCands(x){
+  var ins=x._insp||{},it=x._item||{},L=INSP.locByKey[ins.campus_code]||{};
+  var end=inspDayMs(ins.inspected_at||ins.created_at),start=end-INSP_SELF_DAYS*864e5;   // 점검 당일 이후 접수는 제외
+  var region=String(ins.region||L.region||'').trim(),rt=inspReqTypeOf(it,x);
+  var words=[x.space_name&&inspSpaceLabel(x.space_name),x.space_zone||it.zone].concat(String(it.title||'').split(/[\s·,()\/]+/)).filter(function(w){return w&&w.length>=2&&w!=='공통';});
+  return (INSP.reqs||[]).filter(function(r){
+    var t=Date.parse(r.created_at);if(isNaN(t)||t<start||t>=end)return false;
+    return !region||String(r.campus||'').trim()===region;
+  }).map(function(r){
+    var s=0,why=[];
+    if(L.building&&!L.legacy&&r.building&&String(r.building).trim()===L.building){s+=3;why.push('건물');}
+    if(L.floor&&!L.legacy&&(r.floors||[]).some(function(f){return String(f).trim()===L.floor;})){s+=2;why.push('층');}
+    if(r.reqtype&&r.reqtype===rt){s+=3;why.push('유형');}
+    var txt=(r.detail||'')+' '+(r.location||'');
+    if(words.some(function(w){return txt.indexOf(w)>=0;})){s+=2;why.push('내용');}
+    return {r:r,s:s,why:why};
+  }).sort(function(a,b){return b.s-a.s||String(b.r.created_at).localeCompare(String(a.r.created_at));});
+}
+function inspSelfUsed(reqId,exceptId){return (INSP.issues||[]).filter(function(y){return y.self_req_id===reqId&&y.id!==exceptId;}).length;}
+function inspSelfHTML(x){
+  if(INSP.reqErr)return '<div class="insp-self"><span class="hint">유지보수 접수 내역을 불러오지 못했습니다: '+inspH(INSP.reqErr)+'</span></div>';
+  var head='<div class="insp-self-h">자진 접수 매칭 <span class="hint">점검일 이전 '+INSP_SELF_DAYS+'일 · 같은 캠퍼스 유지보수 접수</span></div>';
+  if(x.self_match==='match'){
+    var r=(INSP.reqs||[]).filter(function(q){return q.id===x.self_req_id;})[0];
+    return '<div class="insp-self on">'+head+'<span class="insp-tag ok">자진 접수 일치 · '+inspH(x.self_req_no||'')+'</span>'
+      +(r?' <span class="hint">'+inspH((r.created_at||'').slice(0,10))+' 접수 · '+inspH((r.reqtype||'')+' '+String(r.detail||'').slice(0,30))+'</span>':'')
+      +' <button class="flt" data-act="selfclr" data-v="'+x.id+'">해제</button></div>';
+  }
+  if(x.self_match==='none')return '<div class="insp-self">'+head+'<span class="insp-tag warn">자진 접수 없음</span> <button class="flt" data-act="selfclr" data-v="'+x.id+'">되돌리기</button></div>';
+  var c=inspSelfCands(x),open=INSP.selfOpen&&INSP.selfOpen[x.id],show=open?c:c.slice(0,3);
+  return '<div class="insp-self">'+head
+    +(c.length?show.map(function(o){var r=o.r,u=inspSelfUsed(r.id,x.id);
+      return '<div class="insp-self-c"><div style="flex:1;min-width:0"><b>'+inspH(r.record_no||'번호없음')+'</b> <span class="hint">'+inspH((r.created_at||'').slice(5,10).replace('-','.'))+' · '+inspH([r.building,(r.floors||[]).join(',')].filter(Boolean).join(' '))+'</span>'
+        +'<div class="insp-self-d">'+inspH((r.reqtype?'['+r.reqtype+'] ':'')+String(r.detail||r.location||'').slice(0,60))+'</div>'
+        +(o.why.length?'<span class="insp-tag'+(o.s>=6?' ok':'')+'">'+o.why.join('·')+' 일치</span>':'<span class="hint">같은 지역</span>')
+        +(u?' <span class="insp-tag warn">다른 항목 '+u+'건과 연결됨</span>':'')+'</div>'
+        +'<button class="flt on" data-act="selfmatch" data-v="'+x.id+'" data-r="'+r.id+'">일치</button></div>';
+    }).join('')
+      +(c.length>3?'<button class="flt" data-act="selfmore" data-v="'+x.id+'">'+(open?'접기':'후보 '+(c.length-3)+'건 더 보기')+'</button> ':'')
+    :'<div class="hint" style="margin:4px 0">기간 내 이 캠퍼스 유지보수 접수가 없습니다.</div>')
+    +'<button class="flt" data-act="selfnone" data-v="'+x.id+'">자진 접수 없음</button></div>';
+}
+function inspSelfSave(x,patch,msg){
+  var old={};Object.keys(patch).forEach(function(k){old[k]=x[k];});
+  Object.assign(x,patch);
+  var y=window.scrollY;inspRenderIssues();window.scrollTo({top:y});
+  return sb.from('fac_inspection_results').update(patch).eq('id',x.id).then(function(r){
+    if(r.error){Object.assign(x,old);inspRenderIssues();window.scrollTo({top:y});inspToast('저장 실패: '+r.error.message+(/self_/.test(r.error.message)?' (SQL 19 실행 필요)':''),true);return false;}
+    if(msg)inspToast(msg);return true;
+  });
+}
+function inspSelfMatch(id,reqId){
+  var x=(INSP.issues||[]).filter(function(r){return r.id===id;})[0];if(!x)return;
+  var r=(INSP.reqs||[]).filter(function(q){return q.id===reqId;})[0];if(!r)return;
+  var who=(CURRENT_USER&&(CURRENT_USER.name||CURRENT_USER.login_id))||null;
+  var p={self_match:'match',self_req_id:r.id,self_req_no:r.record_no||null,self_matched_at:new Date().toISOString(),self_matched_by:who};
+  // 이미 접수된 건이므로 별도 '유지보수 접수로 전환'이 필요 없음 → 접수 연결도 함께
+  if(!x.request_id){p.request_id=r.id;p.request_no=r.record_no||null;}
+  inspSelfSave(x,p,'자진 접수 '+(r.record_no||'')+' 일치 처리');
+}
+function inspSelfNone(id){
+  var x=(INSP.issues||[]).filter(function(r){return r.id===id;})[0];if(!x)return;
+  var who=(CURRENT_USER&&(CURRENT_USER.name||CURRENT_USER.login_id))||null;
+  inspSelfSave(x,{self_match:'none',self_req_id:null,self_req_no:null,self_matched_at:new Date().toISOString(),self_matched_by:who},'자진 접수 없음으로 판정');
+}
+function inspSelfClear(id){
+  var x=(INSP.issues||[]).filter(function(r){return r.id===id;})[0];if(!x)return;
+  var p={self_match:null,self_req_id:null,self_req_no:null,self_matched_at:null,self_matched_by:null};
+  if(x.self_req_id&&x.request_id===x.self_req_id){p.request_id=null;p.request_no=null;}
+  inspSelfSave(x,p,'판정을 되돌렸습니다');
+}
+// 후보가 하나도 없는 미판정 항목 → 일괄 '자진 접수 없음'
+function inspSelfBulkNone(){
+  var t=(INSP.issues||[]).filter(function(x){return !x.self_match&&!inspSelfCands(x).length;});
+  if(!t.length){inspToast('후보가 없는 미판정 항목이 없습니다');return;}
+  if(!confirm('기간 내 접수 후보가 없는 '+t.length+'건을 모두 \'자진 접수 없음\'으로 판정할까요?'))return;
+  var who=(CURRENT_USER&&(CURRENT_USER.name||CURRENT_USER.login_id))||null,now=new Date().toISOString();
+  sb.from('fac_inspection_results').update({self_match:'none',self_req_id:null,self_req_no:null,self_matched_at:now,self_matched_by:who}).in('id',t.map(function(x){return x.id;})).then(function(r){
+    if(r.error){inspToast('저장 실패: '+r.error.message+(/self_/.test(r.error.message)?' (SQL 19 실행 필요)':''),true);return;}
+    t.forEach(function(x){x.self_match='none';x.self_req_id=null;x.self_req_no=null;});
+    inspRenderIssues();inspToast(t.length+'건 일괄 판정');
+  });
+}
+function inspSelfBonus(found,matched){
+  if(!found)return 3;var p=matched/found;
+  return p>=0.8?5:p>=0.5?3:p>=0.3?1:0;
+}
+function inspSelfSummary(){
+  var by={};
+  INSP.list.forEach(function(ins){by[ins.id]={ins:ins,found:0,match:0,none:0,pend:0};});
+  (INSP.issues||[]).forEach(function(x){var g=by[x.inspection_id];if(!g)return;g.found++;
+    if(x.self_match==='match')g.match++;else if(x.self_match==='none')g.none++;else g.pend++;});
+  var rows=Object.keys(by).map(function(k){var g=by[k];g.rate=g.found?g.match/g.found:null;g.bonus=inspSelfBonus(g.found,g.match);return g;});
+  rows.sort(function(a,b){return b.bonus-a.bonus||(b.rate||0)-(a.rate||0)||String(a.ins.campus_label||'').localeCompare(String(b.ins.campus_label||''),'ko',{numeric:true});});
+  var tf=0,tm=0,tp=0;rows.forEach(function(g){tf+=g.found;tm+=g.match;tp+=g.pend;});
+  INSP.selfRows=rows;
+  var td='style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:right"',tl='style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:left"';
+  openModal('<div class="mb"><div style="font-size:15px;font-weight:600;margin-bottom:4px">자진 접수 가점 현황</div>'
+    +'<div class="hint" style="line-height:1.6;margin-bottom:10px">'+inspH(INSP.round)+' · 일치율 = 일치 ÷ 점검 발견(미흡·불량) · 80%↑ +5 · 50%↑ +3 · 30%↑ +1 · 발견 0건 +3<br>전체 발견 '+tf+'건 · 일치 '+tm+'건('+(tf?Math.round(tm/tf*100):0)+'%) · 미판정 '+tp+'건'+(tp?' <b style="color:var(--warn)">— 미판정이 남아 있어 가점은 잠정치입니다</b>':'')+'</div>'
+    +'<div style="max-height:60vh;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="background:var(--bg)"><th '+tl+'>점검 단위</th><th '+td+'>발견</th><th '+td+'>일치</th><th '+td+'>미판정</th><th '+td+'>일치율</th><th '+td+'>가점</th></tr></thead><tbody>'
+    +rows.map(function(g){return '<tr><td '+tl+'>'+inspH(g.ins.campus_label||g.ins.campus_code)+(g.ins.status!=='완료'?' <span class="hint">진행중</span>':'')+'</td><td '+td+'>'+g.found+'</td><td '+td+'>'+g.match+'</td><td '+td+'>'+(g.pend?'<b style="color:var(--warn)">'+g.pend+'</b>':'0')+'</td><td '+td+'>'+(g.rate==null?'-':Math.round(g.rate*100)+'%')+'</td><td '+td+'><b>+'+g.bonus+'</b></td></tr>';}).join('')
+    +'</tbody></table></div></div><div class="mf"><button class="mbtn" onclick="inspSelfCsv()">CSV 저장</button><button class="mbtn yes" onclick="closeModal()">닫기</button></div>');
+  var m=document.getElementById('modal');if(m)m.style.maxWidth='720px';
+}
+function inspSelfCsv(){
+  var q=function(v){v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  var lines=[['회차','점검 단위','지역','상태','발견','일치','자진 접수 없음','미판정','일치율(%)','가점'].join(',')];
+  (INSP.selfRows||[]).forEach(function(g){lines.push([INSP.round,g.ins.campus_label||g.ins.campus_code,g.ins.region,g.ins.status,g.found,g.match,g.none,g.pend,g.rate==null?'':Math.round(g.rate*100),g.bonus].map(q).join(','));});
+  var b=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download='자진접수가점_'+INSP.round.replace(/\s+/g,'_')+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
 }
 
 // ---------- 캠퍼스 이력 ----------
@@ -5809,6 +5956,12 @@ function inspOnClick(e){
   else if(act==='hist')inspLoadHist(v);
   else if(act==='issues')inspLoadIssues();
   else if(act==='toreq')inspToRequest(v);
+  else if(act==='selfmatch')inspSelfMatch(v,b.dataset.r);
+  else if(act==='selfnone')inspSelfNone(v);
+  else if(act==='selfclr')inspSelfClear(v);
+  else if(act==='selfmore'){INSP.selfOpen=INSP.selfOpen||{};INSP.selfOpen[v]=!INSP.selfOpen[v];var yy=window.scrollY;inspRenderIssues();window.scrollTo({top:yy});}
+  else if(act==='selfsum')inspSelfSummary();
+  else if(act==='selfbulk')inspSelfBulkNone();
   else if(act==='csv')inspCsv();
   else if(act==='report')inspReportOpen();
   else if(act==='pricebook')inspPriceBook();
