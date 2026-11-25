@@ -441,6 +441,12 @@
   .as-tbl td.as-bad input:disabled{background:#fafafa!important;color:#c7c7cc}
   .as-tbl td.as-bad input:disabled::placeholder{color:#d1d1d6;font-size:11px}
   .as-tbl td input[data-bad]{color:#b3261e;font-weight:600}
+  .as-tbl td.as-link{position:relative}
+  .as-tbl td.as-link input{padding-right:30px!important;color:#2c6db3;font-size:11.5px!important;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+  .as-tbl td.as-link input:focus{color:var(--ink)}
+  .as-open{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:1px;height:20px;padding:0 5px;border:1px solid #b9cfe8;border-radius:5px;background:#fff;color:#2c6db3;font-size:12px;text-decoration:none;line-height:1}
+  .as-open:hover{background:#2c6db3;color:#fff}
+  .as-open i{font-style:normal;font-size:9.5px;font-weight:700}
   .as-tbl td.as-warn{color:#b3261e!important;font-weight:700;background:#fdf3f2!important}
   .as-tbl td input.as-code{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2px}
   .as-tbl td.as-ro{padding:0 6px;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;background:#fafafa}
@@ -4416,7 +4422,7 @@ var DASH_AS_COLS=[
   {k:'contract_start',t:'계약시작일',w:118,date:1},{k:'contract_end',t:'계약종료일',w:118,date:1},{k:'_remain',t:'잔여 계약',w:86,ro:1},
   {k:'cond',t:'상태',w:84,list:'cond'},{k:'cond_detail',t:'불량·고장 내용',w:170,bad:1},{k:'action',t:'처리 방안',w:100,list:'action'},{k:'dest',t:'이관처·매각처',w:110},
   {k:'vendor',t:'처리 업체',w:100,list:'vendor'},{k:'done_date',t:'처리(예정)일',w:118,date:1},{k:'amount',t:'금액(원)',w:96,num:1,money:1},
-  {k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170},
+  {k:'status',t:'처리 상태',w:80,list:'status'},{k:'memo',t:'비고',w:170},{k:'photo_link',t:'사진 링크',w:150,link:1},
   {k:'_by',t:'입력자',w:70,ro:1},{k:'_upd',t:'최종 수정',w:110,ro:1}];
 // 잔여 계약 개월(종료일 기준) — 렌탈 중도 해지 위약금 확인용
 function dashAsRemain(a){
@@ -4490,6 +4496,9 @@ function dashAssetsHTML(){
       if(c.ro){var rv=dashAsCell(a,c.k),warn=c.k==='_remain'&&dashAsRemain(a)>0&&/반납|폐기|매각/.test(a.action||'');
         return '<td class="as-ro'+(warn?' as-warn':'')+'" title="'+H(warn?'계약 기간이 남아 있습니다 — 중도 해지 위약금·잔여 렌탈료를 확인하세요':rv)+'">'+H(rv)+'</td>';}
       var v=a[c.k],val=v==null?'':(c.money?Number(v).toLocaleString('ko-KR'):String(v));
+      if(c.link){var ls=dashLinks(a.photo_link);
+        return '<td class="as-link"><input data-f="photo_link" value="'+H(val)+'" placeholder="링크 붙여넣기" title="'+H(ls.join('\n'))+'">'
+          +(ls.length?'<a href="'+H(ls[0])+'" target="_blank" rel="noopener" class="as-open" title="사진 열기'+(ls.length>1?' (첫 번째)':'')+'">↗'+(ls.length>1?'<i>'+ls.length+'</i>':'')+'</a>':'')+'</td>';}
       if(c.bad){var isBad=/불량|고장/.test(a.cond||'');
         return '<td class="as-bad'+(isBad?' on':'')+'"><input data-f="'+c.k+'" value="'+H(val)+'"'+(isBad?' placeholder="증상·부위 입력 (예: 화면 깨짐)"':' disabled placeholder="상태가 불량·고장일 때"')+' title="'+H(val)+'"></td>';}
       return '<td><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="asl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.k==='action'?' data-act="'+H(v||'미정')+'"':'')+(c.k==='cond'&&/불량|고장/.test(v||'')?' data-bad="1"':'')+(c.code?' placeholder="코드 입력" title="자산코드를 넣으면 자산관리시스템에서 계약 업체·기간·모델을 가져옵니다" class="as-code"':'')+'></td>';}).join('')
@@ -4513,6 +4522,7 @@ function dashAsSave(id,f,raw){
     if(r.error){a[f]=old;inspToast('저장 실패: '+r.error.message,true);dashRender();return;}
     if(patch.updated_name){a.updated_name=patch.updated_name;a.updated_at=patch.updated_at;var tr=dashRoot().querySelector('tr[data-id="'+id+'"] td.as-ro:last-of-type');var c2=dashRoot().querySelectorAll('tr[data-id="'+id+'"] td.as-ro');if(c2.length)c2[c2.length-1].textContent=dashAsCell(a,'_upd');}
     if(f==='asset_no'&&v){dashAsLookup(id,v);return;}
+    if(f==='photo_link'){dashAsRefreshSum();return;}
     if(f==='status'||f==='action'||f==='qty'||f==='amount'||f==='contract_end')dashAsRefreshSum();
   });
 }
@@ -4549,6 +4559,8 @@ function dashAsDate(v){
   var t=Date.parse(s);if(!isNaN(t)){var d2=new Date(t);return ok(d2.getFullYear(),d2.getMonth()+1,d2.getDate());}
   return null;
 }
+// 사진 링크: 칸에 여러 개면 공백·쉼표·줄바꿈으로 구분
+function dashLinks(v){return String(v||'').split(/[\s,]+/).filter(function(x){return /^https?:\/\//i.test(x);});}
 function dashAsLookup(id,code,quiet){
   var a=null;(DASH.assets||[]).forEach(function(x){if(x.id===id)a=x;});if(!a)return Promise.resolve(0);
   return sb.rpc('fac_asset_lookup',{code:code}).then(function(r){
