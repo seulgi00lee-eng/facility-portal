@@ -477,6 +477,22 @@
   .as-tbl .as-del button{border:0;background:none;color:#c7c7cc;cursor:pointer;font-size:15px}
   .as-tbl tr:hover .as-del button{color:#b3261e}
   .as-tbl tr.as-done td input{color:#8e8e93}
+  .as-acts span.w{border-color:#e3b4ae;color:#b3261e}.as-acts span.w.on{background:#fdf3f2;border-color:#b3261e;color:#b3261e}
+  .ac-tbl td.ac-pw,.ac-tbl td.ac-chk{padding:0 5px;white-space:nowrap}
+  .ac-tbl td.ac-pw button{border:1px dashed #c7c7cc;background:#fff;border-radius:5px;padding:3px 8px;font-size:11.5px;color:#6e6e73;cursor:pointer}
+  .ac-tbl td.ac-pw button.has{border:1px solid #d2d2d7;color:#1d1d1f;letter-spacing:.3px}
+  .ac-tbl td.ac-pw button:hover{border-color:var(--blue);color:var(--blue)}
+  .ac-tbl td.ac-chk button{border:1px solid #d2d2d7;background:#fff;border-radius:5px;padding:3px 8px;font-size:11.5px;cursor:pointer;color:#1d1d1f}
+  .ac-tbl td.ac-chk button.go{border-color:#c9902a;color:#8a5a00;background:#fff8ea;font-weight:700}
+  .ac-tbl td.ac-chk.ok button{border:0;background:none;color:#3b7a4f;font-weight:700;padding:3px 2px}
+  .ac-tbl td.ac-chk.ok i{font-style:normal;font-weight:400;color:#8e8e93;font-size:11px}
+  .ac-tbl td.ac-chk.na span{color:#c7c7cc;font-size:11px}
+  .ac-tbl td.ac-soon{background:#fdf3f2}.ac-tbl td.ac-soon input{color:#b3261e;font-weight:700}
+  .ac-tbl td input[data-auto]{color:#b3261e;font-weight:700}
+  .ac-tbl td input[data-ac="탈퇴·해지"],.ac-tbl td input[data-ac="자동결제 취소"]{color:#b3261e}.ac-tbl td input[data-ac="이관·유지"]{color:#3b7a4f}.ac-tbl td input[data-ac="명의 변경"]{color:#2c6db3}
+  .ac-tbl td input[data-st="활성"]{color:#2c6db3}.ac-tbl td input[data-st="비활성"]{color:#8e8e93}.ac-tbl td input[data-st="확인 필요"]{color:#8a5a00}
+  .ac-pwrow{display:flex;gap:6px;align-items:center}.ac-pwrow input{flex:1;margin:0!important;font-family:ui-monospace,Menlo,Consolas,monospace}.ac-pwrow .flt{margin:0;white-space:nowrap}
+  .ac-pwlog{margin-top:14px;font-size:11.5px;color:#6e6e73}.ac-pwlog .h{font-weight:700;margin-bottom:3px;color:#4a4a4f}.ac-pwlog div span{display:inline-block;min-width:34px;font-weight:600;color:#4a4a4f}.ac-pwlog i{font-style:normal;color:#8e8e93}
   .gt-ord button{border:1px solid var(--line);background:#fff;border-radius:4px;font-size:9px;line-height:1;padding:3px 4px;cursor:pointer;color:var(--ink2)}
   .gt-ord button:hover{border-color:var(--blue);color:var(--blue)}
   .gt-addrow td{background:#fff}
@@ -3019,7 +3035,9 @@ function dashLoad(){
     .then(function(rows){DASH.asOK=true;DASH.asErr='';DASH.assets=rows;},function(e){DASH.asOK=false;DASH.asErr=(e&&e.message)||String(e);DASH.assets=[];});
   var pp=inspFetchAll(function(){return sb.from('fac_projects').select('*').eq('deleted',false).order('start_date',{ascending:true});})
     .then(function(rows){DASH.pjErr='';DASH.pjOK=true;DASH.projects=rows;},function(e){DASH.pjOK=false;DASH.pjErr=(e&&e.message)||String(e);});
-  return Promise.all([pr,pt,pp,pg,pa]).then(function(){
+  var pc=inspFetchAll(function(){return sb.from('fac_project_accounts').select('*').eq('deleted',false);})
+    .then(function(rows){DASH.acOK=true;DASH.acErr='';DASH.accts=rows;},function(e){DASH.acOK=false;DASH.acErr=(e&&e.message)||String(e);DASH.accts=[];});
+  return Promise.all([pr,pt,pp,pg,pa,pc]).then(function(){
     // 삭제된 프로젝트의 세부 업무는 숨김
     if(DASH.pjOK){var ok={};DASH.projects.forEach(function(x){ok[x.id]=1;});DASH.tasks=DASH.tasks.filter(function(t){return !t.project_id||ok[t.project_id];});}
     DASH.ubOK=DASH.tasks.length?('updated_by' in DASH.tasks[0]):(DASH.projects.length?('updated_by' in DASH.projects[0]):false);
@@ -3030,7 +3048,7 @@ function dashLoad(){
 // ---------- 화면 ----------
 function dashRender(){
   var root=dashRoot();if(!root)return;
-  document.body.classList.toggle('dash-wide',(DASH.view==='gantt'||DASH.view==='assets')&&ADM_TAB==='dash');
+  document.body.classList.toggle('dash-wide',(DASH.view==='gantt'||DASH.view==='assets'||DASH.view==='accts')&&ADM_TAB==='dash');
   var keep=DASH_G.keepPop;DASH_G.keepPop=null;
   if(!keep)dashPopClose();
   var sw={};['.gt-wrap','.as-wrap'].forEach(function(c){var w=root.querySelector(c);if(w)sw[c]=[w.scrollLeft,w.scrollTop];});
@@ -3052,18 +3070,18 @@ function dashRender(){
   }).join('')+'</div>';
   var bar='<div class="dsh-bar">'
     +'<div class="filt" style="margin:0">'
-      +[['cal','월간 캘린더'],['board','단계별 보드'],['list','목록'],['gantt','프로젝트 일정'],['pjs','프로젝트 현황'],['assets','자산 목록']].map(function(v){return '<button class="flt'+(DASH.view===v[0]?' on':'')+'" data-a="view" data-v="'+v[0]+'">'+v[1]+'</button>';}).join('')
+      +[['cal','월간 캘린더'],['board','단계별 보드'],['list','목록'],['gantt','프로젝트 일정'],['pjs','프로젝트 현황'],['assets','자산 목록'],['accts','계정 관리']].map(function(v){return '<button class="flt'+(DASH.view===v[0]?' on':'')+'" data-a="view" data-v="'+v[0]+'">'+v[1]+'</button>';}).join('')
     +'</div>'
     +'<input type="text" id="dsh_q" placeholder="업체·캠퍼스·접수번호 검색" value="'+H(DASH.q)+'" style="flex:1;min-width:160px;max-width:260px;margin:0">'
     +'<select id="dsh_src" style="width:auto;margin:0"><option value="all">전체</option><option value="req"'+(DASH.src==='req'?' selected':'')+'>캠퍼스 접수</option><option value="task"'+(DASH.src==='task'?' selected':'')+'>팀 업무</option></select>'
     +'<select id="dsh_who" style="width:auto;margin:0"><option value="all">담당자 전체</option><option value="-"'+(DASH.who==='-'?' selected':'')+'>담당자 미지정</option>'
       +Object.keys(who).sort().map(function(w){return '<option value="'+H(w)+'"'+(DASH.who===w?' selected':'')+'>'+H(w)+'</option>';}).join('')+'</select>'
     +'<button class="flt" data-a="ntf" title="구글챗 리마인드·이슈 알림 설정">🔔 알림 설정</button>'
-    +(DASH.view==='gantt'||DASH.view==='pjs'||DASH.view==='assets'?'':'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="new">+ 팀 업무 등록</button>')
+    +(DASH.view==='gantt'||DASH.view==='pjs'||DASH.view==='assets'||DASH.view==='accts'?'':'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="new">+ 팀 업무 등록</button>')
     +'</div>';
   if(DASH.view==='gantt'&&DASH.pjOK&&DASH.gcolOK===false)warn+='<div class="dsh-warn">열 추가를 쓰려면 Supabase에서 <b>16_rows_cols_assets.sql</b>을 실행해 주세요. (행 이동·행 추가·간트 접기는 바로 쓸 수 있습니다)</div>';
   if(DASH.view==='gantt'&&DASH.pjOK&&!dashVdOK())warn+='<div class="dsh-warn">방문예정일을 여러 날 고르려면 Supabase에서 <b>15_visit_dates.sql</b>을 실행해 주세요. 그 전에는 한 날만 저장됩니다.</div>';
-  if(DASH.view==='assets'){root.innerHTML=warn+sum+bar.replace(/<input type="text" id="dsh_q"[^>]*>/,'').replace(/<select id="dsh_src"[\s\S]*?<\/select>/,'').replace(/<select id="dsh_who"[\s\S]*?<\/select>/,'')+dashAssetsHTML();dashCount(all);return;}
+  if(DASH.view==='assets'||DASH.view==='accts'){root.innerHTML=warn+sum+bar.replace(/<input type="text" id="dsh_q"[^>]*>/,'').replace(/<select id="dsh_src"[\s\S]*?<\/select>/,'').replace(/<select id="dsh_who"[\s\S]*?<\/select>/,'')+(DASH.view==='accts'?dashAcHTML():dashAssetsHTML());dashCount(all);return;}
   if(DASH.view==='pjs'){root.innerHTML=warn+sum+bar.replace(/<select id="dsh_src"[\s\S]*?<\/select>/,'').replace(/<select id="dsh_who"[\s\S]*?<\/select>/,'')+dashPjStatusHTML();dashCount(all);return;}
   if(DASH.view==='gantt'){root.innerHTML=warn+sum+bar.replace(/<select id="dsh_src"[\s\S]*?<\/select>/,'')+dashGanttHTML();dashCount(all);return;}
   var chip=DASH.flt?'<div style="margin:-4px 0 10px"><span class="dsh-chip" data-a="flt" data-v="'+DASH.flt+'">'+DASH_FLT[DASH.flt].t+' '+list.length+'건 보는 중 ✕</span></div>':'';
@@ -3200,6 +3218,7 @@ function dashOnClick(e){
   var a=el.dataset.a,v=el.dataset.v;
   if(a==='gord'){e.stopPropagation();dashGOrder(el.dataset.k,Number(v));return;}
   if(a.indexOf('as_')===0&&dashAsClick(a,v)){e.stopPropagation();return;}
+  if(a.indexOf('ac_')===0&&dashAcClick(a,v)){e.stopPropagation();return;}
   if(a.charAt(0)==='g'&&dashGClick(a,v,el)){e.stopPropagation();e.preventDefault();return;}
   if(a==='mv'||a==='open'){e.stopPropagation();var it=dashFind(el.dataset.k);if(it)dashEdit(it,a==='mv'?v:null);return;}
   if(a==='flt'){DASH.flt=(DASH.flt===v)?'':v;if(DASH.flt&&(DASH.view==='cal'||DASH.view==='gantt'))DASH.view='list';dashRender();return;}
@@ -3213,6 +3232,7 @@ function dashOnClick(e){
 }
 function dashOnInput(e){
   var t=e.target;
+  if(dashAcInput(e))return;
   if(dashAsInput(e))return;
   if(t.id==='dsh_q'){DASH.q=t.value.trim();clearTimeout(DASH._qt);DASH._qt=setTimeout(function(){dashRender();var q=document.getElementById('dsh_q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},250);return;}
   if(e.type!=='change')return;
@@ -4692,6 +4712,348 @@ function dashAsInput(e){
     if(t.dataset.f==='status')tr.classList.toggle('as-done',t.value==='완료');
     dashAsSave(tr.dataset.id,t.dataset.f,t.value);return true;}
   return false;
+}
+
+// ===== 프로젝트 계정 관리 (업무 대시보드 > 계정 관리) — SQL 21 fac_project_accounts =====
+// 비밀번호는 표에 두지 않음: fac_acct_pw_set / fac_acct_pw_get (암호화 저장·열람 기록)
+var DASH_AC_COLS=[
+  {k:'campus',t:'캠퍼스',w:72,list:'campus'},{k:'category',t:'구분',w:112,list:'category'},{k:'service',t:'서비스명',w:130},
+  {k:'url',t:'접속 주소',w:150,link:1},{k:'login_id',t:'아이디',w:130,mono:1},{k:'_pw',t:'비밀번호',w:96,pw:1},
+  {k:'holder',t:'명의자·가입 메일',w:140},{k:'manager',t:'사용 담당자',w:84,list:'manager'},
+  {k:'billing',t:'결제 방식',w:84,list:'billing'},{k:'pay_method',t:'결제수단',w:110,card:1},{k:'amount',t:'월 비용(원)',w:92,num:1,money:1},
+  {k:'next_bill',t:'다음 결제일',w:118,date:1},{k:'expire_date',t:'만료일',w:118,date:1},
+  {k:'acct_status',t:'계정 상태',w:84,list:'acct_status'},{k:'action',t:'처리 방안',w:112,list:'action'},{k:'proc_status',t:'처리 상태',w:80,list:'proc_status'},
+  {k:'done_by',t:'처리자',w:70,list:'manager'},{k:'done_date',t:'처리일',w:118,date:1},{k:'_chk',t:'2차 확인',w:112,chk:1},
+  {k:'evidence',t:'증빙 링크',w:130,link:1},{k:'memo',t:'비고',w:170},
+  {k:'_by',t:'입력자',w:70,ro:1},{k:'_upd',t:'최종 수정',w:110,ro:1}];
+var DASH_AC_LIST={
+  category:['도메인·호스팅','이메일·그룹웨어','업무 SaaS','결제·PG','통신·인터넷','SNS·홍보','교육 콘텐츠','보안·CCTV','공공·관공서','기타'],
+  billing:['자동결제','수동결제','선결제','무료'],acct_status:['활성','비활성','확인 필요'],
+  action:['탈퇴·해지','자동결제 취소','이관·유지','명의 변경','확인 필요'],proc_status:['미처리','진행중','완료'],
+  manager:['이슬기','김영진','이한규']};
+var DASH_AC={pid:'',q:'',flt:{},sort:null,quick:''};
+var DASH_AC_QUICK={
+  todo:{t:'미처리',f:function(a){return a.proc_status!=='완료';}},
+  auto:{t:'자동결제 남음',f:function(a){return a.billing==='자동결제'&&a.proc_status!=='완료'&&a.action!=='이관·유지';}},
+  wait:{t:'2차 확인 대기',f:function(a){return a.proc_status==='완료'&&!a.check_by;}},
+  soon:{t:'결제·만료 임박',f:function(a){return a.proc_status!=='완료'&&dashAcSoon(a);}}};
+// 14일 안에 결제일·만료일이 오는지
+function dashAcSoon(a){var t=inspToday(),lim=dashAddDays(t,14);return [a.next_bill,a.expire_date].some(function(d){return d&&d>=t&&d<=lim;});}
+function dashAcRows(pid){return (DASH.accts||[]).filter(function(a){return a.project_id===pid;}).sort(function(a,b){return (a.sort_no||0)-(b.sort_no||0);});}
+function dashAcOf(id){var r=null;(DASH.accts||[]).forEach(function(x){if(x.id===id)r=x;});return r;}
+function dashAcCell(a,k){
+  if(k==='_pw')return a.has_pw?'등록됨':'';
+  if(k==='_chk')return a.check_by?a.check_by:'';
+  if(k==='_by')return a.created_name||dashNameOf(a.created_by)||'';
+  if(k==='_upd')return a.updated_name?(a.updated_name+(a.updated_at?' '+dashMD(String(a.updated_at).slice(0,10)):'')):'';
+  var c=DASH_AC_COLS.filter(function(x){return x.k===k;})[0],v=a[k];if(v==null||v==='')return '';
+  if(c&&c.money)return Number(v).toLocaleString('ko-KR');if(c&&c.date)return dashMD(v);return String(v);
+}
+function dashAcKey(a,k){var c=DASH_AC_COLS.filter(function(x){return x.k===k;})[0];
+  if(c&&c.num)return a[k]==null?-Infinity:Number(a[k]);if(c&&c.date)return a[k]||'9999';if(k==='_upd')return a.updated_at||'';return dashAcCell(a,k);}
+function dashAcOpts(k){
+  var s={};(DASH_AC_LIST[k]||[]).forEach(function(v){s[v]=1;});
+  if(k==='campus')DASH.projects.forEach(function(p){dashNames(p.campus).forEach(function(v){s[v]=1;});});
+  if(k==='manager')(DASH.accts||[]).forEach(function(a){if(a.done_by)s[a.done_by]=1;});
+  (DASH.accts||[]).forEach(function(a){if(a[k])s[a[k]]=1;});
+  return Object.keys(s);
+}
+// 요약 수치 (화면·보고서 공용)
+function dashAcStat(all){
+  var cut=function(a){return a.proc_status==='완료'&&/탈퇴|해지|자동결제 취소/.test(a.action||'');};
+  var r={n:all.length,active:0,done:0,chk:0,todo:0,auto:0,saved:0,left:0,soon:0};
+  all.forEach(function(a){
+    if(a.acct_status==='활성')r.active++;
+    if(a.proc_status==='완료'){r.done++;if(a.check_by)r.chk++;}else r.todo++;
+    if(DASH_AC_QUICK.auto.f(a)){r.auto++;r.left+=Number(a.amount)||0;}
+    if(cut(a))r.saved+=Number(a.amount)||0;
+    if(DASH_AC_QUICK.soon.f(a))r.soon++;});
+  return r;
+}
+function dashAcHTML(){
+  var H=inspH;
+  if(!DASH.acOK)return '<div class="dsh-warn">계정 관리를 쓰려면 Supabase SQL Editor에서 <b>21_project_accounts.sql</b>의 ①, ②를 차례로 실행한 뒤 새로고침해 주세요.'+(DASH.acErr?'<br><span class="m">'+H(DASH.acErr)+'</span>':'')+'</div>';
+  if(!DASH.projects.length)return '<div class="dsh-sec"><div class="hint" style="padding:22px">프로젝트가 없습니다. 「프로젝트 일정」에서 먼저 등록하세요.</div></div>';
+  if(!DASH_AC.pid||!dashPjOf(DASH_AC.pid)){DASH_AC.pid=DASH_AS.pid&&dashPjOf(DASH_AS.pid)?DASH_AS.pid:((DASH.projects.filter(function(p){return p.status!=='완료';})[0]||DASH.projects[0]).id);}
+  var p=dashPjOf(DASH_AC.pid),all=dashAcRows(p.id),q=DASH_AC.q.toLowerCase(),fk=Object.keys(DASH_AC.flt),qk=DASH_AC_QUICK[DASH_AC.quick];
+  var rows=all.filter(function(a){
+    if(qk&&!qk.f(a))return false;
+    if(!fk.every(function(k){return DASH_AC.flt[k].indexOf(dashAcCell(a,k)||DASH_BLANK)>=0;}))return false;
+    if(q&&[a.campus,a.category,a.service,a.url,a.login_id,a.holder,a.manager,a.memo,a.pay_method].join(' ').toLowerCase().indexOf(q)<0)return false;
+    return true;});
+  if(DASH_AC.sort){var sk=DASH_AC.sort.k,sd=DASH_AC.sort.dir;rows.sort(function(x,y){var p1=dashAcKey(x,sk),p2=dashAcKey(y,sk);if(typeof p1==='number'&&typeof p2==='number')return (p1-p2)*sd;return String(p1).localeCompare(String(p2),'ko',{numeric:true})*sd;});}
+  var s=dashAcStat(all),pct=s.n?Math.round(s.done*100/s.n):0;
+  var head='<div class="dsh-bar">'
+    +'<select id="ac_pj" style="width:auto;margin:0;font-weight:700">'+DASH.projects.map(function(x){return '<option value="'+x.id+'"'+(x.id===p.id?' selected':'')+'>'+H(x.name)+'</option>';}).join('')+'</select>'
+    +'<input type="text" id="ac_q" placeholder="서비스·아이디·주소 검색" value="'+H(DASH_AC.q)+'" style="flex:1;min-width:150px;max-width:240px;margin:0">'
+    +(fk.length||DASH_AC.sort||qk?'<button class="flt on" data-a="ac_fclear">'+[qk?qk.t:'',fk.length?'필터 '+fk.length:'',DASH_AC.sort?'정렬':''].filter(Boolean).join(' · ')+' 해제 ✕</button>':'')
+    +'<button class="flt" data-a="ac_paste">엑셀 붙여넣기</button><button class="flt" data-a="ac_csv" title="비밀번호는 내려받지 않습니다">CSV</button>'
+    +'<button class="flt" data-a="ac_report" title="대표님 보고용 — 아이디·비밀번호 제외">📄 결과 보고서</button>'
+    +'<button class="submit" style="width:auto;padding:9px 14px;margin:0 0 0 auto" data-a="ac_add">+ 계정 추가</button></div>';
+  var chip=function(k,n,warn){var on=DASH_AC.quick===k;return '<span class="'+(on?'on':'')+(warn&&n?' w':'')+'" data-a="ac_qk" data-v="'+k+'">'+DASH_AC_QUICK[k].t+' <b>'+n+'</b></span>';};
+  var sum='<div class="as-sum">'
+    +'<div><b>'+s.n+'</b>개 계정 · 활성 <b>'+s.active+'</b></div>'
+    +'<div class="as-prog"><span>처리 완료 <b>'+pct+'%</b> ('+s.done+'/'+s.n+') · 2차 확인 '+s.chk+'</span><div class="pjs-bar sm"><i style="width:'+pct+'%"></i></div></div>'
+    +'<div class="as-acts">'+chip('todo',s.todo)+chip('auto',s.auto,1)+chip('wait',s.done-s.chk,1)+chip('soon',s.soon,1)+'</div>'
+    +(s.saved||s.left?'<div class="m">해지로 줄어든 월 비용 '+dashWon(s.saved)+' · 아직 나가는 자동결제 월 '+dashWon(s.left)+'</div>':'')+'</div>';
+  var lists=Object.keys(DASH_AC_LIST).concat(['campus']).map(function(k){return '<datalist id="acl_'+k+'">'+dashAcOpts(k).map(function(o){return '<option value="'+H(o)+'">';}).join('')+'</datalist>';}).join('');
+  var th='<tr><th class="as-no">No</th>'+DASH_AC_COLS.map(function(c){var on=DASH_AC.flt[c.k],so=DASH_AC.sort&&DASH_AC.sort.k===c.k;
+      return '<th style="min-width:'+c.w+'px;width:'+c.w+'px">'+c.t+'<button class="gt-fb'+(on?' on':'')+(so?' srt':'')+'" data-a="ac_flt" data-v="'+c.k+'" title="필터·정렬">'+(on?'⏷':(so?(DASH_AC.sort.dir>0?'↑':'↓'):'▾'))+'</button></th>';}).join('')+'<th class="as-del"></th></tr>';
+  var t0=inspToday();
+  var body=rows.map(function(a,i){
+    var done=a.proc_status==='완료';
+    return '<tr data-id="'+a.id+'"'+(done?' class="as-done"':'')+'><td class="as-no">'+(i+1)+'</td>'+DASH_AC_COLS.map(function(c){
+      if(c.ro){var rv=dashAcCell(a,c.k);return '<td class="as-ro" title="'+H(rv)+'">'+H(rv)+'</td>';}
+      if(c.pw)return '<td class="ac-pw"><button data-a="ac_pw" data-v="'+a.id+'" class="'+(a.has_pw?'has':'')+'" title="'+(a.has_pw?'비밀번호 보기·변경 (열람 기록이 남습니다)':'비밀번호 등록')+'">'+(a.has_pw?'●●●● 보기':'+ 등록')+'</button></td>';
+      if(c.chk){
+        if(a.check_by)return '<td class="ac-chk ok"><button data-a="ac_chk" data-v="'+a.id+'" title="'+H(a.check_by+' '+(a.check_date||'')+' 확인 — 누르면 확인 취소')+'">✓ '+H(a.check_by)+' <i>'+H(dashMD(a.check_date||''))+'</i></button></td>';
+        if(done)return '<td class="ac-chk"><button data-a="ac_chk" data-v="'+a.id+'" class="go" title="처리자가 아닌 다른 팀원이 실제 사이트에서 해지·탈퇴를 확인">확인하기</button></td>';
+        return '<td class="ac-chk na"><span>처리 완료 후</span></td>';}
+      var v=a[c.k],val=v==null?'':(c.money?Number(v).toLocaleString('ko-KR'):String(v));
+      if(c.link){var ls=dashLinks(v);if(c.k==='url'&&v&&!ls.length&&/^[\w-]+(\.[\w-]+)+/.test(v))ls=['https://'+v];
+        return '<td class="as-link"><input data-f="'+c.k+'" value="'+H(val)+'" placeholder="'+(c.k==='url'?'주소':'링크 붙여넣기')+'" title="'+H(val)+'">'
+          +(ls.length?'<a href="'+H(ls[0])+'" target="_blank" rel="noopener noreferrer" class="as-open" title="새 창으로 열기">↗</a>':'')+'</td>';}
+      var warn=c.date&&!done&&v&&v>=t0&&v<=dashAddDays(t0,14);
+      return '<td'+(warn?' class="ac-soon" title="14일 안에 '+(c.k==='next_bill'?'결제':'만료')+'됩니다"':'')+'><input data-f="'+c.k+'" value="'+H(val)+'"'+(c.list?' list="acl_'+c.list+'"':'')+(c.date?' type="date"':'')+(c.num?' inputmode="numeric" class="r"':'')+(c.mono?' class="as-code" autocomplete="off" spellcheck="false"':'')
+        +(c.card?' placeholder="예: 법인카드 ****1234" autocomplete="off"':'')+(c.k==='action'?' data-ac="'+H(v||'')+'"':'')+(c.k==='acct_status'?' data-st="'+H(v||'')+'"':'')+(c.k==='billing'&&v==='자동결제'&&!done?' data-auto="1"':'')+'></td>';}).join('')
+      +'<td class="as-del"><button data-a="ac_del" data-v="'+a.id+'" title="행 삭제">×</button></td></tr>';
+  }).join('');
+  var empty=!rows.length?'<div class="hint" style="padding:18px;text-align:center">'+(all.length?'조건에 맞는 계정이 없습니다.':'아직 등록된 계정이 없습니다. <b>+ 계정 추가</b>로 하나씩 넣거나, 받은 목록을 엑셀에서 복사해 <b>엑셀 붙여넣기</b>로 한 번에 넣으세요.')+'</div>':'';
+  return head+sum+lists+'<div class="as-wrap"><table class="as-tbl ac-tbl"><thead>'+th+'</thead><tbody>'+body+'</tbody></table>'+empty+'</div>'
+    +'<div class="hint" style="font-size:11.5px;margin-top:6px;line-height:1.6">칸에 바로 입력하면 저장됩니다. 비밀번호는 암호화해 따로 보관하며, <b>보기</b>를 누를 때마다 누가 언제 열람했는지 기록됩니다. 카드번호는 끝 4자리까지만 적으세요.<br>'
+    +'처리 상태를 <b>완료</b>로 바꾸면 처리자·처리일이 자동으로 들어가고, <b>다른 팀원</b>이 실제 사이트에서 해지·탈퇴를 확인한 뒤 <b>2차 확인</b>을 누릅니다.</div>';
+}
+// 카드번호 전체(숫자 12자리 이상)는 저장하지 않음
+function dashAcCardBad(v){return /(\d[\s-]?){12,}/.test(String(v||''));}
+function dashAcSave(id,f,raw){
+  var a=dashAcOf(id);if(!a)return;
+  var c=DASH_AC_COLS.filter(function(x){return x.k===f;})[0],v=String(raw==null?'':raw).trim();
+  if(c&&c.card&&dashAcCardBad(v)){inspToast('카드번호 전체는 저장하지 않습니다. 「법인카드 ****1234」처럼 끝 4자리만 적어 주세요',true);dashRender();return;}
+  v=c&&c.num?dashNum(v):(v||null);
+  if(JSON.stringify(a[f]==null?null:a[f])===JSON.stringify(v))return;
+  var patch={};patch[f]=v;
+  if(f==='proc_status'){
+    if(v==='완료'){if(!a.done_by)patch.done_by=dashMe();if(!a.done_date)patch.done_date=inspToday();}
+    else if(a.check_by){patch.check_by=null;patch.check_date=null;}}
+  dashAcPatch(a,patch,f==='proc_status'||f==='billing'||f==='amount'||f==='next_bill'||f==='expire_date'||f==='acct_status'||f==='url'||f==='evidence');
+}
+function dashAcPatch(a,patch,redraw){
+  var old={};Object.keys(patch).forEach(function(k){old[k]=a[k];});
+  patch.updated_at=new Date().toISOString();patch.updated_name=dashMe();
+  Object.assign(a,patch);
+  return sb.from('fac_project_accounts').update(patch).eq('id',a.id).then(function(r){
+    if(r.error){Object.assign(a,old);inspToast('저장 실패: '+r.error.message,true);dashRender();return false;}
+    if(redraw)dashAsRefreshSum();
+    else{var c2=dashRoot().querySelectorAll('tr[data-id="'+a.id+'"] td.as-ro');if(c2.length)c2[c2.length-1].textContent=dashAcCell(a,'_upd');}
+    return true;});
+}
+function dashAcInsert(rows){return sb.from('fac_project_accounts').insert(rows).select();}
+function dashAcNew(pid,last,i){
+  var fc=DASH_AC.flt.campus&&DASH_AC.flt.campus.length===1?DASH_AC.flt.campus[0]:'';
+  return {project_id:pid,campus:fc||last.campus||(dashNames((dashPjOf(pid)||{}).campus)[0]||null),acct_status:'활성',action:'확인 필요',proc_status:'미처리',
+    sort_no:(last.sort_no||0)+10*(i||1),created_by:(CURRENT_USER&&CURRENT_USER.login_id)||null,created_name:dashMe()};
+}
+function dashAcAdd(){
+  var pid=DASH_AC.pid,list=dashAcRows(pid);
+  dashAcInsert([dashAcNew(pid,list[list.length-1]||{})]).then(function(r){
+    if(r.error){inspToast('추가 실패: '+r.error.message,true);return;}
+    DASH.accts.push(r.data[0]);DASH_AC.q='';DASH_AC.flt={};DASH_AC.sort=null;DASH_AC.quick='';dashRender();
+    var el=dashRoot().querySelector('tr[data-id="'+r.data[0].id+'"] input[data-f="service"]');if(el){el.focus();el.scrollIntoView({block:'nearest'});}
+  });
+}
+// ---------- 비밀번호 ----------
+function dashAcPw(id){
+  var a=dashAcOf(id);if(!a)return;var H=inspH,shown=false,timer=null;
+  openModal('<div class="mh">비밀번호 — '+H(a.service||'(서비스명 없음)')+'</div><div class="mb">'
+    +'<div class="hint" style="margin-bottom:10px">'+H([a.url,a.login_id?'아이디 '+a.login_id:''].filter(Boolean).join(' · ')||'')+'</div>'
+    +(a.has_pw?'<label class="lbl">저장된 비밀번호</label><div class="ac-pwrow"><input id="ac_pwv" type="password" value="●●●●●●●●" readonly autocomplete="off">'
+      +'<button class="flt" id="ac_pwshow">보기</button><button class="flt" id="ac_pwcp" disabled>복사</button></div>'
+      +'<div class="hint" id="ac_pwmsg" style="font-size:11.5px;margin:4px 0 12px">보기를 누르면 열람 기록이 남고, 30초 뒤 자동으로 가려집니다.</div>':'')
+    +'<label class="lbl">'+(a.has_pw?'새 비밀번호로 변경':'비밀번호 등록')+'</label><div class="ac-pwrow"><input id="ac_pwn" type="password" autocomplete="new-password" placeholder="비밀번호 입력"><button class="flt" id="ac_pweye" title="입력 내용 보기">👁</button></div>'
+    +'<div id="ac_pwlog" class="ac-pwlog"></div></div>'
+    +'<div class="mf">'+(a.has_pw?'<button class="mbtn no" id="ac_pwdel" style="margin-right:auto;color:#b3261e">비밀번호 삭제</button>':'')+'<button class="mbtn no" onclick="closeModal()">닫기</button><button class="mbtn yes" id="ac_pwsave">저장</button></div>');
+  var md=document.getElementById('modal');if(md)md.style.maxWidth='460px';
+  var $=function(x){return document.getElementById(x);};
+  var hide=function(){var v=$('ac_pwv');if(!v)return;v.type='password';v.value='●●●●●●●●';shown=false;$('ac_pwshow').textContent='보기';$('ac_pwcp').disabled=true;};
+  var logs=function(){sb.from('fac_account_pw_log').select('kind,who,at').eq('account_id',id).order('at',{ascending:false}).limit(6).then(function(r){
+    var el=$('ac_pwlog');if(!el||r.error||!r.data||!r.data.length)return;
+    el.innerHTML='<div class="h">최근 기록</div>'+r.data.map(function(x){var d=new Date(x.at);return '<div><span>'+H(x.kind)+'</span>'+H(x.who||'-')+' <i>'+(d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+'</i></div>';}).join('');});};
+  logs();
+  if(a.has_pw){
+    $('ac_pwshow').onclick=function(){if(shown){hide();return;}var b=this;b.disabled=true;
+      sb.rpc('fac_acct_pw_get',{p_id:id,p_who:dashMe()}).then(function(r){b.disabled=false;
+        if(r.error){$('ac_pwmsg').textContent='불러오기 실패: '+r.error.message;return;}
+        var v=$('ac_pwv');v.type='text';v.value=r.data||'';shown=true;b.textContent='가리기';$('ac_pwcp').disabled=false;logs();
+        clearTimeout(timer);timer=setTimeout(hide,30000);});};
+    $('ac_pwcp').onclick=function(){var v=$('ac_pwv').value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(function(){inspToast('복사했습니다');},function(){$('ac_pwv').select();document.execCommand('copy');inspToast('복사했습니다');});};
+    $('ac_pwdel').onclick=function(){dashConfirm({title:'저장된 비밀번호를 삭제할까요?',rows:[['서비스',a.service],['아이디',a.login_id]],note:'삭제하면 되돌릴 수 없습니다. 탈퇴가 끝난 계정에 사용하세요.',ok:'삭제'}).then(function(y){
+      if(!y)return;sb.rpc('fac_acct_pw_set',{p_id:id,p_pw:'',p_who:dashMe()}).then(function(r){if(r.error){inspToast('삭제 실패: '+r.error.message,true);return;}a.has_pw=false;closeModal();dashRender();inspToast('비밀번호를 삭제했습니다');});});};}
+  $('ac_pweye').onclick=function(){var n=$('ac_pwn');n.type=n.type==='password'?'text':'password';};
+  $('ac_pwsave').onclick=function(){var n=$('ac_pwn').value;if(!n){$('ac_pwn').focus();return;}var b=this;b.disabled=true;
+    sb.rpc('fac_acct_pw_set',{p_id:id,p_pw:n,p_who:dashMe()}).then(function(r){b.disabled=false;
+      if(r.error){inspToast('저장 실패: '+(/fac_acct_pw_set/.test(r.error.message)?'SQL 21 ② 함수를 실행해 주세요':r.error.message),true);return;}
+      a.has_pw=true;closeModal();dashRender();inspToast('비밀번호를 암호화해 저장했습니다');});};
+  setTimeout(function(){var n=$(a.has_pw?'ac_pwshow':'ac_pwn');if(n)n.focus();},0);
+}
+// ---------- 2차 확인 (크로스체크) ----------
+function dashAcCheck(id){
+  var a=dashAcOf(id);if(!a)return;var me=dashMe();
+  if(a.check_by){
+    dashConfirm({title:'2차 확인을 취소할까요?',rows:[['서비스',a.service],['확인자',a.check_by],['확인일',a.check_date]],ok:'확인 취소'}).then(function(y){
+      if(y)dashAcPatch(a,{check_by:null,check_date:null},true);});return;}
+  if(a.proc_status!=='완료'){inspToast('처리 상태가 완료인 계정만 2차 확인할 수 있습니다',true);return;}
+  if(a.done_by&&me&&dashNames(a.done_by).indexOf(me)>=0){inspToast('처리자 본인은 2차 확인을 할 수 없습니다. 다른 팀원이 확인해 주세요',true);return;}
+  dashConfirm({title:'실제로 처리된 것을 확인했나요?',rows:[['서비스',a.service],['아이디',a.login_id],['처리 방안',a.action],['처리자',a.done_by],['처리일',a.done_date],['증빙',dashLinks(a.evidence).length?'있음':'없음']],
+    note:'해당 사이트에 직접 접속해 탈퇴·자동결제 취소가 반영됐는지 확인한 뒤 누르세요. 확인자는 '+me+'(으)로 기록됩니다.',ok:'확인 완료'}).then(function(y){
+    if(y)dashAcPatch(a,{check_by:me,check_date:inspToday()},true).then(function(ok){if(ok)inspToast('2차 확인을 기록했습니다');});});
+}
+function dashAcDel(id){
+  var a=dashAcOf(id);if(!a)return;
+  dashConfirm({title:'이 계정 행을 정말 삭제할까요?',rows:[['서비스',a.service],['아이디',a.login_id],['구분',a.category],['처리 상태',a.proc_status]],
+    note:'목록에서 사라지며, 삭제 직후 7초 동안 [되돌리기]로 복구할 수 있습니다. 저장된 비밀번호는 그대로 보관됩니다.',ok:'삭제'}).then(function(yes){
+    if(!yes)return;
+    DASH.accts=DASH.accts.filter(function(x){return x.id!==id;});dashRender();
+    sb.from('fac_project_accounts').update({deleted:true}).eq('id',id).then(function(r){
+      if(r.error){DASH.accts.push(a);dashRender();inspToast('삭제 실패: '+r.error.message,true);return;}
+      dashUndo('['+(a.service||'계정')+'] 행을 삭제했습니다',function(){
+        sb.from('fac_project_accounts').update({deleted:false}).eq('id',id).then(function(r2){if(r2.error){inspToast('복구 실패: '+r2.error.message,true);return;}DASH.accts.push(a);dashRender();inspToast('복구했습니다');});});
+    });
+  });
+}
+function dashAcFlt(btn,k){
+  var c=DASH_AC_COLS.filter(function(x){return x.k===k;})[0];if(!c)return;
+  var all=dashAcRows(DASH_AC.pid),other={};Object.keys(DASH_AC.flt).forEach(function(x){if(x!==k)other[x]=DASH_AC.flt[x];});
+  var cnt={},ord=[];all.forEach(function(a){
+    if(!Object.keys(other).every(function(x){return other[x].indexOf(dashAcCell(a,x)||DASH_BLANK)>=0;}))return;
+    var v=dashAcCell(a,k)||DASH_BLANK;if(!(v in cnt)){cnt[v]=0;ord.push([v,dashAcKey(a,k)]);}cnt[v]++;});
+  ord.sort(function(x,y){if(x[0]===DASH_BLANK)return 1;if(y[0]===DASH_BLANK)return -1;if(typeof x[1]==='number'&&typeof y[1]==='number')return x[1]-y[1];return String(x[1]).localeCompare(String(y[1]),'ko',{numeric:true});});
+  dashFltPop(btn,c.t,ord.map(function(o){return o[0];}),cnt,DASH_AC.flt[k],DASH_AC.sort&&DASH_AC.sort.k===k?DASH_AC.sort.dir:0,
+    function(sel){if(sel)DASH_AC.flt[k]=sel;else delete DASH_AC.flt[k];dashRender();},
+    function(d){DASH_AC.sort=d?{k:k,dir:d}:null;dashRender();});
+}
+// ---------- 엑셀 붙여넣기 (비밀번호 열 포함 가능) ----------
+function dashAcPaste(){
+  var ED=DASH_AC_COLS.filter(function(c){return (!c.ro&&!c.chk)||c.pw;});
+  var cols=ED.map(function(c){return c.t;}).join(' | ');
+  openModal('<div class="mh">엑셀 붙여넣기 — 계정 관리</div><div class="mb">'
+    +'<div class="hint" style="line-height:1.6;margin-bottom:8px">엑셀에서 아래 순서의 열을 선택해 복사(Ctrl+C)한 뒤 붙여넣으세요(Ctrl+V). 열이 적으면 앞에서부터 채웁니다. 첫 줄이 제목이면 자동으로 건너뜁니다.<br><b>'+inspH(cols)+'</b><br>'
+    +'비밀번호 열은 암호화해 따로 저장합니다. 넣은 뒤에는 받은 엑셀 파일을 삭제하세요.</div>'
+    +'<textarea id="ac_pt" rows="9" style="width:100%;font-family:inherit;font-size:12px" placeholder="여기에 붙여넣기" autocomplete="off" spellcheck="false"></textarea><div id="ac_pv" class="hint" style="margin-top:6px"></div></div>'
+    +'<div class="mf"><button class="mbtn no" onclick="closeModal()">취소</button><button class="mbtn yes" id="ac_pgo">넣기</button></div>');
+  var md=document.getElementById('modal');if(md)md.style.maxWidth='680px';
+  var ta=document.getElementById('ac_pt'),pv=document.getElementById('ac_pv');
+  var parse=function(){var lines=ta.value.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();}).map(function(l){return l.split('\t');});
+    if(lines.length&&/서비스|아이디|구분|캠퍼스/.test(lines[0].join(' ')))lines.shift();return lines;};
+  ta.addEventListener('input',function(){var l=parse();pv.textContent=l.length?l.length+'행을 넣습니다. 첫 행: '+l[0].slice(0,4).join(' / '):'';});
+  document.getElementById('ac_pgo').onclick=function(){
+    var l=parse();if(!l.length){pv.textContent='붙여넣은 내용이 없습니다.';return;}
+    var list=dashAcRows(DASH_AC.pid),last=list[list.length-1]||{},pws=[],cardBad=0;
+    var rows=l.map(function(cells,i){var r=dashAcNew(DASH_AC.pid,last,i+1);r.campus=null;var pw='';
+      ED.forEach(function(c,j){var v=(cells[j]||'').trim();if(!v)return;
+        if(c.pw){pw=v;return;}
+        if(c.card&&dashAcCardBad(v)){cardBad++;return;}
+        if(c.num)v=dashNum(v);else if(c.date)v=dashAsDate(v);
+        if(v!=null&&v!=='')r[c.k]=v;});
+      if(!r.campus)r.campus=last.campus||(dashNames((dashPjOf(DASH_AC.pid)||{}).campus)[0]||null);
+      pws.push(pw);return r;});
+    var btn=this;btn.disabled=true;
+    dashAcInsert(rows).then(function(r){
+      if(r.error){pv.textContent='넣기 실패: '+r.error.message;btn.disabled=false;return;}
+      var got=r.data||[];DASH.accts=DASH.accts.concat(got);
+      // insert 결과는 넣은 순서와 같음 — sort_no로 다시 맞춰서 비밀번호 저장
+      var bySort={};got.forEach(function(x){bySort[x.sort_no]=x;});
+      var jobs=rows.map(function(x,i){return pws[i]&&bySort[x.sort_no]?[bySort[x.sort_no],pws[i]]:null;}).filter(Boolean),ok=0,fail='';
+      var next=function(k){
+        if(k>=jobs.length){closeModal();dashRender();
+          inspToast(rows.length+'행을 넣었습니다'+(jobs.length?' · 비밀번호 '+ok+'건 암호화 저장':'')+(cardBad?' · 카드번호 '+cardBad+'건은 저장하지 않음':'')+(fail?' · 비밀번호 실패: '+fail:''),!!fail);return;}
+        sb.rpc('fac_acct_pw_set',{p_id:jobs[k][0].id,p_pw:jobs[k][1],p_who:dashMe()}).then(function(x){if(x.error)fail=x.error.message;else{ok++;jobs[k][0].has_pw=true;}next(k+1);});};
+      pv.textContent='비밀번호 저장 중...';next(0);
+    });
+  };
+  setTimeout(function(){ta.focus();},0);
+}
+function dashAcCSV(){
+  var p=dashPjOf(DASH_AC.pid);if(!p)return;
+  var C=DASH_AC_COLS.filter(function(c){return !c.pw;});
+  var rows=[['No'].concat(C.map(function(c){return c.t;}))];
+  dashAcRows(p.id).forEach(function(a,i){rows.push([i+1].concat(C.map(function(c){return c.chk?(a.check_by?a.check_by+' '+(a.check_date||''):''):(c.ro?dashAcCell(a,c.k):(a[c.k]==null?'':a[c.k]));})));});
+  var csv='﻿'+rows.map(function(r){return r.map(function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',');}).join('\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='계정관리_'+p.name.replace(/\s+/g,'_')+'_'+inspToday()+'.csv';a.click();
+}
+// ---------- 대표님 보고용 결과 보고서 (아이디·비밀번호 제외) ----------
+function dashAcReport(){
+  var p=dashPjOf(DASH_AC.pid);if(!p)return;var H=inspH,all=dashAcRows(p.id),s=dashAcStat(all),t=inspToday();
+  if(!all.length){inspToast('등록된 계정이 없습니다',true);return;}
+  var pct=function(a,b){return b?Math.round(a*100/b):0;};
+  var acts=DASH_AC_LIST.action.slice();all.forEach(function(a){if(a.action&&acts.indexOf(a.action)<0)acts.push(a.action);});
+  var actRows=acts.map(function(k){var l=all.filter(function(a){return (a.action||'확인 필요')===k;});if(!l.length)return '';
+    var d=l.filter(function(a){return a.proc_status==='완료';}),c=d.filter(function(a){return a.check_by;});
+    return '<tr><td>'+H(k)+'</td><td class="r">'+l.length+'</td><td class="r">'+d.length+'</td><td class="r">'+c.length+'</td><td class="r">'+(l.length-d.length)+'</td><td class="r">'+dashWon(l.reduce(function(x,a){return x+(Number(a.amount)||0);},0))+'</td></tr>';}).join('');
+  var cats={};all.forEach(function(a){var k=a.category||'기타';cats[k]=cats[k]||[0,0];cats[k][0]++;if(a.proc_status==='완료')cats[k][1]++;});
+  var todo=all.filter(function(a){return a.proc_status!=='완료';}).sort(function(a,b){return String(a.next_bill||a.expire_date||'9999').localeCompare(String(b.next_bill||b.expire_date||'9999'));});
+  var done=all.filter(function(a){return a.proc_status==='완료';}).sort(function(a,b){return String(a.done_date||'').localeCompare(String(b.done_date||''));});
+  var d8=function(d){return d?d.slice(2).replace(/-/g,'.'):'';};
+  var risk=[];
+  if(s.auto)risk.push('자동결제가 남아 있는 계정 <b>'+s.auto+'건</b> (월 '+dashWon(s.left)+') — 결제일 전에 해지가 필요합니다.');
+  if(s.soon)risk.push('14일 안에 결제·만료가 도래하는 미처리 계정 <b>'+s.soon+'건</b>.');
+  if(s.done-s.chk)risk.push('처리는 끝났지만 2차 확인이 안 된 계정 <b>'+(s.done-s.chk)+'건</b>.');
+  var noEv=done.filter(function(a){return !dashLinks(a.evidence).length;}).length;if(noEv)risk.push('해지·탈퇴 증빙이 없는 완료 건 <b>'+noEv+'건</b>.');
+  var html='<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>계정 정리 결과 보고 — '+H(p.name)+'</title><style>'
+    +'body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#1d1d1f;margin:0;padding:32px 40px;font-size:12.5px;line-height:1.55}'
+    +'h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:26px 0 8px;padding-bottom:5px;border-bottom:2px solid #1d1d1f}.sub{color:#6e6e73;font-size:12px}'
+    +'.kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:18px}.kpi div{border:1px solid #d2d2d7;border-radius:8px;padding:10px 12px}.kpi b{display:block;font-size:20px}.kpi span{color:#6e6e73;font-size:11.5px}'
+    +'.kpi .hl{border-color:#2c6db3;background:#f3f7fc}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #d2d2d7;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f4f4f6;font-size:11.5px}td.r,th.r{text-align:right}'
+    +'ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}.ok{color:#3b7a4f;font-weight:700}.no{color:#b3261e;font-weight:700}.ft{margin-top:26px;color:#8e8e93;font-size:11px}'
+    +'.pb{position:fixed;top:14px;right:18px}.pb button{padding:8px 16px;border:1px solid #2c6db3;background:#2c6db3;color:#fff;border-radius:8px;font-size:13px;cursor:pointer}'
+    +'@media print{.pb{display:none}body{padding:0}h2{break-after:avoid}tr{break-inside:avoid}}@page{size:A4;margin:14mm}'
+    +'</style></head><body><div class="pb"><button onclick="window.print()">인쇄 · PDF 저장</button></div>'
+    +'<h1>'+H(p.name)+' — 계정·구독 정리 결과 보고</h1><div class="sub">기준일 '+t+' · 작성 총무기획팀 '+H(dashMe())+'</div>'
+    +'<div class="kpi"><div><b>'+s.n+'</b><span>대상 계정</span></div><div class="hl"><b>'+s.done+' <small style="font-size:12px">('+pct(s.done,s.n)+'%)</small></b><span>처리 완료</span></div>'
+    +'<div><b>'+s.chk+'</b><span>2차 확인 완료</span></div><div><b class="'+(s.todo?'no':'')+'">'+s.todo+'</b><span>미처리</span></div>'
+    +'<div><b>'+dashWon(s.saved)+'</b><span>해지로 절감한 월 비용<br>(연 '+dashWon(s.saved*12)+')</span></div></div>'
+    +'<h2>1. 요약</h2><ul><li>대상 '+s.n+'개 계정 중 <b>'+s.done+'건 처리 완료</b>, 그중 <b>'+s.chk+'건</b>은 처리자 외 팀원이 실제 사이트에서 2차 확인했습니다.</li>'
+    +'<li>탈퇴·자동결제 해지로 매월 <b>'+dashWon(s.saved)+'</b>(연 '+dashWon(s.saved*12)+')의 비용이 더 이상 나가지 않습니다.</li>'
+    +(s.todo?'<li>미처리 <b>'+s.todo+'건</b>은 아래 3번 목록에 담당자와 기한을 정리했습니다.</li>':'<li class="ok">모든 계정의 처리가 끝났습니다.</li>')+'</ul>'
+    +(risk.length?'<h2>2. 확인이 필요한 사항</h2><ul>'+risk.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul>':'<h2>2. 확인이 필요한 사항</h2><ul><li class="ok">남은 자동결제·확인 대기 건이 없습니다.</li></ul>')
+    +'<h2>3. 처리 방안별 현황</h2><table><tr><th>처리 방안</th><th class="r">대상</th><th class="r">완료</th><th class="r">2차 확인</th><th class="r">미처리</th><th class="r">월 비용 합계</th></tr>'+actRows
+    +'<tr><th>합계</th><th class="r">'+s.n+'</th><th class="r">'+s.done+'</th><th class="r">'+s.chk+'</th><th class="r">'+s.todo+'</th><th class="r">'+dashWon(all.reduce(function(x,a){return x+(Number(a.amount)||0);},0))+'</th></tr></table>'
+    +'<div class="sub" style="margin-top:6px">구분별: '+Object.keys(cats).map(function(k){return H(k)+' '+cats[k][1]+'/'+cats[k][0];}).join(' · ')+'</div>'
+    +(todo.length?'<h2>4. 미처리 목록 ('+todo.length+'건)</h2><table><tr><th>#</th><th>서비스</th><th>구분</th><th>캠퍼스</th><th>처리 방안</th><th>상태</th><th>결제</th><th class="r">월 비용</th><th>다음 결제·만료</th><th>담당</th></tr>'
+      +todo.map(function(a,i){return '<tr><td>'+(i+1)+'</td><td>'+H(a.service||'')+'</td><td>'+H(a.category||'')+'</td><td>'+H(a.campus||'')+'</td><td>'+H(a.action||'')+'</td><td>'+H(a.proc_status||'미처리')+'</td><td'+(DASH_AC_QUICK.auto.f(a)?' class="no"':'')+'>'+H(a.billing||'')+'</td><td class="r">'+dashWon(a.amount)+'</td><td'+(dashAcSoon(a)?' class="no"':'')+'>'+d8(a.next_bill||a.expire_date)+'</td><td>'+H(a.done_by||a.manager||'')+'</td></tr>';}).join('')+'</table>':'')
+    +(done.length?'<h2>'+(todo.length?'5':'4')+'. 처리 완료 목록 ('+done.length+'건)</h2><table><tr><th>#</th><th>서비스</th><th>구분</th><th>처리 방안</th><th>처리일</th><th>처리자</th><th>2차 확인</th><th class="r">절감 월 비용</th><th>증빙</th></tr>'
+      +done.map(function(a,i){return '<tr><td>'+(i+1)+'</td><td>'+H(a.service||'')+'</td><td>'+H(a.category||'')+'</td><td>'+H(a.action||'')+'</td><td>'+d8(a.done_date)+'</td><td>'+H(a.done_by||'')+'</td><td>'+(a.check_by?'<span class="ok">✓ '+H(a.check_by)+'</span> '+d8(a.check_date):'<span class="no">대기</span>')+'</td><td class="r">'+(/탈퇴|해지|자동결제 취소/.test(a.action||'')?dashWon(a.amount):'')+'</td><td>'+(dashLinks(a.evidence).length?'있음':'-')+'</td></tr>';}).join('')+'</table>':'')
+    +'<div class="ft">※ 보안을 위해 아이디·비밀번호·결제수단은 이 보고서에 넣지 않았습니다. 상세 내역은 캠퍼스 시설지원 포털 &gt; 총무기획팀 &gt; 업무 대시보드 &gt; 계정 관리에서 확인할 수 있습니다.</div>'
+    +'</body></html>';
+  var w=window.open('','_blank');if(!w){inspToast('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요',true);return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
+function dashAcClick(a,v){
+  if(a==='ac_add'){dashAcAdd();return true;}
+  if(a==='ac_del'){dashAcDel(v);return true;}
+  if(a==='ac_pw'){dashAcPw(v);return true;}
+  if(a==='ac_chk'){dashAcCheck(v);return true;}
+  if(a==='ac_paste'){dashAcPaste();return true;}
+  if(a==='ac_csv'){dashAcCSV();return true;}
+  if(a==='ac_report'){dashAcReport();return true;}
+  if(a==='ac_qk'){DASH_AC.quick=DASH_AC.quick===v?'':v;dashRender();return true;}
+  if(a==='ac_flt'){dashAcFlt(document.querySelector('[data-a=ac_flt][data-v="'+v+'"]'),v);return true;}
+  if(a==='ac_fclear'){DASH_AC.flt={};DASH_AC.sort=null;DASH_AC.quick='';dashRender();return true;}
+  return false;
+}
+function dashAcInput(e){
+  var t=e.target;
+  if(t.id==='ac_q'){if(e.type!=='input')return true;DASH_AC.q=t.value.trim();clearTimeout(DASH._acq);DASH._acq=setTimeout(function(){dashRender();var q=document.getElementById('ac_q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},250);return true;}
+  var inT=t.closest&&t.closest('.ac-tbl');
+  if(t.id==='ac_pj'){if(e.type==='change'){DASH_AC.pid=t.value;DASH_AC.flt={};DASH_AC.sort=null;DASH_AC.quick='';dashRender();}return true;}
+  if(!inT)return false;
+  if(e.type!=='change')return true;
+  var tr=t.closest('tr[data-id]');
+  if(tr&&t.dataset.f){
+    if(t.dataset.f==='amount'){var n=dashNum(t.value);t.value=n==null?'':n.toLocaleString('ko-KR');}
+    if(t.dataset.f==='action')t.dataset.ac=t.value;
+    if(t.dataset.f==='acct_status')t.dataset.st=t.value;
+    dashAcSave(tr.dataset.id,t.dataset.f,t.value);}
+  return true;
 }
 
 // ===== 정기점검 (총무기획팀 > 정기점검) =====
